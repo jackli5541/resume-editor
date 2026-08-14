@@ -1,0 +1,6 @@
+node_modules
+var
+tmp
+output
+.git
+*.log

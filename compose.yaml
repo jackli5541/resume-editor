@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: resume_editor
+      POSTGRES_USER: resume
+      POSTGRES_PASSWORD: resume
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U resume -d resume_editor"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    restart: unless-stopped
+
+  app:
+    build: .
+    environment:
+      HOST: 0.0.0.0
+      PORT: 4173
+      DATABASE_URL: postgres://resume:resume@postgres:5432/resume_editor
+      EXPORT_DIR: /app/var/exports
+      TEMPLATE_STORAGE_DIR: /app/var/templates
+      PYTHON_BIN: python3
+      SOFFICE_BIN: soffice
+      PDFTOPPM_BIN: pdftoppm
+      EXPORT_CHROMIUM_NO_SANDBOX: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "4173:4173"
+    volumes:
+      - template-data:/app/var/templates
+      - export-data:/app/var/exports
+    restart: unless-stopped
+
+  template-ingest:
+    build: .
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: postgres://resume:resume@postgres:5432/resume_editor
+      TEMPLATE_STORAGE_DIR: /app/var/templates
+      PYTHON_BIN: python3
+      SOFFICE_BIN: soffice
+      PDFTOPPM_BIN: pdftoppm
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - template-data:/app/var/templates
+    command: ["sh", "-c", "npm run db:migrate && npm run templates:ingest"]
+
+volumes:
+  postgres-data:
+  template-data:
+  export-data:

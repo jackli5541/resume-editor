@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="结构化简历编辑器 MVP" />
+    <title>轻简历 · 在线简历编辑器</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <section id="templateLibrary" class="template-library" aria-label="选择简历模板">
+      <header class="library-header">
+        <a class="brand" href="#" aria-label="轻简历模板库">
+          <span class="brand__mark">Q</span>
+          <span class="brand__text">轻简历</span>
+          <span class="brand__badge">模板库</span>
+        </a>
+        <div class="library-header__meta"><strong>选择模板</strong><span>选择后进入结构化编辑</span></div>
+      </header>
+      <main class="library-main">
+        <div class="library-toolbar">
+          <div><span class="eyebrow">TEMPLATE LIBRARY</span><h1>简历模板</h1></div>
+          <div class="library-legend"><span><i class="status-dot status-dot--ready"></i>可使用</span><span><i class="status-dot"></i>待适配</span></div>
+        </div>
+        <div id="templateList" class="template-grid" aria-live="polite"></div>
+        <p id="templateLibraryStatus" class="library-status">正在加载模板…</p>
+      </main>
+    </section>
+
+    <div id="app" class="app-shell" hidden>
+      <header class="topbar">
+        <div class="topbar__inner">
+          <a class="brand" href="#" aria-label="轻简历首页">
+            <span class="brand__mark">Q</span>
+            <span class="brand__text">轻简历</span>
+            <span class="brand__badge">MVP</span>
+          </a>
+
+          <nav class="toolbar" aria-label="排版工具">
+            <button class="tool-button" type="button" data-action="change-template">
+              <span class="tool-button__icon">▦</span><span>模板</span>
+            </button>
+            <button class="tool-button" type="button" data-popover="spacingPopover">
+              <span class="tool-button__icon">↕</span><span>间距</span>
+            </button>
+            <button class="tool-button" type="button" data-popover="fontPopover">
+              <span class="tool-button__icon">Aa</span><span>字体</span>
+            </button>
+            <label class="tool-button tool-button--color" title="主题颜色">
+              <span class="color-dot" id="themeDot"></span><span>主题</span>
+              <input id="themeInput" type="color" value="#12a77d" aria-label="主题颜色" />
+            </label>
+            <button class="tool-button" type="button" data-action="reset">
+              <span class="tool-button__icon">↺</span><span>重置</span>
+            </button>
+          </nav>
+
+          <div class="topbar__actions">
+            <label class="secondary-button file-button">
+              导入 JSON
+              <input id="importFile" type="file" accept="application/json,.json" />
+            </label>
+            <button class="secondary-button" type="button" data-action="download-json">备份</button>
+            <label class="export-format-control">
+              <span class="sr-only">导出格式</span>
+              <select id="exportFormat" aria-label="导出格式">
+                <option value="pdf">PDF</option>
+                <option value="docx">Word</option>
+              </select>
+            </label>
+            <button class="primary-button" type="button" data-action="export-resume"><span data-export-label>导出 PDF</span></button>
+          </div>
+
+          <section id="spacingPopover" class="popover" hidden>
+            <div class="popover__heading">版面间距</div>
+            <label class="range-field">
+              <span>模块间距 <output id="sectionGapValue">18</output></span>
+              <input type="range" min="8" max="32" step="1" data-setting="sectionGap" />
+            </label>
+            <label class="range-field">
+              <span>行间距 <output id="lineHeightValue">1.65</output></span>
+              <input type="range" min="1.3" max="2.1" step="0.05" data-setting="lineHeight" />
+            </label>
+            <label class="range-field">
+              <span>页面边距 <output id="pagePaddingValue">38</output></span>
+              <input type="range" min="24" max="56" step="1" data-setting="pagePadding" />
+            </label>
+          </section>
+
+          <section id="fontPopover" class="popover" hidden>
+            <div class="popover__heading">字体与字号</div>
+            <label class="select-field">
+              <span>字体</span>
+              <select data-setting="fontFamily">
+                <option value="system">现代无衬线</option>
+                <option value="serif">经典宋体</option>
+                <option value="rounded">圆润黑体</option>
+              </select>
+            </label>
+            <label class="range-field">
+              <span>正文字号 <output id="fontSizeValue">14</output></span>
+              <input type="range" min="12" max="18" step="1" data-setting="fontSize" />
+            </label>
+          </section>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="preview-column" aria-label="简历实时预览">
+          <div class="preview-toolbar">
+            <div>
+              <span class="eyebrow">实时预览</span>
+              <strong id="resumeTitle">产品经理简历</strong>
+            </div>
+            <div class="preview-toolbar__meta">
+              <span id="pageCountBadge">1 页</span>
+              <span class="zoom-badge">100%</span>
+            </div>
+          </div>
+          <div class="preview-stage" id="previewStage">
+            <article class="resume-paper" id="resumePaper">
+              <div class="resume-flow" id="resumeFlow"></div>
+              <div class="page-markers" id="pageMarkers" aria-hidden="true"></div>
+            </article>
+          </div>
+        </section>
+
+        <aside class="side-panel" aria-label="简历状态">
+          <section class="side-card completion-card">
+            <div class="side-card__eyebrow">完成度</div>
+            <div class="score-row">
+              <strong id="completionScore">0%</strong>
+              <span>内容完整度</span>
+            </div>
+            <div class="progress-track"><i id="completionBar"></i></div>
+            <p id="completionHint">继续完善信息，让简历更有说服力。</p>
+          </section>
+
+          <section class="side-card status-card">
+            <div class="side-card__heading">保存状态</div>
+            <div class="save-state" id="saveState">
+              <i></i><span>已保存到本机</span>
+            </div>
+            <dl class="status-grid">
+              <div><dt>模板</dt><dd>清晰单栏</dd></div>
+              <div><dt>页数</dt><dd id="sidePageCount">1 页</dd></div>
+              <div><dt>版本</dt><dd id="revisionText">v1</dd></div>
+              <div><dt>存储</dt><dd>本地草稿</dd></div>
+            </dl>
+          </section>
+
+          <section class="side-card tips-card">
+            <div class="side-card__heading">排版建议</div>
+            <ul>
+              <li><i>1</i><span>每段经历优先写结果，再说明行动。</span></li>
+              <li><i>2</i><span>尽量使用数字体现规模、效率和影响。</span></li>
+              <li><i>3</i><span>内容超过一页时先压缩模块间距。</span></li>
+            </ul>
+          </section>
+
+          <button class="side-export" type="button" data-action="export-resume">
+            <span>↓</span><strong data-export-label>导出简历</strong>
+          </button>
+        </aside>
+      </main>
+
+      <section class="editor-drawer" id="editorDrawer" aria-label="简历编辑面板">
+        <div class="drawer__inner">
+          <div class="module-tabs" id="moduleTabs"></div>
+          <button class="drawer-toggle" type="button" data-action="toggle-drawer" aria-label="展开或收起编辑面板">⌃</button>
+          <div class="drawer-content" id="drawerContent"></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+    <script type="module" src="/app.mjs"></script>
+  </body>
+</html>

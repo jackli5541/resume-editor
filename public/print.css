@@ -1,0 +1,44 @@
+html,
+body.export-document {
+  width: 820px;
+  min-width: 820px;
+  margin: 0;
+  padding: 0;
+  background: #fff;
+}
+
+body.export-document .resume-paper {
+  width: 820px !important;
+  min-height: 1160px !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+  transition: none !important;
+}
+
+body.export-document .resume-flow {
+  min-height: 1160px !important;
+  padding: calc(var(--page-padding) + 5px) var(--page-padding) 42px !important;
+}
+
+body.export-document .resume-header:hover,
+body.export-document .resume-section:hover {
+  background: transparent !important;
+}
+
+body.export-document .resume-section,
+body.export-document .timeline-item {
+  break-inside: auto !important;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  html,
+  body.export-document {
+    width: 820px !important;
+    min-width: 820px !important;
+  }
+}
