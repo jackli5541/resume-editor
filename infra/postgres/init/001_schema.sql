@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS templates (
 CREATE TABLE IF NOT EXISTS template_versions (
   template_slug text NOT NULL REFERENCES templates(slug) ON DELETE CASCADE,
   version integer NOT NULL CHECK (version > 0),
-  status text NOT NULL CHECK (status IN ('ready', 'needs_mapping', 'blocked')),
+  status text NOT NULL CHECK (status IN ('ready', 'needs_mapping', 'needs_qa', 'blocked')),
   engine text NOT NULL CHECK (engine IN ('html-native', 'docx-native')),
   source_url text,
   source_path text,
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS resumes (
 );
 
 INSERT INTO templates (slug, name, category, description)
-VALUES ('clean-single', '清晰单栏', '通用', '系统内置的结构化单栏模板')
+VALUES ('clean-single', '极简轻', '通用', '系统内置的结构化单栏模板')
 ON CONFLICT (slug) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,

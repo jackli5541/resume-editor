@@ -20,15 +20,37 @@ const headers = {
   ...(process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {})
 };
 
+const retryableStatuses = new Set([408, 429, 500, 502, 503, 504]);
+
+async function fetchWithRetry(url, options = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(60_000)
+      });
+      if (!retryableStatuses.has(response.status) || attempt === 5) return response;
+      await response.body?.cancel();
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+      if (attempt === 5) break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500 * (2 ** (attempt - 1))));
+  }
+  throw lastError;
+}
+
 async function githubJson(path, optional = false) {
-  const response = await fetch(`${githubApi}${path}`, { headers });
+  const response = await fetchWithRetry(`${githubApi}${path}`, { headers });
   if (optional && response.status === 404) return null;
   if (!response.ok) throw new Error(`GitHub API ${response.status}: ${await response.text()}`);
   return response.json();
 }
 
 async function download(url, outputPath) {
-  const response = await fetch(url, { headers });
+  const response = await fetchWithRetry(url, { headers });
   if (!response.ok) throw new Error(`Download ${response.status}: ${url}`);
   const declaredSize = Number.parseInt(response.headers.get("content-length") || "0", 10);
   if (declaredSize > 20 * 1024 * 1024) throw new Error("Template exceeds 20 MB");
@@ -57,6 +79,19 @@ async function renderPreview(sourcePath, previewPath) {
     );
     return true;
   } catch (error) {
+    if (process.platform === "win32") {
+      try {
+        await execFileAsync("powershell", [
+          "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+          join(projectRoot, "scripts", "render-docx-preview-word.ps1"),
+          "-SourcePath", sourcePath, "-PreviewPath", previewPath
+        ], { maxBuffer: 5 * 1024 * 1024, timeout: 120_000 });
+        return true;
+      } catch (wordError) {
+        console.warn(`Preview skipped for ${basename(sourcePath)}: ${wordError?.message || wordError}`);
+        return false;
+      }
+    }
     console.warn(`Preview skipped for ${basename(sourcePath)}: ${error?.message || error}`);
     return false;
   }

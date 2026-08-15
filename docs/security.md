@@ -1,0 +1,112 @@
+# 安全设计（登录、权限隔离与防攻击基线）
+
+本文描述「轻简历编辑器」上线所需的安全边界。目标是在保持 MVP 简单的前提下，满足基本安全要求，并为后续接入大模型简历优化预留扩展点。
+
+## 1. 认证：邮箱 / 手机号 + 密码
+
+- 唯一登录标识为 `email` 或 `phone`（二者均唯一、均可为空，但注册时至少提供一个）；登录输入一个字段，后端按是否含 `@` 自动识别是邮箱还是手机号。
+- 邮箱做小写规范化；手机号归一化为 `+` 加数字（`^\+?[0-9]{6,15}$`）。
+- 密码使用 Node 内置 `crypto.scrypt`（N=16384、r=8、p=1、64 字节派生）加盐哈希，存储格式为 `scrypt$N$r$p$salt$hash`，永不落明文。
+- 比较使用 `timingSafeEqual` 恒时比较；账号不存在时也对固定哑哈希执行一次比较，弱化账号枚举时序侧信道。
+- 登录/注册统一返回「账号或密码不正确」，不区分「账号不存在」与「密码错误」。
+- 密码长度 8–200，昵称剥离控制字符与 `<>`。
+- 公开注册可由 `DISABLE_REGISTRATION=true` 关闭（邀请制上线）；测试账号由 `SEED_TEST_USERS` + 种子脚本创建，生产须关闭并改密。
+
+## 2. 会话
+
+- 登录成功后签发 256-bit 随机会话令牌，Cookie 名 `session`，属性 `HttpOnly; SameSite=Lax; Path=/; Max-Age`（HTTPS 后追加 `Secure`）。
+- 服务端只存令牌的 SHA-256 摘要（`sessions.token_hash`），数据库泄漏不直接暴露有效令牌。
+- 会话默认 30 天（`SESSION_TTL_DAYS`），退出登录立即删除会话记录并使 Cookie 失效。
+- 单实例内存降级：未配置 `DATABASE_URL` 时使用内存 Map，仅限本地体验；正式上线必须用 PostgreSQL。
+
+## 3. 授权：ownerId 权限隔离
+
+- `resumes.owner_id` 外键到 `users.id`（`ON DELETE CASCADE`）。
+- 所有草稿接口（创建、列表、读取、`PATCH`、`DELETE`）以及导出/高保真预览创建，均在 SQL 层按 `owner_id = 当前用户` 过滤：
+  - 读取他人草稿、修改、删除他人草稿一律返回 `404`（不泄露存在性）。
+  - 列表只返回自己的草稿。
+- 模板库 `GET /api/templates` 保持公开；编辑、保存、导出必须登录。
+- 导出/预览任务沿用 256-bit 能力令牌（`token`）轮询与下载，令牌不可枚举；任务创建本身已要求登录并校验归属。
+- 历史匿名草稿（`owner_id IS NULL`）在上线后不会被任何已登录接口读取，视为遗留数据。
+
+## 4. 用户设置
+
+- 设置存于 `users.settings`（jsonb），`PATCH /api/me` 只接受白名单键：`theme`、`locale`、`ai`、`displayName`。
+- `ai` 子对象预留：`enabled`、`targetRole`（意向岗位）、`tone`（语气）、`provider`，为后续简历优化提供用户级偏好，不存敏感凭据。
+
+## 5. 管理端与管理员角色
+
+- `users.is_admin` 标记管理员（准入开关）；`users.role` 细分权限（`super_admin` / `operator` / `auditor`，见 `server/permissions.mjs`）。`users.disabled` 标记禁用账户。
+- 管理员由 `ADMIN_EMAILS` / `ADMIN_PHONES` 指定：注册或登录时命中的邮箱或手机号自动获得 `is_admin=true` 与 `role=super_admin`，无需开放公开的管理员注册入口。
+- 所有 `/api/admin/*` 接口要求 `is_admin=true`（普通用户 `403`、未登录 `401`），并按角色检查权限：超级管理员拥有全部权限；运营可管理用户/草稿/回收站/AI 配置/审计；审计为只读。设置角色与操作超级管理员仅限超级管理员。
+- 管理员能力：列出用户（含草稿数）、设置/取消管理员、设置角色、禁用/启用账户（禁用立即失效其全部会话）、软删除用户（连带软删除其草稿）、踢下线（撤销其全部会话）；列出/查看/软删除全站草稿；回收站恢复/彻底删除用户与草稿。
+- 操作审计：所有管理端写操作写入 `admin_audit_log`（操作人/动作/对象/前后快照/IP/UA），可在管理端「审计日志」查看。
+- 软删除：用户与草稿删除后进入回收站，可恢复或彻底删除；软删除用户释放邮箱/手机号唯一占用，允许重新注册。
+- 自我保护：管理员不能修改自己的管理员状态/角色，也不能删除自己的账户，避免误操作把自己锁在门外。
+
+## 6. 网络攻击防护
+
+| 威胁 | 防护 |
+| --- | --- |
+| 暴力破解 / 撞库 | 登录按「IP + 标识（邮箱/手机号）」限流（5 次/15 分钟），按 IP 限流（30 次/15 分钟）；注册按 IP 限流（10 次/小时） |
+| 资源耗尽 | 导出 30 次/小时、高保真预览 60 次/小时（按用户，未登录按 IP） |
+| CSRF | 状态变更请求校验 `Sec-Fetch-Site` 与 `Origin`，跨站直接 403；配合 `SameSite=Lax` Cookie |
+| XSS | 富文本白名单清洗、模板渲染 `escapeHtml`、`Content-Security-Policy`（`script-src 'self'`） |
+| 点击劫持 | `X-Frame-Options: DENY` + CSP `frame-ancestors 'none'` |
+| MIME 嗅探 | `X-Content-Type-Options: nosniff` |
+| SQL 注入 | 全部参数化查询（`pg` 占位符），无字符串拼接 SQL |
+| 时序侧信道 | 会话令牌与密码比较使用 `timingSafeEqual` |
+| 请求体炸弹 | `MAX_EXPORT_REQUEST_BYTES`（默认 2 MB）+ 流式长度校验 |
+| 路径穿越 | 静态资源与模板资产均做 `normalize` + 前缀校验 |
+
+## 7. 上线检查清单
+
+1. 通过密钥系统注入 `DATABASE_URL`、`REDIS_URL`、`S3_*`，替换示例密码（`compose.yaml` 中的 `resume:resume`）。
+2. 在应用前挂反向代理终止 TLS（nginx/Caddy），设置：
+   - `TRUST_PROXY=true`（让限流拿到真实客户端 IP）
+   - `COOKIE_SECURE=true`（会话 Cookie 加 `Secure`）
+   - 由代理返回 HSTS 头
+3. 设置 `ADMIN_EMAILS` / `ADMIN_PHONES` 指定管理员，按需 `DISABLE_REGISTRATION=true` 做邀请制；生产务必关闭 `SEED_TEST_USERS` 并修改测试账号默认密码。
+4. 多实例部署时，把限流器与会话迁移到 Redis（当前为单实例内存实现），草稿读写仍需以 `owner_id` 为准。
+5. 定期备份 PostgreSQL；`sessions` 与 `users` 属于敏感数据，注意访问控制。
+
+## 8. 接入大模型简历优化的安全要求（后续）
+
+- **密钥只在服务端**：大模型 API Key 通过密钥系统注入后端，绝不下发到浏览器或写入前端 `settings`。
+- **授权不变**：AI 优化接口复用同一会话鉴权与 `ownerId`，只能处理本人草稿；输入/输出都走后端校验。
+- **提示注入**：把用户简历视为不可信数据，用结构化字段而非自由拼接指令；系统提示词与用户内容明确隔离，避免简历文本越权改写指令。
+- **PII 与审计**：简历含姓名、电话、邮箱等个人信息，外发到第三方模型前明确告知并遵守数据合规；建议记录调用日志（用户、目标模型、时长、是否命中限制）并做调用配额限流。
+- **输出回写**：模型输出在写回草稿前经过与现有 `validation.mjs` 同级的规范化/长度限制，防止注入超长字段或富文本脚本。
+
+## 9. 验证码登录（后续实现方案）
+
+当前为「密码登录」；后续可叠加「邮箱验证码 / 短信验证码」登录，二者共用 `identifier`（邮箱或手机号）模型，改动集中在认证层。
+
+1. **建表**（幂等迁移）：
+   ```sql
+   CREATE TABLE IF NOT EXISTS verification_codes (
+     id uuid PRIMARY KEY,
+     identifier text NOT NULL,          -- 归一化后的邮箱或手机号
+     code_hash text NOT NULL,           -- 6 位数字验证码的哈希
+     purpose text NOT NULL,             -- 'login' | 'register' | 'reset_password'
+     expires_at timestamptz NOT NULL,
+     attempts integer NOT NULL DEFAULT 0,
+     consumed boolean NOT NULL DEFAULT false,
+     created_at timestamptz NOT NULL DEFAULT now()
+   );
+   CREATE INDEX IF NOT EXISTS verification_codes_lookup_idx
+     ON verification_codes (identifier, purpose, created_at);
+   ```
+
+2. **接口**：
+   - `POST /api/auth/send-code`：`{ identifier }` → 识别邮箱/手机，生成 6 位随机码，**只存哈希**，通过邮件/SMS 渠道发送明文；按 identifier（1 次/分钟）与 IP（10 次/小时）限流，防短信轰炸。
+   - `POST /api/auth/login/code`：`{ identifier, code }` → 校验哈希（`timingSafeEqual`）、5–10 分钟有效期、最多 5 次尝试、一次性（`consumed`）；成功后签发会话。可配置「未注册自动注册」或「仅限已注册」。
+
+3. **安全要点**：
+   - 验证码 6 位数字、5 分钟过期、最多 5 次、用后即焚；只存哈希、恒时比较。
+   - 发送与校验双重限流，防止枚举与短信费用滥用。
+   - 邮件/SMS 供应商凭据只放服务端密钥系统，绝不下发前端。
+   - `password_hash` 改为可空：OTP-only 账号允许无密码；或「验证码登录后引导设置密码」。
+   - 复用现有会话 Cookie 与 `ownerId` 隔离，登录方式不影响授权模型。
+
+> 因为登录标识已经统一为「邮箱或手机号」，验证码登录只需在上述 `send-code`/`login/code` 两个端点里复用 `normalizeIdentifier` / `findUserByIdentifier`，无需改动草稿、管理端与前端路由结构。

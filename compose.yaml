@@ -11,36 +11,104 @@ services:
       timeout: 3s
       retries: 20
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-55432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
     restart: unless-stopped
+    mem_limit: 1g
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "160mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    mem_limit: 192m
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     environment:
       HOST: 0.0.0.0
       PORT: 4173
       DATABASE_URL: postgres://resume:resume@postgres:5432/resume_editor
       EXPORT_DIR: /app/var/exports
+      PREVIEW_DIR: /app/var/previews
       TEMPLATE_STORAGE_DIR: /app/var/templates
-      PYTHON_BIN: python3
-      SOFFICE_BIN: soffice
-      PDFTOPPM_BIN: pdftoppm
-      EXPORT_CHROMIUM_NO_SANDBOX: "true"
+      REDIS_URL: redis://redis:6379
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
+      DISABLE_REGISTRATION: ${DISABLE_REGISTRATION:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      ADMIN_PHONES: ${ADMIN_PHONES:-}
+      SEED_TEST_USERS: ${SEED_TEST_USERS:-false}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@example.com}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin123}
+      SEED_USER_EMAIL: ${SEED_USER_EMAIL:-user@example.com}
+      SEED_USER_PASSWORD: ${SEED_USER_PASSWORD:-user1234}
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     ports:
       - "4173:4173"
     volumes:
-      - template-data:/app/var/templates
-      - export-data:/app/var/exports
+      - ./var/templates:/app/var/templates
+      - ./var/exports:/app/var/exports
+      - ./var/previews:/app/var/previews
     restart: unless-stopped
+    mem_limit: 384m
+
+  document-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    environment:
+      REDIS_URL: redis://redis:6379
+      EXPORT_DIR: /app/var/exports
+      PREVIEW_DIR: /app/var/previews
+      TEMPLATE_STORAGE_DIR: /app/var/templates
+      PYTHON_BIN: python3
+      SOFFICE_BIN: soffice
+      PDFTOPPM_BIN: pdftoppm
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./var/templates:/app/var/templates:ro
+      - ./var/exports:/app/var/exports
+      - ./var/previews:/app/var/previews
+    restart: unless-stopped
+    mem_limit: 1g
 
   template-ingest:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     profiles: ["tools"]
     environment:
       DATABASE_URL: postgres://resume:resume@postgres:5432/resume_editor
@@ -52,10 +120,9 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - template-data:/app/var/templates
+      - ./var/templates:/app/var/templates
     command: ["sh", "-c", "npm run db:migrate && npm run templates:ingest"]
 
 volumes:
   postgres-data:
-  template-data:
-  export-data:
+  redis-data:

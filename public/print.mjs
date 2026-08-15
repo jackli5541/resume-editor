@@ -1,5 +1,5 @@
 import { PAGE_HEIGHT, normalizeResume, pageCountForHeight } from "./core.mjs";
-import { applyResumeSettings, paginateResumeLayout, renderResumeMarkup } from "./resume-renderer.mjs";
+import { applyResumeSettings, applyResumeTemplate, paginateResumeLayout, renderResumeMarkup } from "./resume-renderer.mjs";
 
 async function waitForImages(root) {
   const images = [...root.querySelectorAll("img")];
@@ -16,10 +16,12 @@ async function renderExport() {
   const payloadNode = document.querySelector("#resumeExportData");
   const payload = JSON.parse(payloadNode.textContent);
   const resume = normalizeResume(payload.resume);
+  resume.template = payload.template;
   const paper = document.querySelector("#resumePaper");
   const flow = document.querySelector("#resumeFlow");
 
   applyResumeSettings(paper, resume.settings);
+  applyResumeTemplate(paper, payload.template);
   flow.innerHTML = renderResumeMarkup(resume);
   flow.style.fontSize = `${resume.settings.fontSize}px`;
 

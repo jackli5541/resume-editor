@@ -1,4 +1,5 @@
 import { normalizeResume } from "../public/core.mjs";
+import { getTemplateSchema } from "../public/template-schemas.mjs";
 
 export class RequestValidationError extends Error {
   constructor(message, statusCode = 400) {
@@ -25,14 +26,12 @@ function text(value, label, limit = LIMITS.field) {
 }
 
 function canonicalItem(item, sectionTitle, index) {
-  return {
-    id: text(item.id, `${sectionTitle}第 ${index + 1} 条 ID`, 160),
-    start: text(item.start, `${sectionTitle}第 ${index + 1} 条开始时间`, 80),
-    end: text(item.end, `${sectionTitle}第 ${index + 1} 条结束时间`, 80),
-    organization: text(item.organization, `${sectionTitle}第 ${index + 1} 条名称`),
-    role: text(item.role, `${sectionTitle}第 ${index + 1} 条角色`),
-    content: text(item.content, `${sectionTitle}第 ${index + 1} 条内容`, LIMITS.richText)
-  };
+  if (!item || typeof item !== "object") return text(item, `${sectionTitle}第 ${index + 1} 项`);
+  const result = { id: text(item.id, `${sectionTitle}第 ${index + 1} 条 ID`, 160) };
+  for (const key of ["start", "end", "organization", "role", "name", "level", "date", "content"]) {
+    result[key] = text(item[key], `${sectionTitle}第 ${index + 1} 条${key}`, key === "content" ? LIMITS.richText : LIMITS.field);
+  }
+  return result;
 }
 
 function validatePhoto(value, allowedImageHosts) {
@@ -67,6 +66,8 @@ export function validateExportPayload(payload, options = {}) {
 
   const allowedImageHosts = new Set((options.allowedImageHosts || []).map((host) => host.toLowerCase()));
   const normalized = normalizeResume(payload.resume);
+  const templateRef = payload.template && typeof payload.template === "object" ? payload.template : normalized.template;
+  const templateSchema = getTemplateSchema(templateRef);
   if (normalized.sections.length > LIMITS.sections) throw new RequestValidationError("简历模块数量超过限制");
 
   let totalItems = 0;
@@ -74,12 +75,17 @@ export function validateExportPayload(payload, options = {}) {
     const title = text(section.title, `第 ${sectionIndex + 1} 个模块标题`, LIMITS.title);
     const canonical = {
       id: text(section.id, `第 ${sectionIndex + 1} 个模块 ID`, 160),
-      type: ["objective", "education", "experience", "projects", "richtext"].includes(section.type)
+      type: ["objective", "education", "experience", "projects", "timeline", "list", "levels", "tags", "richtext"].includes(section.type)
         ? section.type
         : "richtext",
       title,
       visible: section.visible !== false
     };
+
+    const parsedLineHeight = Number(section.lineHeight);
+    if (Number.isFinite(parsedLineHeight)) {
+      canonical.lineHeight = Math.min(2.2, Math.max(1.2, parsedLineHeight));
+    }
 
     if (section.type === "objective") {
       canonical.data = {
@@ -105,7 +111,7 @@ export function validateExportPayload(payload, options = {}) {
   const format = ["pdf", "docx"].includes(payload.format) ? payload.format : "pdf";
   return {
     resume: {
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: text(normalized.id, "简历 ID", 160),
       title: text(normalized.title, "简历标题", LIMITS.title),
       updatedAt: text(normalized.updatedAt, "更新时间", 80),
@@ -116,7 +122,7 @@ export function validateExportPayload(payload, options = {}) {
         fontFamily: ["system", "serif", "rounded"].includes(normalized.settings.fontFamily)
           ? normalized.settings.fontFamily
           : "system",
-        fontSize: normalized.settings.fontSize,
+        fontSize: Math.min(templateSchema.styleControls.fontSize?.max || 18, Math.max(templateSchema.styleControls.fontSize?.min || 12, normalized.settings.fontSize)),
         lineHeight: normalized.settings.lineHeight,
         pagePadding: normalized.settings.pagePadding,
         sectionGap: normalized.settings.sectionGap
@@ -129,14 +135,23 @@ export function validateExportPayload(payload, options = {}) {
         city: text(normalized.profile.city, "城市", LIMITS.title),
         birthday: text(normalized.profile.birthday, "出生年月", 80),
         workYears: text(normalized.profile.workYears, "工作年限", LIMITS.title),
+        gender: text(normalized.profile.gender, "性别", 80),
+        politicalStatus: text(normalized.profile.politicalStatus, "政治面貌", LIMITS.title),
+        age: text(normalized.profile.age, "年龄", 80),
+        education: text(normalized.profile.education, "学历", LIMITS.title),
+        school: text(normalized.profile.school, "毕业院校", LIMITS.title),
+        major: text(normalized.profile.major, "专业", LIMITS.title),
+        nativePlace: text(normalized.profile.nativePlace, "籍贯", LIMITS.title),
+        ethnicity: text(normalized.profile.ethnicity, "民族", 80),
+        height: text(normalized.profile.height, "身高", 80),
         photo: validatePhoto(normalized.profile.photo, allowedImageHosts)
       },
       sections
     },
     format,
-    template: payload.template && typeof payload.template === "object" ? {
-      slug: text(payload.template.slug, "模板 ID", 160),
-      version: Number.isSafeInteger(payload.template.version) ? payload.template.version : 1
+    template: templateRef && typeof templateRef === "object" ? {
+      slug: text(templateRef.slug, "模板 ID", 160),
+      version: Number.isSafeInteger(templateRef.version) ? templateRef.version : 1
     } : { slug: "clean-single", version: 1 },
     fileName: sanitizeFileName(payload.fileName || `${normalized.profile.name || "简历"}.${format}`, format)
   };

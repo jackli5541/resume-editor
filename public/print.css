@@ -15,7 +15,7 @@ body.export-document .resume-paper {
   transition: none !important;
 }
 
-body.export-document .resume-flow {
+body.export-document .resume-paper:not([data-template^="resume-collection-cn-"]) .resume-flow {
   min-height: 1160px !important;
   padding: calc(var(--page-padding) + 5px) var(--page-padding) 42px !important;
 }

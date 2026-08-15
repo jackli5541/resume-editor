@@ -7,6 +7,22 @@ from html.parser import HTMLParser
 from xml.sax.saxutils import escape
 
 
+TEMPLATE_THEMES = {
+    "resume-collection-cn-001": "5A779B",
+    "resume-collection-cn-002": "3F6F78",
+    "resume-collection-cn-003": "173E5A",
+    "resume-collection-cn-004": "EF6464",
+    "resume-collection-cn-005": "294D70",
+    "resume-collection-cn-006": "438FC9",
+    "resume-collection-cn-007": "08A8DE",
+    "resume-collection-cn-008": "3498DB",
+    "resume-collection-cn-009": "1599C7",
+    "resume-collection-cn-010": "009DCC",
+}
+FONT_NAME = "Microsoft YaHei"
+FONT_SCALE = 1.0
+
+
 class RichTextParser(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -47,8 +63,9 @@ def rich_lines(value):
 
 
 def run(text, bold=False, size=21, color="334155"):
+    size = max(16, round(size * FONT_SCALE))
     properties = [
-        '<w:rFonts w:ascii="Arial" w:eastAsia="Microsoft YaHei" w:hAnsi="Arial"/>',
+        f'<w:rFonts w:ascii="{FONT_NAME}" w:eastAsia="{FONT_NAME}" w:hAnsi="{FONT_NAME}"/>',
         f'<w:color w:val="{color}"/>',
         f'<w:sz w:val="{size}"/><w:szCs w:val="{size}"/>',
     ]
@@ -128,28 +145,82 @@ def timeline_item(item):
     return header + details + paragraph("", after=30)
 
 
+def compact_item(item):
+    if isinstance(item, str):
+        return paragraph(item, size=20, after=45, bullet=True)
+    primary = item.get("name", "")
+    secondary = " · ".join(value for value in (item.get("level", ""), item.get("date", "")) if value)
+    return paragraph(" · ".join(value for value in (primary, secondary) if value), size=20, after=45, bullet=True)
+
+
+def render_section(section, theme):
+    content = [section_heading(section.get("title", ""), theme)]
+    if section.get("type") == "objective":
+        content.append(objective_table(section.get("data") or {}, theme))
+    elif isinstance(section.get("items"), list):
+        timeline = section.get("type") in ("education", "experience", "projects", "timeline")
+        content.extend((timeline_item(item) if timeline and isinstance(item, dict) else compact_item(item)) for item in section["items"])
+    else:
+        content.extend(paragraph(text, size=20, after=60, bullet=bullet) for text, bullet in rich_lines(section.get("content", "")))
+    return "".join(content)
+
+
+def two_column_table(left_content, right_content, left_width=3300, shade=None):
+    right_width = 9720 - left_width
+    return (
+        '<w:tbl><w:tblPr><w:tblW w:w="9720" w:type="dxa"/><w:tblLayout w:type="fixed"/>'
+        '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/>'
+        '<w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders></w:tblPr>'
+        f'<w:tblGrid><w:gridCol w:w="{left_width}"/><w:gridCol w:w="{right_width}"/></w:tblGrid><w:tr>'
+        + table_cell(left_content, left_width, shade)
+        + table_cell(right_content, right_width)
+        + '</w:tr></w:tbl>'
+    )
+
+
 def build_document(payload):
+    global FONT_NAME, FONT_SCALE
     resume = payload["resume"]
     profile = resume.get("profile", {})
     settings = resume.get("settings", {})
-    theme = re.sub(r"[^0-9A-Fa-f]", "", settings.get("theme", "12A77D"))[:6].upper() or "12A77D"
+    FONT_NAME = {"system": "Microsoft YaHei", "serif": "SimSun", "rounded": "Microsoft YaHei"}.get(settings.get("fontFamily"), "Microsoft YaHei")
+    FONT_SCALE = max(12, min(18, int(settings.get("fontSize", 14)))) / 14
+    template_slug = str((payload.get("template") or {}).get("slug", "clean-single"))
+    theme = TEMPLATE_THEMES.get(template_slug)
+    if not theme:
+        theme = re.sub(r"[^0-9A-Fa-f]", "", settings.get("theme", "12A77D"))[:6].upper() or "12A77D"
     body = []
-    body.append(paragraph(profile.get("name") or "你的姓名", bold=True, size=42, color="172033", after=80, keep_next=True))
-    body.append(paragraph(profile.get("job") or "求职岗位", bold=True, size=24, color=theme, after=90, keep_next=True))
+    name_block = paragraph(profile.get("name") or "你的姓名", bold=True, size=42, color="172033", after=80, keep_next=True)
+    job_block = paragraph(profile.get("job") or "求职岗位", bold=True, size=24, color=theme, after=90, keep_next=True)
     contact = " · ".join(filter(None, [profile.get("mobile"), profile.get("email"), profile.get("city"), profile.get("workYears")]))
-    body.append(paragraph(contact, size=20, color="64748B", after=160))
+    contact_block = paragraph(contact, size=20, color="64748B", after=160)
+    banner_slugs = {"resume-collection-cn-001", "resume-collection-cn-006"}
+    if template_slug in banner_slugs:
+        body.append('<w:tbl><w:tblPr><w:tblW w:w="9720" w:type="dxa"/></w:tblPr><w:tblGrid><w:gridCol w:w="9720"/></w:tblGrid><w:tr>' + table_cell(name_block + job_block + contact_block, 9720, theme) + '</w:tr></w:tbl>')
+    else:
+        body.extend([name_block, job_block, contact_block])
 
-    for section in resume.get("sections", []):
-        if section.get("visible") is False:
-            continue
-        body.append(section_heading(section.get("title", ""), theme))
-        if section.get("type") == "objective":
-            body.append(objective_table(section.get("data") or {}, theme))
-        elif isinstance(section.get("items"), list):
-            body.extend(timeline_item(item) for item in section["items"])
+    sections = [section for section in resume.get("sections", []) if section.get("visible") is not False]
+    sidebar_ids = {
+        "resume-collection-cn-004": {"objective", "skills"},
+        "resume-collection-cn-005": {"skills", "interests"},
+        "resume-collection-cn-007": {"objective", "skills", "interests"},
+        "resume-collection-cn-008": {"certificates", "interests"},
+    }
+    if template_slug in sidebar_ids:
+        side = "".join(render_section(section, theme) for section in sections if section.get("id") in sidebar_ids[template_slug])
+        main = "".join(render_section(section, theme) for section in sections if section.get("id") not in sidebar_ids[template_slug])
+        if template_slug == "resume-collection-cn-007":
+            body.append(two_column_table(main, side, 6500, "E9EEF2"))
         else:
-            for text, bullet in rich_lines(section.get("content", "")):
-                body.append(paragraph(text, size=20, after=60, bullet=bullet))
+            body.append(two_column_table(side, main, 3150, "EAF4F8"))
+    elif template_slug in {"resume-collection-cn-009", "resume-collection-cn-010"}:
+        left_ids = {"summary", "education", "skills"} if template_slug.endswith("009") else {"summary", "education", "projects"}
+        left = "".join(render_section(section, theme) for section in sections if section.get("id") in left_ids)
+        right = "".join(render_section(section, theme) for section in sections if section.get("id") not in left_ids)
+        body.append(two_column_table(left, right, 4550))
+    else:
+        body.extend(render_section(section, theme) for section in sections)
 
     body.append(
         '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>'

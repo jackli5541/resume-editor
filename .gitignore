@@ -5,3 +5,16 @@ coverage/
 *.log
 var/
 tmp/
+
+# 本地环境与密钥（示例文件除外）
+.env
+.env.*
+!.env.example
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 生成产物与原始素材（非运行所需）
+output/
+picture/

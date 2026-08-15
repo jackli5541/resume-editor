@@ -4,37 +4,597 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="结构化简历编辑器 MVP" />
+    <meta name="theme-color" content="#12a77d" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <title>轻简历 · 在线简历编辑器</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <section id="homePage" class="home-page" hidden>
+      <header class="library-header">
+        <a class="brand" href="/" aria-label="轻简历首页">
+          <span class="brand__mark"><img src="/logo.png" alt="" width="24" height="24" /></span><span class="brand__text">轻简历</span>
+        </a>
+        <nav class="primary-nav" aria-label="主导航">
+          <a class="is-active" href="/">首页</a><a href="/templates">模板库</a><a href="/drafts">草稿</a><a href="/ai">AI 生成</a><a href="/admin" data-admin-link hidden>管理端</a>
+        </nav>
+        <div class="account-area">
+          <a class="github-link" href="https://github.com/jackli5541/resume-editor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库" title="在 GitHub 上查看源码"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+          <button class="account-button" type="button" data-action="account" aria-haspopup="true" aria-expanded="false">
+            <span class="account-avatar__mark" data-avatar-mark>登</span>
+            <span data-account-label>登录</span>
+          </button>
+          <div class="account-dropdown" data-account-dropdown hidden>
+            <div class="account-dropdown__identity">
+              <strong data-account-name></strong>
+              <small data-account-email></small>
+            </div>
+            <button class="account-dropdown__item" type="button" data-action="open-settings">账户设置</button>
+            <a class="account-dropdown__item" href="/admin" data-admin-link hidden>管理端</a>
+            <button class="account-dropdown__item account-dropdown__item--danger" type="button" data-action="logout">退出登录</button>
+          </div>
+        </div>
+      </header>
+      <main class="home-main">
+        <section class="home-overview">
+          <div class="home-hero">
+            <span class="eyebrow">CLEAN SINGLE · AI</span>
+            <h1 class="home-hero__title">
+              <span class="hero-line">轻快 AI 生成，</span>
+              <span class="hero-line hero-line--rotator">
+                <span class="hero-rotator" id="heroRotator">一句话生成简历</span><span class="hero-caret" aria-hidden="true"></span>
+              </span>
+            </h1>
+            <p class="home-hero__lead">粘贴一段经历描述，AI 自动整理成结构化简历——无需逐项填写个人信息，不编造、可微调、导出即用。</p>
+            <div class="home-hero__actions">
+              <a class="home-primary-action" href="/ai">快速开始 <span aria-hidden="true">→</span></a>
+              <a class="home-secondary-action" href="/templates">浏览全部模板</a>
+            </div>
+            <ul class="home-hero__points" aria-label="核心特点">
+              <li>⚡ 轻快生成</li>
+              <li>✨ 无需整理</li>
+              <li>🛡 真实可微调</li>
+            </ul>
+          </div>
+          <div class="home-hero__preview" aria-hidden="true">
+            <div class="ai-demo">
+              <div class="ai-demo__prompt">
+                <span class="ai-demo__spark" aria-hidden="true">✦</span>
+                <span class="ai-demo__prompt-text" data-ai-demo-text></span>
+                <span class="ai-demo__caret" aria-hidden="true"></span>
+              </div>
+              <div class="ai-demo__status">
+                <span class="ai-demo__pulse" aria-hidden="true"></span>
+                <span data-ai-demo-status>AI 正在整理…</span>
+              </div>
+              <div class="home-template-preview ai-demo__resume">
+                <div class="htp-name"></div>
+                <div class="htp-meta"></div>
+                <div class="htp-section"><i></i></div>
+                <div class="htp-lines"><i></i><i></i><i></i></div>
+                <div class="htp-section"><i></i></div>
+                <div class="htp-lines"><i></i><i></i></div>
+                <div class="htp-section"><i></i></div>
+                <div class="htp-lines"><i></i><i></i><i></i></div>
+              </div>
+              <div class="ai-demo__fields" aria-hidden="true">
+                <span>姓名</span><span>工作经历</span><span>项目</span><span>技能</span><span>自我评价</span>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="home-features" aria-label="为什么选择轻简历">
+          <article class="feature-card reveal">
+            <span class="feature-card__icon" aria-hidden="true">⚡</span>
+            <h3>轻快生成</h3>
+            <p>一句话描述，几秒产出结构化草稿，边想边说不用排格式。</p>
+          </article>
+          <article class="feature-card reveal">
+            <span class="feature-card__icon" aria-hidden="true">✨</span>
+            <h3>无需整理</h3>
+            <p>经历自动归类到对应模块，不必逐项填写、核对个人信息。</p>
+          </article>
+          <article class="feature-card reveal">
+            <span class="feature-card__icon" aria-hidden="true">🛡</span>
+            <h3>真实可微调</h3>
+            <p>未提到的信息绝不编造，不确定处高亮提示，随时修改。</p>
+          </article>
+        </section>
+        <section class="home-drafts reveal">
+          <div class="section-heading-row"><div><span class="eyebrow">RECENT DRAFTS</span><h2>最近草稿</h2></div><span id="homeDraftCount" class="section-count"></span></div>
+          <div id="homeDraftList" class="home-draft-list"></div>
+          <p id="homeEmptyState" class="home-empty-state">还没有草稿，从模板库开始创建。</p>
+        </section>
+        <section class="home-about" aria-label="平台初衷">
+          <div class="home-about__inner">
+            <span class="eyebrow">OUR STORY</span>
+            <h2>做一份好简历，不该费钱又费力</h2>
+            <p>网上不少简历工具，导出要收费，下载模板还得自己逐项修改；让 AI 直接生成 Word，效果又常常不尽如人意。于是我们做了「轻简历」——把结构、排版和重点整理都替你做好，你只需专注内容本身。希望它能帮同学们轻松做出一份清晰、美观、一眼见重点的简历，并且导出完全免费。</p>
+          </div>
+        </section>
+      </main>
+    </section>
+
     <section id="templateLibrary" class="template-library" aria-label="选择简历模板">
       <header class="library-header">
-        <a class="brand" href="#" aria-label="轻简历模板库">
-          <span class="brand__mark">Q</span>
+        <a class="brand" href="/" aria-label="轻简历首页">
+          <span class="brand__mark"><img src="/logo.png" alt="" width="24" height="24" /></span>
           <span class="brand__text">轻简历</span>
           <span class="brand__badge">模板库</span>
         </a>
-        <div class="library-header__meta"><strong>选择模板</strong><span>选择后进入结构化编辑</span></div>
+        <nav class="primary-nav" aria-label="主导航">
+          <a href="/">首页</a><a class="is-active" href="/templates">模板库</a><a href="/drafts">草稿</a><a href="/ai">AI 生成</a><a href="/admin" data-admin-link hidden>管理端</a>
+        </nav>
+        <div class="account-area">
+          <a class="github-link" href="https://github.com/jackli5541/resume-editor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库" title="在 GitHub 上查看源码"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+          <button class="account-button" type="button" data-action="account" aria-haspopup="true" aria-expanded="false">
+            <span class="account-avatar__mark" data-avatar-mark>登</span>
+            <span data-account-label>登录</span>
+          </button>
+          <div class="account-dropdown" data-account-dropdown hidden>
+            <div class="account-dropdown__identity">
+              <strong data-account-name></strong>
+              <small data-account-email></small>
+            </div>
+            <button class="account-dropdown__item" type="button" data-action="open-settings">账户设置</button>
+            <a class="account-dropdown__item" href="/admin" data-admin-link hidden>管理端</a>
+            <button class="account-dropdown__item account-dropdown__item--danger" type="button" data-action="logout">退出登录</button>
+          </div>
+        </div>
       </header>
       <main class="library-main">
         <div class="library-toolbar">
           <div><span class="eyebrow">TEMPLATE LIBRARY</span><h1>简历模板</h1></div>
           <div class="library-legend"><span><i class="status-dot status-dot--ready"></i>可使用</span><span><i class="status-dot"></i>待适配</span></div>
         </div>
+        <section id="templateFeatured" class="template-featured" aria-label="推荐模板" hidden></section>
         <div id="templateList" class="template-grid" aria-live="polite"></div>
         <p id="templateLibraryStatus" class="library-status">正在加载模板…</p>
+      </main>
+    </section>
+
+    <section id="draftPage" class="draft-page" hidden>
+      <header class="library-header">
+        <a class="brand" href="/" aria-label="轻简历首页">
+          <span class="brand__mark"><img src="/logo.png" alt="" width="24" height="24" /></span><span class="brand__text">轻简历</span>
+        </a>
+        <nav class="primary-nav" aria-label="主导航">
+          <a href="/">首页</a><a href="/templates">模板库</a><a class="is-active" href="/drafts">草稿</a><a href="/ai">AI 生成</a><a href="/admin" data-admin-link hidden>管理端</a>
+        </nav>
+        <div class="account-area">
+          <a class="github-link" href="https://github.com/jackli5541/resume-editor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库" title="在 GitHub 上查看源码"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+          <button class="account-button" type="button" data-action="account" aria-haspopup="true" aria-expanded="false">
+            <span class="account-avatar__mark" data-avatar-mark>登</span>
+            <span data-account-label>登录</span>
+          </button>
+          <div class="account-dropdown" data-account-dropdown hidden>
+            <div class="account-dropdown__identity">
+              <strong data-account-name></strong>
+              <small data-account-email></small>
+            </div>
+            <button class="account-dropdown__item" type="button" data-action="open-settings">账户设置</button>
+            <a class="account-dropdown__item" href="/admin" data-admin-link hidden>管理端</a>
+            <button class="account-dropdown__item account-dropdown__item--danger" type="button" data-action="logout">退出登录</button>
+          </div>
+        </div>
+      </header>
+      <main class="library-main">
+        <section id="drafts" class="draft-section">
+          <div class="section-heading-row">
+            <div><span class="eyebrow">ALL DRAFTS</span><h1>我的草稿</h1></div>
+            <span id="draftCount" class="section-count"></span>
+          </div>
+          <div id="draftList" class="draft-list" aria-live="polite"></div>
+          <p id="draftEmptyState" class="home-empty-state">还没有草稿，从模板库创建一份简历。</p>
+        </section>
+      </main>
+    </section>
+
+    <section id="adminPage" class="admin-page" hidden>
+      <header class="library-header">
+        <a class="brand" href="/" aria-label="轻简历首页">
+          <span class="brand__mark"><img src="/logo.png" alt="" width="24" height="24" /></span>
+          <span class="brand__text">轻简历</span>
+          <span class="brand__badge">管理端</span>
+        </a>
+        <nav class="primary-nav" aria-label="主导航">
+          <a href="/">首页</a><a href="/templates">模板库</a><a href="/drafts">草稿</a><a href="/ai">AI 生成</a><a class="is-active" href="/admin">管理端</a>
+        </nav>
+        <div class="account-area">
+          <a class="github-link" href="https://github.com/jackli5541/resume-editor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库" title="在 GitHub 上查看源码"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+          <button class="account-button" type="button" data-action="account" aria-haspopup="true" aria-expanded="false">
+            <span class="account-avatar__mark" data-avatar-mark>登</span>
+            <span data-account-label>登录</span>
+          </button>
+          <div class="account-dropdown" data-account-dropdown hidden>
+            <div class="account-dropdown__identity">
+              <strong data-account-name></strong>
+              <small data-account-email></small>
+            </div>
+            <button class="account-dropdown__item" type="button" data-action="open-settings">账户设置</button>
+            <a class="account-dropdown__item" href="/admin" data-admin-link hidden>管理端</a>
+            <button class="account-dropdown__item account-dropdown__item--danger" type="button" data-action="logout">退出登录</button>
+          </div>
+        </div>
+      </header>
+      <main class="library-main admin-main">
+        <div class="admin-heading">
+          <div><span class="eyebrow">ADMIN</span><h1>管理控制台</h1></div>
+        </div>
+        <div class="admin-stats" id="adminStats"></div>
+        <div id="adminChart" class="admin-chart" hidden></div>
+        <div class="admin-tabs" role="tablist" aria-label="管理功能">
+          <button class="admin-tab is-active" type="button" data-admin-tab="users">用户管理</button>
+          <button class="admin-tab" type="button" data-admin-tab="resumes">草稿管理</button>
+          <button class="admin-tab" type="button" data-admin-tab="announcements">公告</button>
+          <button class="admin-tab" type="button" data-admin-tab="feedback">反馈</button>
+          <button class="admin-tab" type="button" data-admin-tab="templates">模板</button>
+          <button class="admin-tab" type="button" data-admin-tab="ai">AI 配置</button>
+          <button class="admin-tab" type="button" data-admin-tab="logs">AI 调用</button>
+          <button class="admin-tab" type="button" data-admin-tab="costs">AI 成本</button>
+          <button class="admin-tab" type="button" data-admin-tab="audit">审计日志</button>
+          <button class="admin-tab" type="button" data-admin-tab="recycle">回收站</button>
+          <button class="admin-tab" type="button" data-admin-tab="config">配置</button>
+          <button class="admin-tab" type="button" data-admin-tab="system">运维</button>
+        </div>
+        <section class="admin-panel" data-admin-panel="users">
+          <div class="admin-toolbar">
+            <input type="search" id="adminUserSearch" placeholder="搜索邮箱、手机号或昵称" aria-label="搜索用户" />
+            <select id="adminUserRole" data-admin-filter="users" aria-label="筛选角色">
+              <option value="">全部角色</option>
+              <option value="user">普通用户</option>
+              <option value="super_admin">超级管理员</option>
+              <option value="operator">运营</option>
+              <option value="auditor">审计</option>
+            </select>
+            <select id="adminUserStatus" data-admin-filter="users" aria-label="筛选状态">
+              <option value="">全部状态</option>
+              <option value="active">正常</option>
+              <option value="disabled">已禁用</option>
+            </select>
+            <input type="date" id="adminUserFrom" data-admin-filter="users" aria-label="注册起始日期" />
+            <input type="date" id="adminUserTo" data-admin-filter="users" aria-label="注册结束日期" />
+            <button type="button" class="admin-csv" data-action="admin-export-csv" data-csv="users">导出 CSV</button>
+            <span id="adminUserTotal" class="section-count"></span>
+          </div>
+          <div id="adminUserList" class="admin-table-wrap" aria-live="polite"></div>
+          <p id="adminUserStatus" class="library-status">正在加载用户…</p>
+        </section>
+        <section class="admin-panel" data-admin-panel="resumes" hidden>
+          <div class="admin-toolbar">
+            <input type="search" id="adminResumeSearch" placeholder="搜索姓名、标题、邮箱或手机号" aria-label="搜索草稿" />
+            <select id="adminResumeTemplate" data-admin-filter="resumes" aria-label="筛选模板">
+              <option value="">全部模板</option>
+            </select>
+            <input type="date" id="adminResumeFrom" data-admin-filter="resumes" aria-label="更新起始日期" />
+            <input type="date" id="adminResumeTo" data-admin-filter="resumes" aria-label="更新结束日期" />
+            <button type="button" class="admin-csv" data-action="admin-export-csv" data-csv="resumes">导出 CSV</button>
+            <span id="adminResumeTotal" class="section-count"></span>
+          </div>
+          <div id="adminResumeList" class="admin-table-wrap" aria-live="polite"></div>
+          <p id="adminResumeStatus" class="library-status">正在加载草稿…</p>
+        </section>
+        <section class="admin-panel" data-admin-panel="ai" hidden>
+          <form class="admin-form" id="adminAiForm" novalidate>
+            <div class="admin-form__grid">
+              <div class="admin-field admin-field--wide">
+                <span class="admin-field__label">功能开关</span>
+                <label class="admin-check"><input type="checkbox" id="adminAiEnabled" /> 启用 AI 生成</label>
+                <small>关闭后，所有 AI 生成接口返回不可用。</small>
+              </div>
+              <label class="admin-field">
+                <span class="admin-field__label">服务地址（base URL）</span>
+                <input type="url" id="adminAiBaseUrl" placeholder="https://api.deepseek.com" />
+              </label>
+              <label class="admin-field">
+                <span class="admin-field__label">模型</span>
+                <input type="text" id="adminAiModel" placeholder="deepseek-chat" maxlength="120" />
+              </label>
+              <label class="admin-field">
+                <span class="admin-field__label">温度（0–1）</span>
+                <input type="number" id="adminAiTemperature" min="0" max="1" step="0.1" />
+              </label>
+              <label class="admin-field">
+                <span class="admin-field__label">最大输入字符</span>
+                <input type="number" id="adminAiMaxInput" min="500" max="20000" step="100" />
+              </label>
+              <label class="admin-field">
+                <span class="admin-field__label">最大输出 token</span>
+                <input type="number" id="adminAiMaxOutput" min="256" max="8000" step="100" />
+              </label>
+              <label class="admin-field">
+                <span class="admin-field__label">超时（毫秒）</span>
+                <input type="number" id="adminAiTimeout" min="5000" max="120000" step="1000" />
+              </label>
+              <label class="admin-field admin-field--wide">
+                <span class="admin-field__label">系统提示词（可选）</span>
+                <textarea id="adminAiSystemPrompt" rows="3" placeholder="追加到内置抽取规则之后，用于补充目标岗位或行业约束"></textarea>
+              </label>
+              <div class="admin-field admin-field--wide">
+                <span class="admin-field__label">API Key</span>
+                <div class="admin-key-row">
+                  <input type="password" id="adminAiApiKey" autocomplete="new-password" placeholder="留空则不修改" />
+                  <span id="adminAiKeyHint" class="admin-key-hint"></span>
+                  <button type="button" class="danger-link" data-action="admin-clear-ai-key">清除已保存 Key</button>
+                </div>
+                <small>仅以加密形式存储，保存后不回显完整明文。</small>
+              </div>
+            </div>
+            <div class="admin-form__footer">
+              <button type="submit" class="admin-submit" id="adminAiSave">保存配置</button>
+              <span id="adminAiStatus" class="library-status" role="status"></span>
+            </div>
+          </form>
+        </section>
+        <section class="admin-panel" data-admin-panel="logs" hidden>
+          <div class="admin-toolbar">
+            <input type="search" id="adminAiLogSearch" placeholder="搜索邮箱、手机号、模型或状态" aria-label="搜索 AI 调用" />
+            <select id="adminAiLogStatusFilter" data-admin-filter="logs" aria-label="筛选状态">
+              <option value="">全部状态</option>
+              <option value="ok">成功</option>
+              <option value="invalid_json">无效 JSON</option>
+              <option value="timeout">超时</option>
+              <option value="provider_error">服务异常</option>
+              <option value="rate_limited">上游限流</option>
+              <option value="blocked">已拦截</option>
+            </select>
+            <input type="date" id="adminAiLogFrom" data-admin-filter="logs" aria-label="起始日期" />
+            <input type="date" id="adminAiLogTo" data-admin-filter="logs" aria-label="结束日期" />
+            <button type="button" class="admin-csv" data-action="admin-export-csv" data-csv="ai-logs">导出 CSV</button>
+            <span id="adminAiLogTotal" class="section-count"></span>
+          </div>
+          <div id="adminAiLogList" class="admin-table-wrap" aria-live="polite"></div>
+          <p id="adminAiLogStatus" class="library-status">正在加载 AI 调用记录…</p>
+        </section>
+        <section class="admin-panel" data-admin-panel="audit" hidden>
+          <div class="admin-toolbar">
+            <input type="search" id="adminAuditSearch" placeholder="搜索操作人、动作、对象类型或对象 ID" aria-label="搜索审计记录" />
+            <select id="adminAuditAction" data-admin-filter="audit" aria-label="筛选动作">
+              <option value="">全部动作</option>
+              <option value="user.update">更新用户</option>
+              <option value="user.delete">删除用户</option>
+              <option value="user.revoke_sessions">踢下线</option>
+              <option value="resume.delete">删除草稿</option>
+              <option value="recycle.restore">恢复</option>
+              <option value="recycle.purge">彻底删除</option>
+              <option value="ai_config.update">更新 AI 配置</option>
+              <option value="announcement.create">新建公告</option>
+              <option value="announcement.update">更新公告</option>
+              <option value="announcement.delete">删除公告</option>
+              <option value="feedback.update">处理反馈</option>
+              <option value="template.status">模板状态</option>
+              <option value="message.broadcast">广播站内信</option>
+            </select>
+            <input type="date" id="adminAuditFrom" data-admin-filter="audit" aria-label="起始日期" />
+            <input type="date" id="adminAuditTo" data-admin-filter="audit" aria-label="结束日期" />
+            <button type="button" class="admin-csv" data-action="admin-export-csv" data-csv="audit">导出 CSV</button>
+            <span id="adminAuditTotal" class="section-count"></span>
+          </div>
+          <div id="adminAuditList" class="admin-table-wrap" aria-live="polite"></div>
+          <p id="adminAuditStatus" class="library-status">正在加载审计记录…</p>
+        </section>
+        <section class="admin-panel" data-admin-panel="recycle" hidden>
+          <div class="admin-toolbar">
+            <input type="search" id="adminRecycleSearch" placeholder="搜索邮箱、手机号、姓名或标题" aria-label="搜索回收站" />
+            <input type="date" id="adminRecycleFrom" data-admin-filter="recycle" aria-label="删除起始日期" />
+            <input type="date" id="adminRecycleTo" data-admin-filter="recycle" aria-label="删除结束日期" />
+            <span id="adminRecycleTotal" class="section-count"></span>
+          </div>
+          <h2 class="admin-subhead">已删除用户</h2>
+          <div id="adminRecycleUserList" class="admin-table-wrap" aria-live="polite"></div>
+          <h2 class="admin-subhead">已删除草稿</h2>
+          <div id="adminRecycleResumeList" class="admin-table-wrap" aria-live="polite"></div>
+          <p id="adminRecycleStatus" class="library-status">正在加载回收站…</p>
+        </section>
+        <section class="admin-panel" data-admin-panel="announcements" hidden>
+          <div class="admin-toolbar">
+            <input type="search" id="adminAnnouncementSearch" placeholder="搜索标题或内容" aria-label="搜索公告" />
+            <select id="adminAnnouncementFilter" data-admin-filter="announcements" aria-label="筛选状态">
+              <option value="">全部状态</option>
+              <option value="draft">草稿</option>
+              <option value="published">已发布</option>
+              <option value="archived">已归档</option>
+            </select>
+            <button type="button" class="admin-submit" data-action="admin-new-announcement">新建公告</button>
+            <span id="adminAnnouncementTotal" class="section-count"></span>
+          </div>
+          <form class="admin-form admin-inline-form" id="adminAnnouncementForm" hidden novalidate>
+            <input type="hidden" id="adminAnnouncementId" />
+            <div class="admin-form__grid">
+              <label class="admin-field"><span class="admin-field__label">标题</span><input type="text" id="adminAnnouncementTitle" maxlength="200" /></label>
+              <label class="admin-field"><span class="admin-field__label">状态</span>
+                <select id="adminAnnouncementStatus">
+                  <option value="draft">草稿</option>
+                  <option value="published">已发布</option>
+                  <option value="archived">已归档</option>
+                </select>
+              </label>
+              <label class="admin-field admin-field--wide"><span class="admin-field__label">内容</span><textarea id="adminAnnouncementContent" rows="3"></textarea></label>
+            </div>
+            <div class="admin-form__footer">
+              <button type="submit" class="admin-submit" id="adminAnnouncementSave">保存公告</button>
+              <button type="button" class="admin-link" data-action="admin-cancel-announcement">取消</button>
+            </div>
+          </form>
+          <div id="adminAnnouncementList" class="admin-table-wrap" aria-live="polite"></div>
+          <p id="adminAnnouncementLoadStatus" class="library-status">正在加载公告…</p>
+        </section>
+        <section class="admin-panel" data-admin-panel="feedback" hidden>
+          <div class="admin-toolbar">
+            <input type="search" id="adminFeedbackSearch" placeholder="搜索内容、类型或用户" aria-label="搜索反馈" />
+            <select id="adminFeedbackFilter" data-admin-filter="feedback" aria-label="筛选状态">
+              <option value="">全部状态</option>
+              <option value="open">待处理</option>
+              <option value="in_progress">处理中</option>
+              <option value="resolved">已解决</option>
+              <option value="closed">已关闭</option>
+            </select>
+            <span id="adminFeedbackTotal" class="section-count"></span>
+          </div>
+          <form class="admin-form admin-inline-form" id="adminFeedbackReplyForm" hidden novalidate>
+            <input type="hidden" id="adminFeedbackReplyId" />
+            <div class="admin-form__grid">
+              <label class="admin-field"><span class="admin-field__label">状态</span>
+                <select id="adminFeedbackReplyStatus">
+                  <option value="open">待处理</option>
+                  <option value="in_progress">处理中</option>
+                  <option value="resolved">已解决</option>
+                  <option value="closed">已关闭</option>
+                </select>
+              </label>
+              <label class="admin-field admin-field--wide"><span class="admin-field__label">回复内容</span><textarea id="adminFeedbackReplyText" rows="2"></textarea></label>
+            </div>
+            <div class="admin-form__footer">
+              <button type="submit" class="admin-submit">保存回复</button>
+              <button type="button" class="admin-link" data-action="admin-cancel-feedback">取消</button>
+            </div>
+          </form>
+          <div id="adminFeedbackList" class="admin-table-wrap" aria-live="polite"></div>
+          <p id="adminFeedbackStatus" class="library-status">正在加载反馈…</p>
+        </section>
+        <section class="admin-panel" data-admin-panel="templates" hidden>
+          <div class="admin-toolbar">
+            <input type="search" id="adminTemplateSearch" placeholder="搜索模板名称或分类" aria-label="搜索模板" />
+            <span id="adminTemplateTotal" class="section-count"></span>
+          </div>
+          <div id="adminTemplateList" class="admin-table-wrap" aria-live="polite"></div>
+          <p id="adminTemplateStatus" class="library-status">正在加载模板…</p>
+        </section>
+        <section class="admin-panel" data-admin-panel="costs" hidden>
+          <div class="admin-toolbar">
+            <select id="adminCostDays" data-admin-filter="costs" aria-label="时间范围">
+              <option value="7">近 7 天</option>
+              <option value="30" selected>近 30 天</option>
+              <option value="90">近 90 天</option>
+            </select>
+            <span id="adminCostTotal" class="section-count"></span>
+          </div>
+          <h2 class="admin-subhead">按模型汇总</h2>
+          <div id="adminCostModelList" class="admin-table-wrap"></div>
+          <h2 class="admin-subhead">按日明细</h2>
+          <div id="adminCostList" class="admin-table-wrap"></div>
+          <p id="adminCostStatus" class="library-status">正在加载 AI 成本…</p>
+        </section>
+        <section class="admin-panel" data-admin-panel="config" hidden>
+          <div class="admin-toolbar">
+            <h2 class="admin-subhead">运行配置（Feature Flag）</h2>
+          </div>
+          <form id="adminConfigForm" novalidate>
+            <div id="adminConfigFields" class="admin-form__grid"></div>
+            <div class="admin-form__footer">
+              <button type="submit" class="admin-submit">保存配置</button>
+              <span id="adminConfigMsg" class="library-status" role="status"></span>
+            </div>
+          </form>
+        </section>
+        <section class="admin-panel" data-admin-panel="system" hidden>
+          <div class="admin-toolbar">
+            <h2 class="admin-subhead">运维状态</h2>
+            <div class="admin-toolbar__actions">
+              <button type="button" class="admin-csv" data-action="admin-refresh-system">刷新</button>
+              <button type="button" class="admin-csv" data-admin-write data-action="admin-retry-failed">重试失败任务</button>
+              <button type="button" class="admin-csv" data-admin-write data-action="admin-clean-queue" data-type="failed">清理失败任务</button>
+              <button type="button" class="admin-csv" data-admin-write data-action="admin-clean-queue" data-type="completed">清理已完成任务</button>
+            </div>
+          </div>
+          <div id="adminSystemStats" class="admin-stats"></div>
+          <div id="adminSystemDetail" class="admin-table-wrap"></div>
+          <h2 class="admin-subhead">告警记录</h2>
+          <div id="adminAlertList" class="admin-table-wrap"></div>
+          <p id="adminSystemStatus" class="library-status">正在加载运维状态…</p>
+        </section>
+      </main>
+    </section>
+
+    <section id="aiPage" class="ai-page" hidden>
+      <header class="library-header">
+        <a class="brand" href="/" aria-label="轻简历首页">
+          <span class="brand__mark"><img src="/logo.png" alt="" width="24" height="24" /></span>
+          <span class="brand__text">轻简历</span>
+          <span class="brand__badge">AI 生成</span>
+        </a>
+        <nav class="primary-nav" aria-label="主导航">
+          <a href="/">首页</a><a href="/templates">模板库</a><a href="/drafts">草稿</a><a class="is-active" href="/ai">AI 生成</a><a href="/admin" data-admin-link hidden>管理端</a>
+        </nav>
+        <div class="account-area">
+          <a class="github-link" href="https://github.com/jackli5541/resume-editor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库" title="在 GitHub 上查看源码"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+          <button class="account-button" type="button" data-action="account" aria-haspopup="true" aria-expanded="false">
+            <span class="account-avatar__mark" data-avatar-mark>登</span>
+            <span data-account-label>登录</span>
+          </button>
+          <div class="account-dropdown" data-account-dropdown hidden>
+            <div class="account-dropdown__identity">
+              <strong data-account-name></strong>
+              <small data-account-email></small>
+            </div>
+            <button class="account-dropdown__item" type="button" data-action="open-settings">账户设置</button>
+            <a class="account-dropdown__item" href="/admin" data-admin-link hidden>管理端</a>
+            <button class="account-dropdown__item account-dropdown__item--danger" type="button" data-action="logout">退出登录</button>
+          </div>
+        </div>
+      </header>
+      <main class="ai-main">
+        <div class="ai-heading">
+          <span class="eyebrow">AI GENERATE</span>
+          <h1>一句话生成极简轻简历</h1>
+          <p>粘贴你的经历描述，AI 会将其结构化填入「极简轻」模板；未提到的信息绝不编造。</p>
+        </div>
+        <div class="ai-layout">
+          <section class="ai-input-card" id="aiInputCard">
+            <div class="ai-import-bar">
+              <button class="ai-import-btn" type="button" data-action="ai-import-word">
+                <span aria-hidden="true">⬆</span> 导入 Word 简历
+              </button>
+              <input type="file" id="aiWordFile"
+                     accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                     hidden />
+              <span class="ai-import-status" id="aiImportStatus" role="status"></span>
+            </div>
+            <label class="ai-label" for="aiDescription">个人经历描述</label>
+            <textarea id="aiDescription" rows="11" placeholder="例如：我叫张三，5 年产品经理经验，2017 年毕业于华东理工大学信息管理专业；2021 年起在青屿科技担任高级产品经理，负责企业协作产品从 0 到 1……也可以直接导入 Word 简历，自动提取文字。"></textarea>
+            <div class="ai-input-actions">
+              <select id="aiTone" aria-label="表达语气">
+                <option value="professional">专业简洁</option>
+                <option value="concise">尽量简洁</option>
+                <option value="confident">自信有力</option>
+              </select>
+              <button class="ai-submit" type="button" data-action="ai-generate">AI 生成</button>
+              <span class="ai-char-count" id="aiCharCount" title="已输入字数">0 字</span>
+            </div>
+            <p id="aiStatus" class="library-status" role="status"></p>
+            <p class="ai-privacy">描述或导入的 Word 文本将发送至第三方大模型服务用于生成，请勿填写身份证号、银行卡号等无关敏感信息。</p>
+          </section>
+          <section class="ai-result" id="aiResult" hidden>
+            <div class="ai-result__head">
+              <div><span class="eyebrow">PREVIEW</span><h2>生成预览</h2></div>
+              <div class="ai-result__actions">
+                <button type="button" class="ai-regen" data-action="ai-regen">重新生成</button>
+                <button type="button" class="ai-save" data-action="ai-save">确认并保存草稿</button>
+              </div>
+            </div>
+            <div id="aiNotices" class="ai-notices"></div>
+            <div class="ai-preview-scroll">
+              <div class="resume-paper" id="aiPreviewPaper">
+                <div class="resume-flow" id="aiPreviewFlow"></div>
+              </div>
+            </div>
+          </section>
+        </div>
       </main>
     </section>
 
     <div id="app" class="app-shell" hidden>
       <header class="topbar">
         <div class="topbar__inner">
-          <a class="brand" href="#" aria-label="轻简历首页">
-            <span class="brand__mark">Q</span>
+          <a class="brand" href="/" aria-label="轻简历首页">
+            <span class="brand__mark"><img src="/logo.png" alt="" width="24" height="24" /></span>
             <span class="brand__text">轻简历</span>
             <span class="brand__badge">MVP</span>
           </a>
+          <nav class="editor-nav" aria-label="编辑器导航">
+            <a href="/">首页</a><a href="/templates">模板库</a><a href="/drafts">草稿</a><a href="/ai">AI 生成</a><a href="/admin" data-admin-link hidden>管理端</a>
+          </nav>
 
           <nav class="toolbar" aria-label="排版工具">
             <button class="tool-button" type="button" data-action="change-template">
@@ -56,11 +616,28 @@
           </nav>
 
           <div class="topbar__actions">
+            <div class="account-area">
+              <a class="github-link" href="https://github.com/jackli5541/resume-editor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库" title="在 GitHub 上查看源码"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+              <button class="account-button" type="button" data-action="account" aria-haspopup="true" aria-expanded="false">
+                <span class="account-avatar__mark" data-avatar-mark>登</span>
+                <span data-account-label>登录</span>
+              </button>
+              <div class="account-dropdown" data-account-dropdown hidden>
+                <div class="account-dropdown__identity">
+                  <strong data-account-name></strong>
+                  <small data-account-email></small>
+                </div>
+                <button class="account-dropdown__item" type="button" data-action="open-settings">账户设置</button>
+                <a class="account-dropdown__item" href="/admin" data-admin-link hidden>管理端</a>
+                <button class="account-dropdown__item account-dropdown__item--danger" type="button" data-action="logout">退出登录</button>
+              </div>
+            </div>
             <label class="secondary-button file-button">
               导入 JSON
               <input id="importFile" type="file" accept="application/json,.json" />
             </label>
             <button class="secondary-button" type="button" data-action="download-json">备份</button>
+            <button class="secondary-button" id="saveDraftButton" type="button" data-action="save-draft">保存</button>
             <label class="export-format-control">
               <span class="sr-only">导出格式</span>
               <select id="exportFormat" aria-label="导出格式">
@@ -113,6 +690,11 @@
               <strong id="resumeTitle">产品经理简历</strong>
             </div>
             <div class="preview-toolbar__meta">
+              <div class="preview-mode" role="group" aria-label="预览模式">
+                <button class="is-active" type="button" data-preview-mode="instant">即时</button>
+                <button type="button" data-preview-mode="final">成品</button>
+              </div>
+              <span id="fidelityStatus">即时排版</span>
               <span id="pageCountBadge">1 页</span>
               <span class="zoom-badge">100%</span>
             </div>
@@ -122,6 +704,7 @@
               <div class="resume-flow" id="resumeFlow"></div>
               <div class="page-markers" id="pageMarkers" aria-hidden="true"></div>
             </article>
+            <div class="fidelity-preview" id="fidelityPreview" hidden aria-live="polite"></div>
           </div>
         </section>
 
@@ -142,10 +725,10 @@
               <i></i><span>已保存到本机</span>
             </div>
             <dl class="status-grid">
-              <div><dt>模板</dt><dd>清晰单栏</dd></div>
+              <div><dt>模板</dt><dd id="activeTemplateName">极简轻</dd></div>
               <div><dt>页数</dt><dd id="sidePageCount">1 页</dd></div>
               <div><dt>版本</dt><dd id="revisionText">v1</dd></div>
-              <div><dt>存储</dt><dd>本地草稿</dd></div>
+              <div><dt>存储</dt><dd id="storageStatus">仅本机</dd></div>
             </dl>
           </section>
 
@@ -167,6 +750,10 @@
       <section class="editor-drawer" id="editorDrawer" aria-label="简历编辑面板">
         <div class="drawer__inner">
           <div class="module-tabs" id="moduleTabs"></div>
+          <div class="module-add">
+            <button class="module-add__button" id="addModuleButton" type="button" data-action="toggle-add-module" aria-expanded="false" hidden>＋ 添加模块</button>
+            <div class="module-add__menu" id="addModuleMenu" hidden></div>
+          </div>
           <button class="drawer-toggle" type="button" data-action="toggle-drawer" aria-label="展开或收起编辑面板">⌃</button>
           <div class="drawer-content" id="drawerContent"></div>
         </div>
@@ -174,6 +761,126 @@
     </div>
 
     <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+
+    <section id="loginPage" class="login-page" hidden>
+      <div class="login-card">
+        <a class="brand login-brand" href="/" aria-label="轻简历首页">
+          <span class="brand__mark"><img src="/logo.png" alt="" width="24" height="24" /></span>
+          <span class="brand__text">轻简历</span>
+        </a>
+        <div class="login-card__head">
+          <span class="eyebrow">ACCOUNT</span>
+          <h1 id="loginTitle">登录</h1>
+          <p>登录后将根据账号角色进入对应工作台。</p>
+        </div>
+        <form id="loginForm" novalidate>
+          <label class="form-field">
+            <span>邮箱或手机号</span>
+            <input type="text" id="loginIdentifier" autocomplete="username" required />
+          </label>
+          <label class="form-field">
+            <span>密码</span>
+            <input type="password" id="loginPassword" autocomplete="current-password" required />
+          </label>
+          <label class="form-field" id="loginNameField" hidden>
+            <span>昵称（可选）</span>
+            <input type="text" id="loginName" autocomplete="name" maxlength="60" />
+          </label>
+          <p class="auth-error" id="loginError" role="alert" hidden></p>
+          <button class="primary-button auth-submit" type="submit" id="loginSubmit">登录</button>
+          <p class="auth-switch">还没有账号？<button class="link-button" type="button" id="loginToggle">立即注册</button></p>
+        </form>
+      </div>
+    </section>
+
+    <div class="auth-overlay" id="settingsOverlay" hidden>
+      <div class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <div class="auth-dialog__head">
+          <div><span class="eyebrow">SETTINGS</span><h2 id="settingsTitle">账户设置</h2></div>
+          <button class="auth-dialog__close" type="button" data-action="close-settings" aria-label="关闭">×</button>
+        </div>
+        <form id="settingsForm" novalidate>
+          <label class="form-field">
+            <span>昵称</span>
+            <input type="text" id="settingsName" maxlength="60" />
+          </label>
+          <p class="auth-email" id="settingsEmail"></p>
+          <fieldset class="settings-group">
+            <legend>AI 简历优化（即将上线）</legend>
+            <label class="switch-field">
+              <input type="checkbox" id="settingsAiEnabled" />
+              <span>开启 AI 优化建议</span>
+            </label>
+            <label class="form-field">
+              <span>目标岗位</span>
+              <input type="text" id="settingsAiRole" maxlength="120" placeholder="例如：高级产品经理" />
+            </label>
+            <label class="form-field">
+              <span>表达风格</span>
+              <select id="settingsAiTone">
+                <option value="professional">专业</option>
+                <option value="concise">简洁</option>
+                <option value="confident">自信</option>
+              </select>
+            </label>
+          </fieldset>
+          <p class="auth-error" id="settingsError" role="alert" hidden></p>
+          <button class="primary-button auth-submit" type="submit">保存设置</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="auth-overlay" id="feedbackOverlay" hidden>
+      <div class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="feedbackTitle">
+        <div class="auth-dialog__head">
+          <div><span class="eyebrow">FEEDBACK</span><h2 id="feedbackTitle">意见反馈</h2></div>
+          <button class="auth-dialog__close" type="button" data-action="close-feedback" aria-label="关闭">×</button>
+        </div>
+        <form id="feedbackForm" novalidate>
+          <label class="form-field"><span>类型</span>
+            <select id="feedbackType">
+              <option value="suggestion">建议</option>
+              <option value="bug">问题 / Bug</option>
+              <option value="question">咨询</option>
+              <option value="other">其他</option>
+            </select>
+          </label>
+          <label class="form-field"><span>反馈内容</span><textarea id="feedbackContent" rows="4" maxlength="4000" placeholder="请描述你的建议或遇到的问题"></textarea></label>
+          <p class="auth-error" id="feedbackError" role="alert" hidden></p>
+          <button class="primary-button auth-submit" type="submit">提交反馈</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="auth-overlay" id="messagesOverlay" hidden>
+      <div class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="messagesTitle">
+        <div class="auth-dialog__head">
+          <div><span class="eyebrow">INBOX</span><h2 id="messagesTitle">站内信</h2></div>
+          <button class="auth-dialog__close" type="button" data-action="close-messages" aria-label="关闭">×</button>
+        </div>
+        <div id="messagesList" class="messages-list"></div>
+        <p id="messagesStatus" class="library-status"></p>
+      </div>
+    </div>
+
+    <aside class="support-float" id="supportFloat" hidden>
+      <button class="support-float__trigger" type="button" data-action="toggle-support" aria-expanded="false" aria-controls="supportCard" aria-haspopup="dialog">
+        <span class="support-float__icon" aria-hidden="true">☕</span>
+        <span>赞赏</span>
+      </button>
+      <section class="support-card" id="supportCard" role="dialog" aria-modal="false" aria-labelledby="supportTitle" hidden>
+        <button class="support-card__close" type="button" data-action="close-support" aria-label="关闭">×</button>
+        <div class="support-card__head">
+          <strong id="supportTitle">支持轻简历</strong>
+          <p>独立开发不易，AI 调用也有成本。若它帮到了你，欢迎请我喝杯咖啡 ☕</p>
+        </div>
+        <img class="support-card__qrcode" src="/support-qrcode.png" alt="赞赏二维码" width="168" height="168" loading="lazy" />
+        <span class="support-card__hint">扫码赞赏 · 感谢支持</span>
+      </section>
+    </aside>
+
     <script type="module" src="/app.mjs"></script>
+    <script type="module" src="/home-intro.mjs"></script>
+    <script type="module" src="/support.mjs"></script>
   </body>
 </html>

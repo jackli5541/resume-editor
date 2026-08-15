@@ -1,6 +1,7 @@
 export const PAGE_WIDTH = 820;
 export const PAGE_HEIGHT = 1160;
-export const STORAGE_KEY = "resume-editor-mvp:v1";
+export const STORAGE_KEY = "resume-editor-mvp:v2";
+export const LEGACY_STORAGE_KEY = "resume-editor-mvp:v1";
 
 export function makeId(prefix = "item") {
   const random = Math.random().toString(36).slice(2, 9);
@@ -9,7 +10,7 @@ export function makeId(prefix = "item") {
 
 export function createInitialResume() {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: makeId("resume"),
     title: "产品经理简历",
     template: null,
@@ -32,6 +33,15 @@ export function createInitialResume() {
       city: "上海",
       birthday: "1996-08",
       workYears: "5年经验",
+      gender: "",
+      politicalStatus: "",
+      age: "",
+      education: "",
+      school: "",
+      major: "",
+      nativePlace: "",
+      ethnicity: "",
+      height: "",
       photo: ""
     },
     sections: [
@@ -116,6 +126,26 @@ export function createInitialResume() {
         title: "自我评价",
         visible: true,
         content: "<p>5 年互联网产品经验，擅长将复杂业务抽象成清晰产品方案。重视数据，也重视一线用户反馈；能够在目标不完全明确的环境中推动跨团队协作并持续交付。</p>"
+      },
+      {
+        id: "campus", type: "timeline", title: "校园经历", visible: false,
+        items: [{ id: makeId("campus"), start: "2015-09", end: "2016-06", organization: "校学生会", role: "宣传部负责人", content: "<p>负责校园活动策划与宣传物料统筹。</p>" }]
+      },
+      {
+        id: "certificates", type: "list", title: "证书资质", visible: false,
+        items: [{ id: makeId("certificate"), name: "英语六级", level: "CET-6", date: "2016-06" }]
+      },
+      {
+        id: "awards", type: "list", title: "荣誉奖项", visible: false,
+        items: [{ id: makeId("award"), name: "校级一等奖学金", level: "校级", date: "2016" }]
+      },
+      {
+        id: "languages", type: "levels", title: "语言能力", visible: false,
+        items: [{ id: makeId("language"), name: "英语", level: "熟练" }]
+      },
+      {
+        id: "interests", type: "tags", title: "兴趣爱好", visible: false,
+        items: ["阅读", "摄影", "旅行"]
       }
     ]
   };
@@ -123,6 +153,40 @@ export function createInitialResume() {
 
 export function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+export function createResumeForTemplate(template) {
+  const resume = createInitialResume();
+  resume.template = template ? clone(template) : null;
+  if (template?.defaultResume) {
+    resume.profile = Object.fromEntries(Object.keys(resume.profile).map((field) => [field, ""]));
+    resume.profile = { ...resume.profile, ...clone(template.defaultResume.profile || {}) };
+    resume.sections = clone(template.defaultResume.sections || []);
+  }
+  applyTemplateEditorSchema(resume, template?.editorSchema);
+  for (const definition of template?.editorSchema?.sections || []) {
+    const section = resume.sections.find((item) => item.id === definition.id);
+    if (section) section.title = definition.title;
+  }
+  return resume;
+}
+
+function emptySectionForSchema(definition) {
+  const base = { id: definition.id, type: definition.type || "richtext", title: definition.title || definition.id, visible: true };
+  if (definition.type === "timeline") {
+    return { ...base, items: [{ id: makeId(definition.id), start: "", end: "", organization: "", role: "", content: "" }] };
+  }
+  return { ...base, content: "" };
+}
+
+export function applyTemplateEditorSchema(resume, editorSchema) {
+  if (!editorSchema?.sections?.length) return resume;
+  const existing = new Map((resume.sections || []).map((section) => [section.id, section]));
+  const declared = editorSchema.sections.map((definition) => existing.get(definition.id) || emptySectionForSchema(definition));
+  const declaredIds = new Set(editorSchema.sections.map((definition) => definition.id));
+  // Keep data from other templates in the draft, but place it outside the active schema.
+  resume.sections = [...declared, ...(resume.sections || []).filter((section) => !declaredIds.has(section.id))];
+  return resume;
 }
 
 export function normalizeResume(input) {
@@ -148,9 +212,17 @@ export function normalizeResume(input) {
         visible: section.visible !== false,
         ...section,
         items: Array.isArray(section.items)
-          ? section.items.map((item) => ({ id: item.id || makeId("entry"), ...item }))
+          ? section.items.map((item) => item && typeof item === "object"
+            ? { id: item.id || makeId("entry"), ...item }
+            : String(item || ""))
           : section.items
       }));
+  }
+
+  resume.schemaVersion = 2;
+  const known = new Set(resume.sections.map((section) => section.id));
+  for (const section of fallback.sections) {
+    if (!known.has(section.id)) resume.sections.push(clone(section));
   }
 
   resume.settings.fontSize = clamp(Number(resume.settings.fontSize), 12, 18);

@@ -3,6 +3,21 @@ import { mkdir, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { renderPdf } from "./pdf-renderer.mjs";
 import { renderDocx } from "./docx-renderer.mjs";
+import { renderNativeDocument } from "./document-renderer.mjs";
+
+async function renderPdfForTemplate(options) {
+  if (options.template?.engine === "docx-native") {
+    return renderNativeDocument({ ...options, sourcePath: options.template.sourcePath, format: "pdf" });
+  }
+  return renderPdf(options);
+}
+
+async function renderDocxForTemplate(options) {
+  if (options.template?.engine === "docx-native") {
+    return renderNativeDocument({ ...options, sourcePath: options.template.sourcePath, format: "docx" });
+  }
+  return renderDocx(options);
+}
 
 function tokenMatches(expected, actual) {
   if (!expected || !actual) return false;
@@ -16,8 +31,8 @@ export class ExportService {
     this.outputDir = options.outputDir;
     this.origin = options.origin || "";
     this.renderers = options.renderers || {
-      pdf: options.renderer || renderPdf,
-      docx: options.docxRenderer || renderDocx
+      pdf: options.renderer || renderPdfForTemplate,
+      docx: options.docxRenderer || renderDocxForTemplate
     };
     this.ttlMs = options.ttlMs || 30 * 60 * 1000;
     this.jobs = new Map();
@@ -117,6 +132,33 @@ export class ExportService {
       this.jobs.delete(id);
       await unlink(job.outputPath).catch(() => {});
     }
+  }
+
+  async retryFailed() {
+    let retried = 0;
+    for (const job of this.jobs.values()) {
+      if (job.status === "failed") {
+        job.status = "queued";
+        job.error = null;
+        job.updatedAt = Date.now();
+        this.queue.push(job);
+        retried += 1;
+      }
+    }
+    if (retried) queueMicrotask(() => this.processQueue());
+    return retried;
+  }
+
+  async clean(type = "completed") {
+    let cleaned = 0;
+    for (const [id, job] of this.jobs) {
+      if (type === "all" || (type === "completed" && job.status === "completed") || (type === "failed" && job.status === "failed")) {
+        this.jobs.delete(id);
+        await unlink(job.outputPath).catch(() => {});
+        cleaned += 1;
+      }
+    }
+    return cleaned;
   }
 
   dispose() {

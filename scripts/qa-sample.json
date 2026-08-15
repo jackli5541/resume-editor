@@ -1,0 +1,32 @@
+{
+  "version": "native-qa-v1",
+  "resume": {
+    "title": "产品经理简历",
+    "profile": {
+      "name": "林知夏",
+      "job": "产品经理",
+      "mobile": "138 0000 0000",
+      "email": "hello@example.com",
+      "city": "上海",
+      "photo": ""
+    },
+    "sections": [
+      {
+        "id": "education",
+        "type": "education",
+        "title": "教育背景",
+        "visible": true,
+        "items": [{"start":"2013-09","end":"2017-06","organization":"华东理工大学","role":"信息管理与信息系统 · 本科","content":"主修产品设计、数据分析与管理信息系统，专业排名前 10%。"}]
+      },
+      {
+        "id": "experience",
+        "type": "experience",
+        "title": "工作经历",
+        "visible": true,
+        "items": [{"start":"2021-04","end":"至今","organization":"青屿科技有限公司","role":"高级产品经理","content":"负责企业协作产品规划与交付，通过数据分析优化关键流程。"}]
+      },
+      {"id":"skills","type":"richtext","title":"技能特长","visible":true,"content":"需求分析、用户研究、原型设计、数据分析、Figma、SQL。"},
+      {"id":"summary","type":"richtext","title":"自我评价","visible":true,"content":"重视数据和用户反馈，能够推动跨团队协作并持续交付。"}
+    ]
+  }
+}

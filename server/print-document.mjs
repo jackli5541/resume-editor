@@ -21,7 +21,7 @@ export function renderPrintDocument(job) {
     <article class="resume-paper" id="resumePaper">
       <div class="resume-flow" id="resumeFlow"></div>
     </article>
-    <script id="resumeExportData" type="application/json">${inlineJson({ resume: job.resume })}</script>
+    <script id="resumeExportData" type="application/json">${inlineJson({ resume: job.resume, template: job.template })}</script>
     <script type="module" src="/print.mjs"></script>
   </body>
 </html>`;
