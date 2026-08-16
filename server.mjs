@@ -1399,7 +1399,11 @@ export function createAppServer(options = {}) {
 
     if (request.method === "POST" && pathname === "/api/feedback") {
       try {
+        // 防刷：同一 IP / 账号短时间仅允许少量反馈，避免被批量提交滥用
+        const ip = getClientIp(request);
+        if (await rejectIfLimited(response, apiLimiter, clientKey(ip, "feedback"), { limit: 5, windowMs: 60 * 60 * 1000 })) return;
         const user = await authorize(request);
+        if (user && await rejectIfLimited(response, apiLimiter, clientKey(user.id, "feedback"), { limit: 5, windowMs: 60 * 60 * 1000 })) return;
         if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
           throw new RequestValidationError("Content-Type 必须是 application/json", 415);
         }

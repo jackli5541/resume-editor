@@ -145,6 +145,29 @@ test("反馈：用户提交，管理员查看并回复", async (context) => {
   assert.equal((await fetch(`${app.origin}/api/admin/feedbacks`, { headers: authHeaders(bob.cookie) })).status, 403);
 });
 
+test("反馈：同一账号短时间提交过多会被限流", async (context) => {
+  const app = await startAdminServer();
+  context.after(() => new Promise((resolve) => app.server.close(resolve)));
+
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
+
+  const submit = () => fetch(`${app.origin}/api/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: bob.cookie },
+    body: JSON.stringify({ type: "suggestion", content: "测试反馈" })
+  });
+
+  // 前 5 次允许提交
+  for (let i = 0; i < 5; i++) {
+    const res = await submit();
+    assert.equal(res.status, 201);
+  }
+
+  // 第 6 次被限流
+  const blocked = await submit();
+  assert.equal(blocked.status, 429);
+});
+
 test("指标接口返回日序列与总计", async (context) => {
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
