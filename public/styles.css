@@ -4173,6 +4173,23 @@ select:focus-visible,
   line-height: 1.5;
 }
 
+.auth-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #647084;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+.auth-remember input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
 .turnstile-wrap {
   min-height: 65px;
 }
@@ -4784,6 +4801,26 @@ select:focus-visible,
   border: 1px solid #e5e9ef;
   border-radius: 16px;
   box-shadow: var(--shadow);
+}
+
+.login-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #637083;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.login-back:hover {
+  color: #087a5a;
+  background: #edf9f5;
 }
 
 .login-brand {

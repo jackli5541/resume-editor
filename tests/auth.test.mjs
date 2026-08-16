@@ -85,6 +85,29 @@ test("邮箱注册、会话、退出闭环", async (context) => {
   assert.equal((await afterLogout.json()).user, null);
 });
 
+test("「记住我」控制会话 Cookie 是否持久", async (context) => {
+  const app = await startAuthServer();
+  context.after(() => new Promise((resolve) => app.server.close(resolve)));
+
+  // 默认不勾选：下发会话 Cookie（无 Max-Age），关闭浏览器即失效
+  const short = await fetch(`${app.origin}/api/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ identifier: "short@example.com", password: "Test1234!" })
+  });
+  const shortCookie = short.headers.get("set-cookie") || "";
+  assert.equal(shortCookie.toLowerCase().includes("max-age="), false);
+
+  // 勾选「记住我」：下发持久 Cookie，带 Max-Age
+  const persistent = await fetch(`${app.origin}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ identifier: "short@example.com", password: "Test1234!", remember: true })
+  });
+  const persistentCookie = persistent.headers.get("set-cookie") || "";
+  assert.equal(persistentCookie.toLowerCase().includes("max-age="), true);
+});
+
 test("手机号注册并登录", async (context) => {
   const app = await startAuthServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));

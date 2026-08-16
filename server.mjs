@@ -23,7 +23,7 @@ import { AiAuditLog } from "./server/ai/audit.mjs";
 import { AiQuotaService } from "./server/ai/quota.mjs";
 import { assertSafeBaseUrl } from "./server/ai/url-guard.mjs";
 import { AdminAuditLog } from "./server/audit.mjs";
-import { can, isSuperAdmin } from "./server/permissions.mjs";
+import { can } from "./server/permissions.mjs";
 import { EventLog } from "./server/events.mjs";
 import { AnnouncementRepository, MessageRepository } from "./server/messaging.mjs";
 import { FeedbackRepository } from "./server/feedback.mjs";
@@ -53,6 +53,8 @@ const allowedImageHosts = (process.env.EXPORT_IMAGE_HOSTS || "")
   .filter(Boolean);
 
 const DEFAULT_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+// 未勾选「记住我」的会话：服务器端 30 分钟硬上限，配合会话 Cookie（无 Max-Age）在关闭浏览器后即失效。
+const SHORT_SESSION_TTL_MS = 30 * 60 * 1000;
 const adminEmails = (process.env.ADMIN_EMAILS || "")
   .split(",")
   .map((value) => value.trim())
@@ -264,14 +266,15 @@ export function createAppServer(options = {}) {
     else response.setHeader("Set-Cookie", [existing, cookie]);
   }
 
-  function setSessionCookie(response, token, maxAgeMs, secure) {
+  function setSessionCookie(response, token, maxAgeMs, secure, persistent = true) {
     const parts = [
       `${authService.cookieName}=${encodeURIComponent(token)}`,
       "HttpOnly",
       "SameSite=Lax",
-      "Path=/",
-      `Max-Age=${Math.floor(maxAgeMs / 1000)}`
+      "Path=/"
     ];
+    // 勾选「记住我」才下发持久 Cookie（带 Max-Age）；否则下发会话 Cookie，关闭浏览器即清除。
+    if (persistent) parts.push(`Max-Age=${Math.floor(maxAgeMs / 1000)}`);
     if (secure) parts.push("Secure");
     appendSetCookie(response, parts.join("; "));
   }
@@ -457,8 +460,10 @@ export function createAppServer(options = {}) {
           password: payload?.password,
           displayName: payload?.displayName
         });
-        const session = await authService.createSession(user.id);
-        setSessionCookie(response, session.token, sessionTtlMs, secure);
+        const remember = payload?.remember === true;
+        const sessionTtl = remember ? sessionTtlMs : SHORT_SESSION_TTL_MS;
+        const session = await authService.createSession(user.id, sessionTtl);
+        setSessionCookie(response, session.token, sessionTtl, secure, remember);
         await eventLog.record({ userId: user.id, event: "register" });
         await recordDeviceSignals(request, user.id);
         sendJson(response, 201, { user });
@@ -484,8 +489,10 @@ export function createAppServer(options = {}) {
         const identifier = String(payload?.identifier || "").trim().toLowerCase();
         if (await rejectIfLimited(response, loginLimiter, clientKey(ip, `login:${identifier}`), { limit: 5, windowMs: 15 * 60 * 1000 })) return;
         const user = await authService.verifyCredentials(payload?.identifier, payload?.password);
-        const session = await authService.createSession(user.id);
-        setSessionCookie(response, session.token, sessionTtlMs, secure);
+        const remember = payload?.remember === true;
+        const sessionTtl = remember ? sessionTtlMs : SHORT_SESSION_TTL_MS;
+        const session = await authService.createSession(user.id, sessionTtl);
+        setSessionCookie(response, session.token, sessionTtl, secure, remember);
         await eventLog.record({ userId: user.id, event: "login" });
         await recordDeviceSignals(request, user.id);
         sendJson(response, 200, { user });
@@ -568,8 +575,10 @@ export function createAppServer(options = {}) {
           isNewUser = true;
         }
         if (user.disabled) throw new AuthError("账户已被禁用，请联系管理员", 403);
-        const session = await authService.createSession(user.id);
-        setSessionCookie(response, session.token, sessionTtlMs, secure);
+        const remember = payload?.remember === true;
+        const sessionTtl = remember ? sessionTtlMs : SHORT_SESSION_TTL_MS;
+        const session = await authService.createSession(user.id, sessionTtl);
+        setSessionCookie(response, session.token, sessionTtl, secure, remember);
         if (isNewUser) await eventLog.record({ userId: user.id, event: "register" });
         await eventLog.record({ userId: user.id, event: "login_code" });
         await recordDeviceSignals(request, user.id);
@@ -687,8 +696,21 @@ export function createAppServer(options = {}) {
         const payload = await readJson(request);
         const existing = await authService.getUserById(targetId);
         if (!existing) throw new AuthError("用户不存在", 404);
-        if (isSuperAdmin(existing) && !isSuperAdmin(admin)) throw new AuthError("无权操作超级管理员", 403);
-        if (payload?.role !== undefined && !isSuperAdmin(admin)) throw new AuthError("仅超级管理员可设置角色", 403);
+        const actorIsSuper = authService.isSuperAdminUser(admin);
+        const targetIsSuper = authService.isSuperAdminUser(existing);
+
+        // 普通管理员只能管理「其他」普通用户：不能操作任何管理员，也不能设置管理员/角色。
+        if (!actorIsSuper && (existing.isAdmin || payload?.isAdmin !== undefined || payload?.role !== undefined)) {
+          throw new AuthError("仅超级管理员可设置管理员或角色", 403);
+        }
+        // 超级管理员唯一：任何人（含超级管理员）都不能把他人设为超级管理员，也不能降级唯一超级管理员。
+        if (payload?.role === "super_admin" && !targetIsSuper) {
+          throw new AuthError("仅配置的邮箱可成为超级管理员", 403);
+        }
+        if (targetIsSuper && (payload?.isAdmin === false || (payload?.role !== undefined && payload.role !== "super_admin"))) {
+          throw new AuthError("不能取消唯一超级管理员的权限", 403);
+        }
+
         const before = { isAdmin: Boolean(existing.isAdmin), disabled: Boolean(existing.disabled), role: existing.role ?? null };
         if (payload?.isAdmin !== undefined) await authService.setUserAdmin(targetId, payload.isAdmin);
         if (payload?.role !== undefined) await authService.setUserRole(targetId, payload.role);
@@ -711,7 +733,7 @@ export function createAppServer(options = {}) {
         if (targetId === admin.id) throw new AuthError("不能删除自己的账户", 400);
         const existing = await authService.getUserById(targetId);
         if (!existing) throw new AuthError("用户不存在", 404);
-        if (isSuperAdmin(existing) && !isSuperAdmin(admin)) throw new AuthError("无权删除超级管理员", 403);
+        if (!authService.isSuperAdminUser(admin) && existing.isAdmin) throw new AuthError("仅超级管理员可删除管理员", 403);
         await authService.deleteUser(targetId);
         await templateRepository.softDeleteByOwner(targetId);
         await recordAudit(request, admin, "user.delete", "user", targetId);
@@ -733,7 +755,7 @@ export function createAppServer(options = {}) {
         const targetId = adminUserRevokeMatch[1];
         const target = await authService.getUserById(targetId);
         if (!target) throw new AuthError("用户不存在", 404);
-        if (isSuperAdmin(target) && !isSuperAdmin(admin)) throw new AuthError("无权操作超级管理员", 403);
+        if (!authService.isSuperAdminUser(admin) && target.isAdmin) throw new AuthError("仅超级管理员可操作管理员会话", 403);
         await authService.destroyUserSessions(targetId);
         await recordAudit(request, admin, "user.revoke_sessions", "user", targetId);
         sendJson(response, 200, { ok: true });
