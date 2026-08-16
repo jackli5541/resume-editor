@@ -859,9 +859,9 @@
           <h1 id="loginTitle">登录</h1>
           <p>登录后将根据账号角色进入对应工作台。</p>
         </div>
-        <div class="login-tabs" role="tablist" aria-label="登录方式">
-          <button type="button" class="login-tab is-active" id="loginTabPassword" data-auth-tab="password" role="tab" aria-selected="true">密码登录</button>
-          <button type="button" class="login-tab" id="loginTabCode" data-auth-tab="code" role="tab" aria-selected="false">验证码登录</button>
+        <div class="login-tabs" role="tablist" aria-label="登录或注册">
+          <button type="button" class="login-tab is-active" id="loginTabLogin" data-auth-tab="login" role="tab" aria-selected="true">登录</button>
+          <button type="button" class="login-tab" id="loginTabRegister" data-auth-tab="register" role="tab" aria-selected="false">注册</button>
         </div>
         <form id="loginForm" novalidate>
           <label class="form-field">
@@ -887,7 +887,7 @@
           <div class="turnstile-wrap" id="turnstileWrap" hidden></div>
           <p class="auth-error" id="loginError" role="alert" hidden></p>
           <button class="primary-button auth-submit" type="submit" id="loginSubmit">登录</button>
-          <p class="auth-switch" id="loginSwitchRow">还没有账号？<button class="link-button" type="button" id="loginToggle">立即注册</button></p>
+          <p class="auth-switch" id="loginMethodSwitchRow"><button class="link-button" type="button" id="loginMethodSwitch">使用验证码登录</button></p>
         </form>
       </div>
     </section>

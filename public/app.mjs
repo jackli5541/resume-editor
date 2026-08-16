@@ -74,17 +74,17 @@ const elements = {
   loginName: document.querySelector("#loginName"),
   loginError: document.querySelector("#loginError"),
   loginSubmit: document.querySelector("#loginSubmit"),
-  loginToggle: document.querySelector("#loginToggle"),
+  loginMethodSwitch: document.querySelector("#loginMethodSwitch"),
   loginPasswordHint: document.querySelector("#loginPasswordHint"),
   turnstileWrap: document.querySelector("#turnstileWrap"),
-  loginTabPassword: document.querySelector("#loginTabPassword"),
-  loginTabCode: document.querySelector("#loginTabCode"),
+  loginTabLogin: document.querySelector("#loginTabLogin"),
+  loginTabRegister: document.querySelector("#loginTabRegister"),
   loginIdentifierLabel: document.querySelector("#loginIdentifierLabel"),
   loginPasswordField: document.querySelector("#loginPasswordField"),
   loginCodeField: document.querySelector("#loginCodeField"),
   loginCode: document.querySelector("#loginCode"),
   sendCodeButton: document.querySelector("#sendCodeButton"),
-  loginSwitchRow: document.querySelector("#loginSwitchRow"),
+  loginMethodSwitchRow: document.querySelector("#loginMethodSwitchRow"),
   settingsForm: document.querySelector("#settingsForm"),
   settingsName: document.querySelector("#settingsName"),
   settingsEmail: document.querySelector("#settingsEmail"),
@@ -245,15 +245,16 @@ const FIELD_TYPE_LABELS = {
 };
 
 let currentUser = null;
-let loginMode = "login";
 let loginNext = null;
-let authTab = "password";
+let authTab = "login";
+let loginMethod = "password";
 let sendCodeTimer = null;
 let sendCodeCountdown = 0;
 let turnstileConfig = { enabled: false, siteKey: "" };
 let turnstileReady = false;
 let turnstileRequested = false;
 let codeLoginMethods = { email: false, phone: false };
+let codeLoginAvailable = false;
 let adminUsers = [];
 let adminDrafts = [];
 let adminUserSearchTimer = null;
@@ -1208,7 +1209,7 @@ function resetTurnstile() {
   if (turnstileReady && window.turnstile) window.turnstile.reset();
 }
 
-// 拉取验证码登录开关，决定是否显示「验证码登录」tab（默认关闭，由管理端开启）。
+// 拉取验证码登录开关，决定是否显示「使用验证码登录」入口（默认关闭，由管理端开启）。
 async function loadLoginMethods() {
   try {
     const payload = await readApiResponse(await fetch("/api/auth/login-methods", { cache: "no-store" }));
@@ -1216,43 +1217,44 @@ async function loadLoginMethods() {
   } catch {
     codeLoginMethods = { email: false, phone: false };
   }
-  const codeAvailable = codeLoginMethods.email || codeLoginMethods.phone;
-  elements.loginTabCode.hidden = !codeAvailable;
-  if (!codeAvailable && authTab === "code") setAuthTab("password");
+  codeLoginAvailable = codeLoginMethods.email || codeLoginMethods.phone;
+  if (!codeLoginAvailable && loginMethod === "code") loginMethod = "password";
+  refreshLoginForm();
 }
 
 function refreshLoginForm() {
-  const isCode = authTab === "code";
-  const isRegister = !isCode && loginMode === "register";
+  const isRegister = authTab === "register";
+  const isCode = authTab === "login" && loginMethod === "code";
 
-  elements.loginTabPassword.classList.toggle("is-active", !isCode);
-  elements.loginTabCode.classList.toggle("is-active", isCode);
-  elements.loginTabPassword.setAttribute("aria-selected", String(!isCode));
-  elements.loginTabCode.setAttribute("aria-selected", String(isCode));
+  elements.loginTabLogin.classList.toggle("is-active", !isRegister);
+  elements.loginTabRegister.classList.toggle("is-active", isRegister);
+  elements.loginTabLogin.setAttribute("aria-selected", String(!isRegister));
+  elements.loginTabRegister.setAttribute("aria-selected", String(isRegister));
 
   elements.loginIdentifierLabel.textContent = "邮箱或手机号";
   elements.loginIdentifier.autocomplete = "username";
   elements.loginIdentifier.type = "text";
-  elements.loginPasswordField.hidden = isCode;
-  elements.loginPasswordHint.hidden = isCode || !isRegister;
-  elements.loginCodeField.hidden = !isCode;
-  elements.loginNameField.hidden = isCode || !isRegister;
-  elements.loginSwitchRow.hidden = isCode;
 
-  elements.loginTitle.textContent = isCode ? "验证码登录" : (isRegister ? "注册" : "登录");
-  elements.loginSubmit.textContent = isCode ? "登录 / 注册" : (isRegister ? "注册并登录" : "登录");
-  elements.loginToggle.textContent = isRegister ? "已有账号？去登录" : "还没有账号？立即注册";
+  elements.loginPasswordField.hidden = isCode;
+  elements.loginPasswordHint.hidden = !isRegister;
+  elements.loginCodeField.hidden = !isCode;
+  elements.loginNameField.hidden = !isRegister;
+  elements.loginMethodSwitchRow.hidden = isRegister || !codeLoginAvailable;
+
+  elements.loginTitle.textContent = isRegister ? "注册" : (isCode ? "验证码登录" : "登录");
+  elements.loginSubmit.textContent = isRegister ? "注册并登录" : (isCode ? "登录 / 注册" : "登录");
+  elements.loginMethodSwitch.textContent = isCode ? "使用密码登录" : "使用验证码登录";
   elements.loginError.hidden = true;
 }
 
-function setLoginMode(mode) {
-  loginMode = mode === "register" ? "register" : "login";
+function setAuthTab(tab) {
+  authTab = tab === "register" ? "register" : "login";
   refreshLoginForm();
+  elements.loginIdentifier.focus();
 }
 
-function setAuthTab(tab) {
-  authTab = tab === "code" ? "code" : "password";
-  if (authTab === "code") loginMode = "login";
+function toggleLoginMethod() {
+  loginMethod = loginMethod === "code" ? "password" : "code";
   refreshLoginForm();
   elements.loginIdentifier.focus();
 }
@@ -1282,9 +1284,9 @@ function startSendCodeCountdown() {
 }
 
 async function handleSendCode() {
-  const phone = elements.loginIdentifier.value.trim();
-  if (!phone) {
-    elements.loginError.textContent = "请输入手机号";
+  const identifier = elements.loginIdentifier.value.trim();
+  if (!identifier) {
+    elements.loginError.textContent = "请输入邮箱或手机号";
     elements.loginError.hidden = false;
     elements.loginIdentifier.focus();
     return;
@@ -1294,7 +1296,7 @@ async function handleSendCode() {
     await readApiResponse(await fetch("/api/auth/send-code", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identifier: phone })
+      body: JSON.stringify({ identifier })
     }));
     showToast("验证码已发送", "success");
     startSendCodeCountdown();
@@ -1308,10 +1310,10 @@ async function handleSendCode() {
 }
 
 async function submitCodeLogin() {
-  const phone = elements.loginIdentifier.value.trim();
+  const identifier = elements.loginIdentifier.value.trim();
   const code = elements.loginCode.value.trim();
-  if (!phone) {
-    elements.loginError.textContent = "请输入手机号";
+  if (!identifier) {
+    elements.loginError.textContent = "请输入邮箱或手机号";
     elements.loginError.hidden = false;
     return;
   }
@@ -1335,7 +1337,7 @@ async function submitCodeLogin() {
     const payload = await readApiResponse(await fetch("/api/auth/login/code", {
       method: "POST",
       headers,
-      body: JSON.stringify({ identifier: phone, code, turnstileToken: turnstileTokenValue() })
+      body: JSON.stringify({ identifier, code, turnstileToken: turnstileTokenValue() })
     }));
     currentUser = payload.user || null;
     updateAccountUi();
@@ -1374,8 +1376,8 @@ function showLoginPage() {
   elements.adminPage.hidden = true;
   elements.aiPage.hidden = true;
   revealView(elements.loginPage);
-  authTab = "password";
-  loginMode = "login";
+  authTab = "login";
+  loginMethod = "password";
   refreshLoginForm();
   elements.loginIdentifier.value = "";
   elements.loginPassword.value = "";
@@ -1438,13 +1440,13 @@ function closeSettings() {
 
 async function handleLoginSubmit(event) {
   event.preventDefault();
-  if (authTab === "code") {
+  if (authTab === "login" && loginMethod === "code") {
     await submitCodeLogin();
     return;
   }
   const identifier = elements.loginIdentifier.value.trim();
   const password = elements.loginPassword.value;
-  const isRegister = loginMode === "register";
+  const isRegister = authTab === "register";
   if (turnstileConfig.enabled && !turnstileTokenValue()) {
     elements.loginError.textContent = "请完成人机验证后再提交";
     elements.loginError.hidden = false;
@@ -4278,11 +4280,9 @@ document.addEventListener("click", (event) => {
 
 elements.loginForm.addEventListener("submit", handleLoginSubmit);
 elements.settingsForm.addEventListener("submit", handleSettingsSubmit);
-elements.loginToggle.addEventListener("click", () => {
-  setLoginMode(loginMode === "login" ? "register" : "login");
-});
-elements.loginTabPassword.addEventListener("click", () => setAuthTab("password"));
-elements.loginTabCode.addEventListener("click", () => setAuthTab("code"));
+elements.loginMethodSwitch.addEventListener("click", toggleLoginMethod);
+elements.loginTabLogin.addEventListener("click", () => setAuthTab("login"));
+elements.loginTabRegister.addEventListener("click", () => setAuthTab("register"));
 elements.sendCodeButton.addEventListener("click", handleSendCode);
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".account-area")) closeAllAccountMenus();
