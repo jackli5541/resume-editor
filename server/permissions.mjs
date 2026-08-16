@@ -47,12 +47,13 @@ const ROLE_PERMISSIONS = Object.freeze({
   ])
 });
 
-// 归一化角色：非管理员 -> null；历史管理员未显式设置角色时保留完整权限。
+// 归一化角色：非管理员 -> null；超级管理员需显式为 super_admin，历史管理员缺省按「运营」处理。
 export function effectiveRole(user) {
   if (!user?.isAdmin) return null;
   const role = user?.role;
-  if (ADMIN_ROLES.includes(role)) return role;
-  return "super_admin";
+  if (role === "super_admin") return "super_admin";
+  if (role === "operator" || role === "auditor") return role;
+  return "operator";
 }
 
 export function isSuperAdmin(user) {

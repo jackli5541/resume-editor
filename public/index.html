@@ -854,6 +854,7 @@
 
     <section id="loginPage" class="login-page" hidden>
       <div class="login-card">
+        <button type="button" class="login-back" data-action="close-login" aria-label="返回上一页">← 返回</button>
         <a class="brand login-brand" href="/" aria-label="轻简历首页">
           <span class="brand__mark"><img src="/logo.png" alt="" width="24" height="24" /></span>
           <span class="brand__text">轻简历</span>
@@ -891,6 +892,10 @@
           <label class="form-field" id="loginNameField" hidden>
             <span>昵称（可选）</span>
             <input type="text" id="loginName" autocomplete="name" maxlength="60" />
+          </label>
+          <label class="auth-remember" id="loginRememberField">
+            <input type="checkbox" id="loginRemember" />
+            <span>记住我 · 30 天内保持登录</span>
           </label>
           <div class="turnstile-wrap" id="turnstileWrap" hidden></div>
           <p class="auth-error" id="loginError" role="alert" hidden></p>

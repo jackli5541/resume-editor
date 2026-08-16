@@ -6,7 +6,7 @@ import {
   timingSafeEqual
 } from "node:crypto";
 import { promisify } from "node:util";
-import { ADMIN_ROLES, effectiveRole, listPermissions } from "./permissions.mjs";
+import { ADMIN_ROLES, listPermissions } from "./permissions.mjs";
 import { isDisposableEmail } from "./email-guard.mjs";
 import { TONE_HINTS } from "./ai/extract.mjs";
 import { passwordPolicyError } from "./password-policy.mjs";
@@ -138,22 +138,33 @@ export class AuthService {
     database,
     sessionTtlMs = DEFAULT_SESSION_TTL_MS,
     cookieName = "session",
-    adminEmails = [],
-    adminPhones = []
+    adminEmails = []
   }) {
     this.database = database;
     this.sessionTtlMs = sessionTtlMs;
     this.cookieName = cookieName;
-    this.adminEmails = new Set(
-      [...(adminEmails || [])].map((value) => normalizeEmail(value)).filter(Boolean)
-    );
-    this.adminPhones = new Set(
-      [...(adminPhones || [])].map((value) => normalizePhone(value)).filter(Boolean)
-    );
+    // 超级管理员仅一个，由配置的第一个邮箱唯一指定；不再支持手机号作为超级管理员来源。
+    this.superAdminEmail = [...(adminEmails || [])]
+      .map((value) => normalizeEmail(value))
+      .filter(Boolean)[0] || null;
     this.localUsersById = new Map(); // id -> 内存用户记录
     this.localUsersByEmail = new Map(); // email -> id
     this.localUsersByPhone = new Map(); // phone -> id
     this.localSessions = new Map(); // tokenHash -> session record
+  }
+
+  // 超级管理员由配置邮箱唯一确定；仅该邮箱返回 true。
+  isSuperAdminUser(user) {
+    if (!user?.isAdmin) return false;
+    return Boolean(this.superAdminEmail) && normalizeEmail(user?.email) === this.superAdminEmail;
+  }
+
+  // 归一化角色：非管理员 -> null；超级管理员邮箱 -> super_admin；其余管理员 -> 显式角色或默认「运营」。
+  normalizeRole(user) {
+    if (!user?.isAdmin) return null;
+    if (this.isSuperAdminUser(user)) return "super_admin";
+    const role = user?.role;
+    return role === "operator" || role === "auditor" ? role : "operator";
   }
 
   async createUser({ email = "", phone = "", password, displayName = "", isAdmin, role }) {
@@ -170,11 +181,12 @@ export class AuthService {
     const passwordHash = await hashPassword(password);
     const id = randomUUID();
     const name = sanitizeDisplayName(displayName);
-    const admin = isAdmin === undefined
-      ? (this.adminEmails.has(normalizedEmail) || this.adminPhones.has(normalizedPhone))
-      : Boolean(isAdmin);
-    // 通过环境配置/种子授予的管理员默认拥有完整权限；显式指定角色时尊重调用方。
-    const assignedRole = admin ? (ADMIN_ROLES.includes(role) ? role : "super_admin") : null;
+    const isSuper = Boolean(this.superAdminEmail) && normalizedEmail === this.superAdminEmail;
+    const admin = isSuper || (isAdmin === undefined ? false : Boolean(isAdmin));
+    // 超级管理员仅由配置邮箱唯一确定；其余管理员（显式指定/种子）一律为普通管理员，默认「运营」。
+    const assignedRole = isSuper
+      ? "super_admin"
+      : (admin ? (ADMIN_ROLES.includes(role) ? role : "operator") : null);
     const now = new Date().toISOString();
 
     if (this.database) {
@@ -228,8 +240,9 @@ export class AuthService {
 
     const id = randomUUID();
     const name = sanitizeDisplayName(displayName);
-    const admin = this.adminEmails.has(normalizedEmail) || this.adminPhones.has(normalizedPhone);
-    const assignedRole = admin ? "super_admin" : null;
+    const isSuper = Boolean(this.superAdminEmail) && normalizedEmail === this.superAdminEmail;
+    const admin = isSuper;
+    const assignedRole = isSuper ? "super_admin" : null;
     const now = new Date().toISOString();
 
     if (this.database) {
@@ -282,10 +295,10 @@ export class AuthService {
     if (user.deletedAt) throw new AuthError("账号或密码不正确", 401);
     if (user.disabled) throw new AuthError("账户已被禁用，请联系管理员", 403);
 
-    const shouldPromote = (identifierType(normalized) === "email"
-      ? this.adminEmails.has(normalizeEmail(normalized))
-      : this.adminPhones.has(normalizePhone(normalized)));
-    if (shouldPromote && !user.isAdmin) {
+    const shouldPromote = Boolean(this.superAdminEmail)
+      && identifierType(normalized) === "email"
+      && normalizeEmail(normalized) === this.superAdminEmail;
+    if (shouldPromote && (!user.isAdmin || user.role !== "super_admin")) {
       await this.promoteToAdmin(user.id);
       user.isAdmin = true;
       user.role = "super_admin";
@@ -293,11 +306,12 @@ export class AuthService {
     return this.toPublicUser(user);
   }
 
-  async createSession(userId) {
+  async createSession(userId, ttlMs) {
+    const ttl = Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : this.sessionTtlMs;
     const token = randomBytes(32).toString("base64url");
     const tokenHash = hashSessionToken(token);
     const now = Date.now();
-    const expiresAt = now + this.sessionTtlMs;
+    const expiresAt = now + ttl;
 
     if (this.database) {
       await this.database.query(
@@ -516,13 +530,19 @@ export class AuthService {
       );
       return {
         total: countResult.rows[0]?.total ?? 0,
-        users: result.rows.map((row) => ({ ...mapUserRow(row), draftCount: row.draft_count ?? 0 }))
+        users: result.rows.map((row) => {
+          const user = mapUserRow(row);
+          return { ...user, role: this.normalizeRole(user), draftCount: row.draft_count ?? 0 };
+        })
       };
     }
 
     let users = [...this.localUsersById.values()]
       .filter((user) => !user.deletedAt)
-      .map((user) => ({ ...mapUserRow(user), draftCount: 0 }));
+      .map((user) => {
+        const mapped = mapUserRow(user);
+        return { ...mapped, role: this.normalizeRole(mapped), draftCount: 0 };
+      });
     if (term) {
       const needle = term.toLowerCase();
       users = users.filter((user) =>
@@ -575,6 +595,9 @@ export class AuthService {
     if (!existing) throw new AuthError("用户不存在", 404);
     if (!existing.isAdmin) throw new AuthError("仅管理员可设置角色", 400);
     if (!ADMIN_ROLES.includes(role)) throw new AuthError("无效的角色", 400);
+    if (role === "super_admin" && !this.isSuperAdminUser(existing)) {
+      throw new AuthError("仅配置的邮箱可成为超级管理员", 403);
+    }
     if (this.database) {
       await this.database.query(
         "UPDATE users SET role = $2, updated_at = now() WHERE id = $1",
@@ -717,6 +740,8 @@ export class AuthService {
   }
 
   toPublicUser(user) {
+    const role = this.normalizeRole(user);
+    const normalized = { ...user, role };
     return {
       id: user.id,
       email: user.email || "",
@@ -725,8 +750,8 @@ export class AuthService {
       settings: user.settings || {},
       isAdmin: Boolean(user.isAdmin),
       disabled: Boolean(user.disabled),
-      role: effectiveRole(user),
-      permissions: listPermissions(user),
+      role,
+      permissions: listPermissions(normalized),
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     };

@@ -72,6 +72,8 @@ const elements = {
   loginPassword: document.querySelector("#loginPassword"),
   loginPasswordConfirmField: document.querySelector("#loginPasswordConfirmField"),
   loginPasswordConfirm: document.querySelector("#loginPasswordConfirm"),
+  loginRememberField: document.querySelector("#loginRememberField"),
+  loginRemember: document.querySelector("#loginRemember"),
   loginNameField: document.querySelector("#loginNameField"),
   loginName: document.querySelector("#loginName"),
   loginError: document.querySelector("#loginError"),
@@ -1165,10 +1167,21 @@ function defaultPathFor(user) {
   return user?.isAdmin ? "/admin" : "/";
 }
 
-function openLogin(next = null) {
+function openLogin(next = null, historyMode = "push") {
   loginNext = next;
-  updateBrowserRoute({ name: "login" }, "push");
+  updateBrowserRoute({ name: "login" }, historyMode);
   showLoginPage();
+}
+
+// 用户不想登录时返回：进入登录页前的可见页面优先；若来路是需登录才能访问的
+// 页面（/ai、/admin、/resumes/.../edit），则落到首页。
+function closeLogin() {
+  const route = loginNext && isAppPath(loginNext) ? parseAppRoute(loginNext) : null;
+  const gated = route && (route.name === "ai" || route.name === "admin" || route.name === "resume");
+  const target = route && !gated ? loginNext : "/";
+  loginNext = null;
+  if (window.location.pathname !== target) window.history.replaceState({}, "", target);
+  applyCurrentRoute();
 }
 
 function loadTurnstileScript() {
@@ -1380,7 +1393,7 @@ async function submitCodeLogin() {
     const payload = await readApiResponse(await fetch("/api/auth/login/code", {
       method: "POST",
       headers,
-      body: JSON.stringify({ identifier, code, turnstileToken: turnstileTokenValue() })
+      body: JSON.stringify({ identifier, code, remember: elements.loginRemember.checked, turnstileToken: turnstileTokenValue() })
     }));
     currentUser = payload.user || null;
     updateAccountUi();
@@ -1427,6 +1440,7 @@ function showLoginPage() {
   elements.loginPasswordConfirm.value = "";
   elements.loginName.value = "";
   elements.loginCode.value = "";
+  elements.loginRemember.checked = false;
   clearInterval(sendCodeTimer);
   sendCodeTimer = null;
   sendCodeCountdown = 0;
@@ -1537,6 +1551,7 @@ async function handleLoginSubmit(event) {
   const body = {
     identifier,
     password,
+    remember: elements.loginRemember.checked,
     turnstileToken: turnstileTokenValue()
   };
   if (isRegister) body.displayName = elements.loginName.value.trim();
@@ -1764,21 +1779,24 @@ function renderAdminUsers() {
         if (currentUser?.id === user.id) {
           ops.push('<span class="admin-self">本人</span>');
         } else {
-          if (canWrite) {
-            ops.push(`<button type="button" data-action="admin-toggle-admin" data-user-id="${escapeHtml(user.id)}" data-is-admin="${user.isAdmin}">${user.isAdmin ? "取消管理员" : "设为管理员"}</button>`);
+          // 超级管理员可管理管理员与普通用户；普通管理员只能管理普通用户。
+          const canManageThisUser = isSuper || !user.isAdmin;
+          if (canWrite && canManageThisUser) {
+            if (isSuper) {
+              ops.push(`<button type="button" data-action="admin-toggle-admin" data-user-id="${escapeHtml(user.id)}" data-is-admin="${user.isAdmin}">${user.isAdmin ? "取消管理员" : "设为管理员"}</button>`);
+            }
             ops.push(`<button type="button" data-action="admin-toggle-disabled" data-user-id="${escapeHtml(user.id)}" data-disabled="${user.disabled}">${user.disabled ? "启用" : "禁用"}</button>`);
           }
           if (isSuper && user.isAdmin) {
-            ops.push(`<select class="admin-role-select" data-action="admin-set-role" data-user-id="${escapeHtml(user.id)}" data-current-role="${escapeHtml(user.role || "")}" aria-label="设置角色">
-              <option value="super_admin"${user.role === "super_admin" ? " selected" : ""}>超级管理员</option>
+            ops.push(`<select class="admin-role-select" data-action="admin-set-role" data-user-id="${escapeHtml(user.id)}" data-current-role="${escapeHtml(user.role || "operator")}" aria-label="设置角色">
               <option value="operator"${user.role === "operator" ? " selected" : ""}>运营</option>
               <option value="auditor"${user.role === "auditor" ? " selected" : ""}>审计</option>
             </select>`);
           }
-          if (canManageSessions) {
+          if (canManageSessions && canManageThisUser) {
             ops.push(`<button type="button" data-action="admin-revoke-sessions" data-user-id="${escapeHtml(user.id)}">踢下线</button>`);
           }
-          if (canDelete) {
+          if (canDelete && canManageThisUser) {
             ops.push(`<button class="danger-link" type="button" data-action="admin-delete-user" data-user-id="${escapeHtml(user.id)}" data-account="${escapeHtml(user.email || user.phone)}">删除</button>`);
           }
         }
@@ -2089,9 +2107,9 @@ async function adminDownloadDraft(id) {
 async function adminSetRole(select) {
   const userId = select.dataset.userId;
   const role = select.value;
-  const label = { super_admin: "超级管理员", operator: "运营", auditor: "审计" }[role] || role;
+  const label = { operator: "运营", auditor: "审计" }[role] || role;
   if (!(await confirmAction({ title: "变更用户角色", message: `确定将该用户角色设为「${label}」？` }))) {
-    select.value = ["super_admin", "operator", "auditor"].includes(select.dataset.currentRole) ? select.dataset.currentRole : "operator";
+    select.value = ["operator", "auditor"].includes(select.dataset.currentRole) ? select.dataset.currentRole : "operator";
     return;
   }
   try {
@@ -3787,7 +3805,7 @@ async function applyCurrentRoute({ replaceInvalid = false } = {}) {
   }
   if (route.name === "ai") {
     if (!currentUser) {
-      openLogin("/ai");
+      openLogin("/ai", "replace");
       return;
     }
     showAiPage();
@@ -3795,7 +3813,7 @@ async function applyCurrentRoute({ replaceInvalid = false } = {}) {
   }
   if (route.name === "admin") {
     if (!currentUser) {
-      openLogin("/admin");
+      openLogin("/admin", "replace");
       return;
     }
     if (!currentUser.isAdmin) {
@@ -3809,7 +3827,7 @@ async function applyCurrentRoute({ replaceInvalid = false } = {}) {
   }
   if (route.name === "resume") {
     if (!currentUser) {
-      openLogin(`/resumes/${route.resumeId}/edit`);
+      openLogin(`/resumes/${route.resumeId}/edit`, "replace");
       return;
     }
     try {
@@ -4226,6 +4244,7 @@ document.addEventListener("click", async (event) => {
   if (action === "account") { if (currentUser) toggleAccountMenu(actionTarget); else openLogin(window.location.pathname || "/"); }
   else if (action === "open-settings") openSettings();
   else if (action === "close-settings") closeSettings();
+  else if (action === "close-login") closeLogin();
   else if (action === "logout") handleLogout();
   else if (action === "admin-toggle-admin") adminToggleAdmin(actionTarget);
   else if (action === "admin-toggle-disabled") adminToggleDisabled(actionTarget);
