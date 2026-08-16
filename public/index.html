@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="结构化简历编辑器 MVP" />
     <meta name="theme-color" content="#12a77d" />
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem("qingjianli.theme");
+          var dark = saved ? saved === "dark" : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
+        } catch (e) {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <title>轻简历 · 在线简历编辑器</title>
@@ -314,8 +325,9 @@
             <div class="admin-form__grid">
               <div class="admin-field admin-field--wide">
                 <span class="admin-field__label">功能开关</span>
-                <label class="admin-check"><input type="checkbox" id="adminAiEnabled" /> 启用 AI 生成</label>
-                <small>关闭后，所有 AI 生成接口返回不可用。</small>
+                <label class="admin-check"><input type="checkbox" id="adminAiEnabled" /> 启用 AI（生成与优化总开关）</label>
+                <label class="admin-check"><input type="checkbox" id="adminAiOptimizeEnabled" /> 启用编辑器内「AI 优化」</label>
+                <small>总开关关闭后，AI 生成与 AI 优化接口均不可用；「AI 优化」开关仅控制编辑器内按指令修改简历的能力。</small>
               </div>
               <label class="admin-field">
                 <span class="admin-field__label">服务地址（base URL）</span>
@@ -663,6 +675,10 @@
     </section>
 
     <div id="app" class="app-shell" hidden>
+      <button class="ai-float-btn" id="aiFloatBtn" type="button" data-action="toggle-ai-chat" aria-pressed="false" title="AI 优化（可拖动）">
+        <span class="ai-float-btn__icon" aria-hidden="true">✦</span>
+        <span class="ai-float-btn__label">AI 优化</span>
+      </button>
       <header class="topbar">
         <div class="topbar__inner">
           <a class="brand" href="/" aria-label="轻简历首页">
@@ -672,25 +688,6 @@
           </a>
           <nav class="editor-nav" aria-label="编辑器导航">
             <a href="/">首页</a><a href="/templates">模板库</a><a href="/drafts">草稿</a><a href="/ai">AI 生成</a><a href="/admin" data-admin-link hidden>管理端</a>
-          </nav>
-
-          <nav class="toolbar" aria-label="排版工具">
-            <button class="tool-button" type="button" data-action="change-template">
-              <span class="tool-button__icon">▦</span><span>模板</span>
-            </button>
-            <button class="tool-button" type="button" data-popover="spacingPopover">
-              <span class="tool-button__icon">↕</span><span>间距</span>
-            </button>
-            <button class="tool-button" type="button" data-popover="fontPopover">
-              <span class="tool-button__icon">Aa</span><span>字体</span>
-            </button>
-            <label class="tool-button tool-button--color" title="主题颜色">
-              <span class="color-dot" id="themeDot"></span><span>主题</span>
-              <input id="themeInput" type="color" value="#12a77d" aria-label="主题颜色" />
-            </label>
-            <button class="tool-button" type="button" data-action="reset">
-              <span class="tool-button__icon">↺</span><span>重置</span>
-            </button>
           </nav>
 
           <div class="topbar__actions">
@@ -710,11 +707,6 @@
                 <button class="account-dropdown__item account-dropdown__item--danger" type="button" data-action="logout">退出登录</button>
               </div>
             </div>
-            <label class="secondary-button file-button">
-              导入 JSON
-              <input id="importFile" type="file" accept="application/json,.json" />
-            </label>
-            <button class="secondary-button" type="button" data-action="download-json">备份</button>
             <button class="secondary-button" id="saveDraftButton" type="button" data-action="save-draft">保存</button>
             <label class="export-format-control">
               <span class="sr-only">导出格式</span>
@@ -726,6 +718,33 @@
             <button class="primary-button" type="button" data-action="export-resume"><span data-export-label>导出 PDF</span></button>
           </div>
 
+        </div>
+        <div class="topbar-sub">
+          <nav class="toolbar" aria-label="排版工具">
+            <button class="tool-button" type="button" data-action="change-template">
+              <span class="tool-button__icon">▦</span><span>模板</span>
+            </button>
+            <button class="tool-button" type="button" data-popover="spacingPopover">
+              <span class="tool-button__icon">↕</span><span>间距</span>
+            </button>
+            <button class="tool-button" type="button" data-popover="fontPopover">
+              <span class="tool-button__icon">Aa</span><span>字体</span>
+            </button>
+            <label class="tool-button tool-button--color" title="主题颜色">
+              <span class="color-dot" id="themeDot"></span><span>主题</span>
+              <input id="themeInput" type="color" value="#12a77d" aria-label="主题颜色" />
+            </label>
+            <button class="tool-button" type="button" data-action="reset">
+              <span class="tool-button__icon">↺</span><span>重置</span>
+            </button>
+          </nav>
+          <div class="topbar-sub__actions">
+            <label class="secondary-button file-button">
+              导入 JSON
+              <input id="importFile" type="file" accept="application/json,.json" />
+            </label>
+            <button class="secondary-button" type="button" data-action="download-json">备份</button>
+          </div>
           <section id="spacingPopover" class="popover" hidden>
             <div class="popover__heading">版面间距</div>
             <label class="range-field">
@@ -825,6 +844,18 @@
         </aside>
       </main>
 
+      <section class="ai-chat-panel" id="aiChatPanel" aria-label="AI 优化" aria-hidden="true">
+        <div class="ai-chat__head">
+          <div><span class="eyebrow">AI ASSIST</span><strong>AI 优化</strong></div>
+          <button class="ai-chat__close" type="button" data-action="close-ai-chat" aria-label="关闭 AI 优化">×</button>
+        </div>
+        <div class="ai-chat__body" id="aiChatBody"></div>
+        <form class="ai-chat__composer" id="aiChatForm">
+          <textarea id="aiChatInput" rows="2" maxlength="2000" placeholder="例如：把工作经历写得更有量化成果；或：新增一条项目经历"></textarea>
+          <button class="ai-chat__send" type="submit" id="aiChatSend">发送</button>
+        </form>
+      </section>
+
       <section class="editor-drawer" id="editorDrawer" aria-label="简历编辑面板">
         <div class="drawer__inner">
           <div class="module-tabs" id="moduleTabs"></div>
@@ -897,7 +928,7 @@
             <input type="checkbox" id="loginRemember" />
             <span>记住我 · 30 天内保持登录</span>
           </label>
-          <div class="turnstile-wrap" id="turnstileWrap" hidden></div>
+          <div class="captcha-wrap" id="captchaWrap" hidden></div>
           <p class="auth-error" id="loginError" role="alert" hidden></p>
           <button class="primary-button auth-submit" type="submit" id="loginSubmit">登录</button>
           <p class="auth-switch" id="loginMethodSwitchRow"><button class="link-button" type="button" id="loginMethodSwitch">使用验证码登录</button></p>
@@ -975,6 +1006,16 @@
         </div>
         <div id="messagesList" class="messages-list"></div>
         <p id="messagesStatus" class="library-status"></p>
+      </div>
+    </div>
+
+    <div class="auth-overlay" id="feedbackDetailOverlay" hidden>
+      <div class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="feedbackDetailTitle">
+        <div class="auth-dialog__head">
+          <div><span class="eyebrow">FEEDBACK</span><h2 id="feedbackDetailTitle">反馈详情</h2></div>
+          <button class="auth-dialog__close" type="button" data-action="close-feedback-detail" aria-label="关闭">×</button>
+        </div>
+        <div id="feedbackDetailBody" class="feedback-detail"></div>
       </div>
     </div>
 

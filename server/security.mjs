@@ -1,12 +1,12 @@
-const HTML_CSP = [
+export const HTML_CSP = [
   "default-src 'self'",
   "img-src 'self' data: https:",
-  "style-src 'self' 'unsafe-inline'",
-  // Turnstile 人机验证：允许加载其脚本与渲染 iframe（challenges.cloudflare.com）。
-  "script-src 'self' https://challenges.cloudflare.com",
-  "frame-src https://challenges.cloudflare.com",
-  "connect-src 'self'",
-  "font-src 'self'",
+  // 阿里云验证码：SDK 会动态加载 alicdn 的 JS / CSS / iframe 资源，故统一放行 *.alicdn.com。
+  "style-src 'self' 'unsafe-inline' https://*.alicdn.com",
+  "script-src 'self' https://*.alicdn.com",
+  "frame-src https://*.alicdn.com https://*.aliyuncs.com https://*.aliyun.com",
+  "connect-src 'self' https://*.alicdn.com https://*.aliyuncs.com https://*.aliyun.com",
+  "font-src 'self' data: https://*.alicdn.com",
   "frame-ancestors 'none'",
   "base-uri 'none'",
   "form-action 'self'"

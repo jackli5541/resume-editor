@@ -1,4 +1,4 @@
-// 认证渠道（Turnstile / SMTP / 阿里云短信）的运行时配置解析。
+// 认证渠道（阿里云验证码 / SMTP / 阿里云短信）的运行时配置解析。
 // 优先级：管理端配置（加密落库）> 环境变量；两者都未配置时该渠道视为未启用。
 
 export function createAuthChannels({ secrets, config }) {
@@ -15,11 +15,16 @@ export function createAuthChannels({ secrets, config }) {
     return secret || env || fallback;
   }
 
-  async function turnstile() {
-    const flagEnabled = config ? (await config.get("turnstile_enabled")) === true : false;
-    const siteKey = pick(await secretValue("turnstile_site_key"), process.env.TURNSTILE_SITE_KEY);
-    const secretKey = pick(await secretValue("turnstile_secret_key"), process.env.TURNSTILE_SECRET_KEY);
-    return { enabled: flagEnabled && Boolean(siteKey) && Boolean(secretKey), siteKey, secretKey };
+  async function aliyunCaptcha() {
+    const flagEnabled = config ? (await config.get("captcha_enabled")) === true : false;
+    const accessKeyId = pick(await secretValue("aliyun_captcha_access_key_id"), process.env.ALIYUN_CAPTCHA_ACCESS_KEY_ID);
+    const accessKeySecret = pick(await secretValue("aliyun_captcha_access_key_secret"), process.env.ALIYUN_CAPTCHA_ACCESS_KEY_SECRET);
+    const sceneId = pick(await secretValue("aliyun_captcha_scene_id"), process.env.ALIYUN_CAPTCHA_SCENE_ID);
+    const prefix = pick(await secretValue("aliyun_captcha_prefix"), process.env.ALIYUN_CAPTCHA_PREFIX);
+    return {
+      enabled: flagEnabled && Boolean(accessKeyId) && Boolean(accessKeySecret) && Boolean(sceneId) && Boolean(prefix),
+      accessKeyId, accessKeySecret, sceneId, prefix
+    };
   }
 
   async function smtp() {
@@ -46,5 +51,5 @@ export function createAuthChannels({ secrets, config }) {
     };
   }
 
-  return { turnstile, smtp, aliyunSms };
+  return { aliyunCaptcha, smtp, aliyunSms };
 }

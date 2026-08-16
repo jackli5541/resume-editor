@@ -1,5 +1,6 @@
 import { validateExportPayload } from "../validation.mjs";
 import { buildSystemPrompt, buildUserPrompt, mapModelOutput } from "./extract.mjs";
+import { buildOptimizeSystemPrompt, buildOptimizeUserPrompt, mapOptimizeOutput } from "./optimize.mjs";
 import { AiProviderError } from "./provider.mjs";
 
 export class AiGenerationError extends Error {
@@ -54,7 +55,7 @@ export class AiGenerationService {
     else this.active -= 1;
   }
 
-  async generate({ userId, templateSlug, description, tone = "professional" }) {
+  async generate({ userId, templateSlug, description, tone = "professional", isAdmin = false, aiDailyLimit = null }) {
     if (templateSlug && templateSlug !== "clean-single") {
       throw new AiGenerationError("当前仅支持极简轻模板", 400, "unsupported_template");
     }
@@ -70,9 +71,9 @@ export class AiGenerationService {
       throw new AiGenerationError(`描述内容过长（上限 ${config.maxInputChars} 字），请精简后再试`, 413, "input_too_long");
     }
 
-    const quota = await this.quota.check(userId);
+    const quota = await this.quota.check(userId, { isAdmin, limit: aiDailyLimit });
     if (!quota.allowed) {
-      throw new AiGenerationError(`今日 AI 生成次数已用完（${quota.limit} 次/天）`, 429, "quota_exceeded");
+      throw new AiGenerationError(`今日 AI 调用次数已用完（${quota.limit} 次/天），0 点后重置`, 429, "quota_exceeded");
     }
 
     const inputChars = text.length;
@@ -124,6 +125,80 @@ export class AiGenerationService {
         notices: mapped.notices,
         usage: { model: config.model }
       };
+    } finally {
+      this.release();
+      await this.auditLog.record({
+        userId,
+        provider: config.provider,
+        model: config.model,
+        status,
+        inputChars,
+        outputChars,
+        latencyMs: Date.now() - startedAt,
+        errorCode
+      });
+    }
+  }
+
+  async optimize({ userId, resume, instruction, tone = "professional", isAdmin = false, aiDailyLimit = null }) {
+    const config = await this.configRepository.get();
+    if (!config.enabled) throw new AiGenerationError("AI 生成未启用，请联系管理员", 503, "ai_disabled");
+    if (config.optimizeEnabled === false) throw new AiGenerationError("AI 优化已关闭，请联系管理员", 503, "ai_optimize_disabled");
+    const apiKey = await this.configRepository.getApiKey();
+    if (!apiKey) throw new AiGenerationError("模型 API Key 未配置，请联系管理员", 503, "missing_api_key");
+
+    const text = String(instruction || "").trim();
+    if (!text) throw new AiGenerationError("请填写修改要求", 400, "empty_instruction");
+    if (text.length > config.maxInputChars) {
+      throw new AiGenerationError(`修改要求过长（上限 ${config.maxInputChars} 字），请精简后再试`, 413, "input_too_long");
+    }
+
+    const quota = await this.quota.check(userId, { isAdmin, limit: aiDailyLimit });
+    if (!quota.allowed) {
+      throw new AiGenerationError(`今日 AI 调用次数已用完（${quota.limit} 次/天），0 点后重置`, 429, "quota_exceeded");
+    }
+
+    const inputChars = text.length;
+    const startedAt = Date.now();
+    let status = "ok";
+    let errorCode = null;
+    let outputChars = 0;
+
+    await this.acquire();
+    try {
+      let modelJson;
+      try {
+        modelJson = await this.provider.complete({
+          baseUrl: config.baseUrl,
+          apiKey,
+          model: config.model,
+          temperature: config.temperature,
+          maxOutputTokens: config.maxOutputTokens,
+          timeoutMs: config.timeoutMs,
+          systemPrompt: buildOptimizeSystemPrompt(config.systemPrompt),
+          userPrompt: buildOptimizeUserPrompt(resume, text, tone)
+        });
+        outputChars = JSON.stringify(modelJson).length;
+      } catch (error) {
+        const code = error?.code;
+        status = auditStatusFor(code);
+        errorCode = code || "provider_error";
+        if (error instanceof AiProviderError) throw this.toClientError(error);
+        if (code === "unsafe_base_url") {
+          throw new AiGenerationError("模型服务地址配置有误，请联系管理员", 500, code);
+        }
+        throw new AiGenerationError("模型服务异常，请稍后再试", 502, "provider_error");
+      }
+
+      const proposal = mapOptimizeOutput(modelJson, resume);
+      if (!proposal.changes.length) {
+        status = "invalid_json";
+        errorCode = "no_changes";
+        throw new AiGenerationError("AI 未能给出有效修改方案，请换个说法重试", 502, "no_changes");
+      }
+
+      this.quota.increment(userId);
+      return { ...proposal, usage: { model: config.model } };
     } finally {
       this.release();
       await this.auditLog.record({

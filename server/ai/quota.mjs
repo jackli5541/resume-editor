@@ -7,20 +7,24 @@ export class AiQuotaService {
     this.memory = new Map();
   }
 
-  async check(userId) {
-    const limit = this.dailyLimit;
+  async check(userId, { isAdmin = false, limit = null } = {}) {
+    // 管理员/超级管理员不限额。
+    if (isAdmin) return { allowed: true, used: 0, limit: null, remaining: null, unlimited: true };
+
+    const effective = Number.isSafeInteger(Number(limit)) && Number(limit) > 0 ? Number(limit) : this.dailyLimit;
     if (this.database) {
       const result = await this.database.query(`
         SELECT count(*)::int AS used FROM ai_generation_log
-        WHERE user_id = $1 AND status = 'ok' AND created_at >= date_trunc('day', now())
+        WHERE user_id = $1 AND status = 'ok'
+          AND created_at >= date_trunc('day', now() AT TIME ZONE 'Asia/Shanghai') AT TIME ZONE 'Asia/Shanghai'
       `, [userId]);
       const used = result.rows[0]?.used ?? 0;
-      return { allowed: used < limit, used, limit, remaining: Math.max(0, limit - used) };
+      return { allowed: used < effective, used, limit: effective, remaining: Math.max(0, effective - used) };
     }
     const today = new Date().toISOString().slice(0, 10);
     const entry = this.memory.get(userId);
     const used = entry && entry.date === today ? entry.count : 0;
-    return { allowed: used < limit, used, limit, remaining: Math.max(0, limit - used) };
+    return { allowed: used < effective, used, limit: effective, remaining: Math.max(0, effective - used) };
   }
 
   // 仅在无 DB 模式由服务在成功生成后调用；DB 模式由审计日志自动计数，此处为空操作。
