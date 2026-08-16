@@ -13,6 +13,12 @@ const CONFIG_SCHEMA = Object.freeze({
     label: "开放注册",
     description: "关闭后，新用户将无法注册（环境变量 DISABLE_REGISTRATION 仍为硬开关）"
   }),
+  turnstile_enabled: Object.freeze({
+    type: "boolean",
+    defaultValue: false,
+    label: "人机验证（Turnstile）",
+    description: "开启且已配置 Turnstile Secret Key 时，登录/注册/验证码登录需通过人机验证（默认关闭）"
+  }),
   phone_code_login_enabled: Object.freeze({
     type: "boolean",
     defaultValue: false,

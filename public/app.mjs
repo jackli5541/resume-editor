@@ -2749,14 +2749,15 @@ async function loadAdminConfig() {
 async function loadAdminAuthStatus() {
   try {
     const payload = await readApiResponse(await fetch("/api/admin/auth-status", { cache: "no-store" }));
-    const badge = (configured) => configured
+    const badge = (configured, offText = "未配置（开发模式）") => configured
       ? '<span class="auth-status-badge is-on">已配置</span>'
-      : '<span class="auth-status-badge is-off">未配置（开发模式）</span>';
+      : `<span class="auth-status-badge is-off">${offText}</span>`;
     elements.adminAuthStatus.innerHTML = `
       <span class="admin-auth-status__label">认证渠道状态</span>
+      <span class="admin-auth-status__item">人机验证（Turnstile）：${payload.turnstileEnabled ? "开启" : "关闭"} · 密钥 ${badge(payload.turnstileConfigured, "未配置密钥")}</span>
       <span class="admin-auth-status__item">邮箱验证码登录：${payload.emailCodeLoginEnabled ? "开启" : "关闭"} · 通道 ${badge(payload.emailConfigured)}</span>
       <span class="admin-auth-status__item">手机验证码登录：${payload.phoneCodeLoginEnabled ? "开启" : "关闭"} · 通道 ${badge(payload.phoneConfigured)}</span>
-      <small>密钥可在「认证配置」中填写（加密落库，优先于环境变量）；均未配置时验证码会打印到服务端日志。</small>`;
+      <small>开关在「运行配置」中设置；密钥在「认证配置」中填写（加密落库，优先于环境变量）。</small>`;
   } catch {
     elements.adminAuthStatus.innerHTML = "";
   }

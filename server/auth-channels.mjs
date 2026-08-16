@@ -1,7 +1,7 @@
 // 认证渠道（Turnstile / SMTP / 阿里云短信）的运行时配置解析。
 // 优先级：管理端配置（加密落库）> 环境变量；两者都未配置时该渠道视为未启用。
 
-export function createAuthChannels({ secrets }) {
+export function createAuthChannels({ secrets, config }) {
   async function secretValue(key) {
     if (!secrets) return "";
     try {
@@ -16,9 +16,10 @@ export function createAuthChannels({ secrets }) {
   }
 
   async function turnstile() {
+    const flagEnabled = config ? (await config.get("turnstile_enabled")) === true : false;
     const siteKey = pick(await secretValue("turnstile_site_key"), process.env.TURNSTILE_SITE_KEY);
     const secretKey = pick(await secretValue("turnstile_secret_key"), process.env.TURNSTILE_SECRET_KEY);
-    return { enabled: Boolean(secretKey), siteKey, secretKey };
+    return { enabled: flagEnabled && Boolean(secretKey), siteKey, secretKey };
   }
 
   async function smtp() {

@@ -198,7 +198,7 @@ export function createAppServer(options = {}) {
   const metrics = options.metrics || new MetricsService({ database });
   const configService = options.configService || new AppConfigService({ database });
   const appSecretsService = options.appSecretsService || new AppSecretsService({ database });
-  const authChannels = createAuthChannels({ secrets: appSecretsService });
+  const authChannels = createAuthChannels({ secrets: appSecretsService, config: configService });
   const smsService = options.smsService || new SmsService({ getConfig: () => authChannels.aliyunSms() });
   const mailerService = options.mailerService || new MailerService({ getConfig: () => authChannels.smtp() });
   const verificationCodeService = options.verificationCodeService || new VerificationCodeService({ database });
@@ -1076,11 +1076,14 @@ export function createAppServer(options = {}) {
         await requirePermission(request, "config.read");
         const smtp = await authChannels.smtp();
         const aliyun = await authChannels.aliyunSms();
+        const turnstile = await authChannels.turnstile();
         sendJson(response, 200, {
           emailCodeLoginEnabled: (await configService.get("email_code_login_enabled")) !== false,
           phoneCodeLoginEnabled: (await configService.get("phone_code_login_enabled")) !== false,
           emailConfigured: smtp.enabled,
-          phoneConfigured: aliyun.enabled
+          phoneConfigured: aliyun.enabled,
+          turnstileEnabled: (await configService.get("turnstile_enabled")) !== false,
+          turnstileConfigured: Boolean(turnstile.secretKey)
         });
       } catch (error) {
         sendJson(response, errorStatusOf(error), { error: error?.message || "读取认证状态失败" });
