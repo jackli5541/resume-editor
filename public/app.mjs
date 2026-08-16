@@ -70,6 +70,8 @@ const elements = {
   loginTitle: document.querySelector("#loginTitle"),
   loginIdentifier: document.querySelector("#loginIdentifier"),
   loginPassword: document.querySelector("#loginPassword"),
+  loginPasswordConfirmField: document.querySelector("#loginPasswordConfirmField"),
+  loginPasswordConfirm: document.querySelector("#loginPasswordConfirm"),
   loginNameField: document.querySelector("#loginNameField"),
   loginName: document.querySelector("#loginName"),
   loginError: document.querySelector("#loginError"),
@@ -205,6 +207,7 @@ const elements = {
   aiWordFile: document.querySelector("#aiWordFile"),
   aiImportStatus: document.querySelector("#aiImportStatus"),
   aiCharCount: document.querySelector("#aiCharCount"),
+  aiVoiceBtn: document.querySelector("#aiVoiceBtn"),
   addModuleButton: document.querySelector("#addModuleButton"),
   addModuleMenu: document.querySelector("#addModuleMenu"),
   appDialog: document.querySelector("#appDialog"),
@@ -277,6 +280,10 @@ let aiResult = null;
 let aiGenerating = false;
 let aiWordImporting = false;
 let mammothPromise = null;
+let aiRecognition = null;
+let aiVoiceActive = false;
+let aiVoiceBase = "";
+let aiVoicePrefix = "";
 let aiLimits = { maxInputChars: 8000, enabled: true };
 const AI_MAX_WORD_BYTES = 5 * 1024 * 1024;
 const AI_FALLBACK_MAX_CHARS = 8000;
@@ -1222,6 +1229,30 @@ async function loadLoginMethods() {
   refreshLoginForm();
 }
 
+// 邮箱/手机号的基础校验：与服务端规则保持一致，仅在提交前做即时提示。
+function identifierError(value) {
+  const v = String(value || "").trim();
+  if (!v) return "请输入邮箱或手机号";
+  if (v.includes("@")) {
+    return v.length <= 320 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
+      ? null
+      : "邮箱格式不正确，请检查后重试";
+  }
+  const phone = v.replace(/[\s()-]/g, "");
+  return /^\+?[0-9]{6,15}$/.test(phone) ? null : "手机号需为 6–15 位数字（可带 + 号）";
+}
+
+// 密码强度基础校验：与服务端 password-policy 保持一致（弱口令黑名单仍由服务端拦截）。
+function passwordError(password) {
+  if (typeof password !== "string" || password.length < 8 || password.length > 200) {
+    return "密码长度需为 8–200 个字符";
+  }
+  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+    return "密码需同时包含字母和数字";
+  }
+  return null;
+}
+
 function refreshLoginForm() {
   const isRegister = authTab === "register";
   const isCode = authTab === "login" && loginMethod === "code";
@@ -1237,6 +1268,8 @@ function refreshLoginForm() {
 
   elements.loginPasswordField.hidden = isCode;
   elements.loginPasswordHint.hidden = !isRegister;
+  elements.loginPasswordConfirmField.hidden = !isRegister;
+  elements.loginPassword.autocomplete = isRegister ? "new-password" : "current-password";
   elements.loginCodeField.hidden = !isCode;
   elements.loginNameField.hidden = !isRegister;
   elements.loginMethodSwitchRow.hidden = isRegister || !codeLoginAvailable;
@@ -1285,8 +1318,9 @@ function startSendCodeCountdown() {
 
 async function handleSendCode() {
   const identifier = elements.loginIdentifier.value.trim();
-  if (!identifier) {
-    elements.loginError.textContent = "请输入邮箱或手机号";
+  const idError = identifierError(identifier);
+  if (idError) {
+    elements.loginError.textContent = idError;
     elements.loginError.hidden = false;
     elements.loginIdentifier.focus();
     return;
@@ -1312,9 +1346,11 @@ async function handleSendCode() {
 async function submitCodeLogin() {
   const identifier = elements.loginIdentifier.value.trim();
   const code = elements.loginCode.value.trim();
-  if (!identifier) {
-    elements.loginError.textContent = "请输入邮箱或手机号";
+  const idError = identifierError(identifier);
+  if (idError) {
+    elements.loginError.textContent = idError;
     elements.loginError.hidden = false;
+    elements.loginIdentifier.focus();
     return;
   }
   if (!code) {
@@ -1388,6 +1424,7 @@ function showLoginPage() {
   refreshLoginForm();
   elements.loginIdentifier.value = "";
   elements.loginPassword.value = "";
+  elements.loginPasswordConfirm.value = "";
   elements.loginName.value = "";
   elements.loginCode.value = "";
   clearInterval(sendCodeTimer);
@@ -1454,6 +1491,35 @@ async function handleLoginSubmit(event) {
   const identifier = elements.loginIdentifier.value.trim();
   const password = elements.loginPassword.value;
   const isRegister = authTab === "register";
+
+  const idError = identifierError(identifier);
+  if (idError) {
+    elements.loginError.textContent = idError;
+    elements.loginError.hidden = false;
+    elements.loginIdentifier.focus();
+    return;
+  }
+  if (!password) {
+    elements.loginError.textContent = "请输入密码";
+    elements.loginError.hidden = false;
+    elements.loginPassword.focus();
+    return;
+  }
+  if (isRegister) {
+    const pwError = passwordError(password);
+    if (pwError) {
+      elements.loginError.textContent = pwError;
+      elements.loginError.hidden = false;
+      elements.loginPassword.focus();
+      return;
+    }
+    if (password !== elements.loginPasswordConfirm.value) {
+      elements.loginError.textContent = "两次输入的密码不一致";
+      elements.loginError.hidden = false;
+      elements.loginPasswordConfirm.focus();
+      return;
+    }
+  }
   if (turnstileConfig.enabled) {
     if (!turnstileReady) {
       elements.loginError.textContent = "人机验证组件加载失败，请刷新页面重试";
@@ -2671,20 +2737,26 @@ async function markMessageRead(target) {
   }
 }
 
+function applyUnreadBadges(unread) {
+  const count = Number(unread) || 0;
+  document.querySelectorAll("[data-msg-badge]").forEach((node) => {
+    node.hidden = count === 0;
+    node.textContent = String(count);
+  });
+  document.querySelectorAll("[data-account-unread]").forEach((node) => {
+    node.hidden = count === 0;
+    node.textContent = count > 99 ? "99+" : String(count);
+  });
+}
+
 async function refreshUnreadCount() {
   if (!currentUser) {
-    document.querySelectorAll("[data-msg-badge]").forEach((node) => {
-      node.hidden = true;
-    });
+    applyUnreadBadges(0);
     return;
   }
   try {
     const payload = await readApiResponse(await fetch("/api/me/messages", { cache: "no-store" }));
-    const unread = Number(payload.unread || 0);
-    document.querySelectorAll("[data-msg-badge]").forEach((node) => {
-      node.hidden = unread === 0;
-      node.textContent = String(unread);
-    });
+    applyUnreadBadges(payload.unread || 0);
   } catch {
     // 忽略
   }
@@ -2738,6 +2810,16 @@ function injectAccountItems() {
     msgBtn.innerHTML = '站内信 <span class="msg-badge" data-msg-badge hidden>0</span>';
     settings.after(feedbackBtn);
     feedbackBtn.after(msgBtn);
+  });
+
+  // 在账户按钮右上角追加未读红点徽标（与下拉菜单里的数字徽标共用同一未读数）。
+  document.querySelectorAll(".account-button").forEach((button) => {
+    if (button.querySelector("[data-account-unread]")) return;
+    const badge = document.createElement("span");
+    badge.className = "account-unread-badge";
+    badge.dataset.accountUnread = "";
+    badge.hidden = true;
+    button.appendChild(badge);
   });
 }
 
@@ -3231,6 +3313,106 @@ async function handleAiWordImport(file) {
   }
 }
 
+// —— 语音输入：Web Speech API 将口述实时转成文字，追加到「个人经历描述」 ——
+
+function speechRecognitionCtor() {
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
+function setAiVoiceState(recording) {
+  aiVoiceActive = recording;
+  const btn = elements.aiVoiceBtn;
+  if (!btn) return;
+  btn.classList.toggle("is-recording", recording);
+  btn.setAttribute("aria-pressed", String(recording));
+  const label = btn.querySelector("[data-ai-voice-label]");
+  if (label) label.textContent = recording ? "停止输入" : "语音输入";
+}
+
+function aiVoiceErrorText(code) {
+  switch (code) {
+    case "not-allowed":
+    case "service-not-allowed":
+      return "麦克风权限被拒绝，请在浏览器地址栏允许麦克风访问";
+    case "no-speech":
+      return "未检测到语音，请靠近麦克风再试";
+    case "audio-capture":
+      return "未找到麦克风设备，请检查设备连接";
+    case "network":
+      return "语音识别网络异常，请检查网络后重试";
+    case "aborted":
+      return "";
+    default:
+      return "语音识别出错，请重试";
+  }
+}
+
+function stopAiVoice() {
+  if (aiRecognition) {
+    try { aiRecognition.stop(); } catch { /* 已停止则忽略 */ }
+  }
+  setAiVoiceState(false);
+}
+
+function toggleAiVoice() {
+  if (!speechRecognitionCtor()) {
+    showToast("当前浏览器不支持语音输入，请使用 Chrome、Edge 或 Safari", "warning");
+    return;
+  }
+  if (aiVoiceActive) {
+    stopAiVoice();
+    return;
+  }
+  if (!window.isSecureContext) {
+    showToast("语音输入需要 HTTPS 或 localhost 环境，请改用 https 访问", "warning");
+    return;
+  }
+
+  const recognition = new (speechRecognitionCtor())();
+  aiRecognition = recognition;
+  recognition.lang = "zh-CN";
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+
+  // 以当前描述内容为基准，识别结果追加到其后。
+  aiVoiceBase = elements.aiDescription.value;
+  aiVoicePrefix = aiVoiceBase && !/\s$/.test(aiVoiceBase) ? " " : "";
+
+  recognition.onstart = () => setAiVoiceState(true);
+  recognition.onresult = (event) => {
+    let finalText = "";
+    let interimText = "";
+    for (let i = 0; i < event.results.length; i++) {
+      const result = event.results[i];
+      const text = result[0]?.transcript ?? "";
+      if (result.isFinal) finalText += text;
+      else interimText += text;
+    }
+    elements.aiDescription.value = aiVoiceBase + aiVoicePrefix + finalText + interimText;
+    updateAiCharCount();
+  };
+  recognition.onerror = (event) => {
+    const message = aiVoiceErrorText(event.error);
+    stopAiVoice();
+    if (message) showToast(message, "warning");
+  };
+  recognition.onend = () => {
+    if (aiRecognition === recognition) {
+      setAiVoiceState(false);
+      aiRecognition = null;
+    }
+  };
+
+  try {
+    recognition.start();
+  } catch {
+    aiRecognition = null;
+    setAiVoiceState(false);
+    showToast("无法启动语音识别，请检查麦克风权限", "warning");
+  }
+}
+
 function aiMaxInputChars() {
   return Number.isFinite(aiLimits?.maxInputChars) && aiLimits.maxInputChars > 0
     ? aiLimits.maxInputChars
@@ -3703,21 +3885,159 @@ function renderTemplateCard(template) {
     </article>`;
 }
 
+// —— 推荐模板旁的「编辑器操作」演示循环：模拟在编辑面板逐模块填写字段、实时更新预览 ——
+let featuredDemoStarted = false;
+
+const featuredDemoSteps = [
+  { tab: "profile", label: "姓名", text: "林晓", score: 22, fill: "profile" },
+  { tab: "experience", label: "工作内容", text: "负责订单系统重构，接口 QPS 提升 50%", score: 55, fill: "experience" },
+  { tab: "skills", label: "技能描述", text: "Java · Spring · Redis · MySQL", score: 82, fill: "skills" },
+  { tab: "summary", label: "自我评价", text: "5 年后端，擅长高并发与系统稳定性", score: 100, fill: "summary" }
+];
+
+function featuredDemoReducedMotion() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+}
+
+function featuredDemoSleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function typeFeaturedDemoText(el, text, speed) {
+  for (let i = 0; i <= text.length; i += 1) {
+    el.textContent = text.slice(0, i);
+    await featuredDemoSleep(speed);
+  }
+}
+
+function setFeaturedDemoTab(root, tab) {
+  root.querySelectorAll("[data-fed-tab]").forEach((node) => {
+    node.classList.toggle("is-active", node.dataset.fedTab === tab);
+  });
+}
+
+function setFeaturedDemoScore(root, score) {
+  const scoreEl = root.querySelector("[data-fed-score]");
+  const barEl = root.querySelector("[data-fed-bar]");
+  if (scoreEl) scoreEl.textContent = `${score}%`;
+  if (barEl) barEl.style.width = `${score}%`;
+}
+
+function applyFeaturedDemoFill(root, fill) {
+  if (fill === "profile") {
+    const nameEl = root.querySelector("[data-fed-name]");
+    const roleEl = root.querySelector("[data-fed-role]");
+    if (nameEl) nameEl.textContent = "林晓";
+    if (roleEl) roleEl.textContent = "产品经理 · 5 年经验";
+    return;
+  }
+  const section = root.querySelector(`[data-fed-section="${fill}"]`);
+  if (section) section.classList.add("is-filled");
+}
+
+function resetFeaturedDemo(root) {
+  const nameEl = root.querySelector("[data-fed-name]");
+  const roleEl = root.querySelector("[data-fed-role]");
+  const textEl = root.querySelector("[data-fed-text]");
+  if (nameEl) nameEl.textContent = "";
+  if (roleEl) roleEl.textContent = "";
+  if (textEl) textEl.textContent = "";
+  root.querySelectorAll("[data-fed-section]").forEach((section) => section.classList.remove("is-filled"));
+  setFeaturedDemoScore(root, 0);
+}
+
+function fillFeaturedDemo() {
+  const root = document.getElementById("featuredDemo");
+  if (!root) return;
+  featuredDemoSteps.forEach((step) => applyFeaturedDemoFill(root, step.fill));
+  setFeaturedDemoTab(root, "summary");
+  setFeaturedDemoScore(root, 100);
+  const textEl = root.querySelector("[data-fed-text]");
+  const labelEl = root.querySelector("[data-fed-label]");
+  const last = featuredDemoSteps[featuredDemoSteps.length - 1];
+  if (textEl) textEl.textContent = last.text;
+  if (labelEl) labelEl.textContent = last.label;
+}
+
+async function runFeaturedDemo() {
+  if (featuredDemoStarted) return;
+  featuredDemoStarted = true;
+  const root = document.getElementById("featuredDemo");
+  if (!root) return;
+  if (featuredDemoReducedMotion()) {
+    fillFeaturedDemo();
+    return;
+  }
+  const textEl = root.querySelector("[data-fed-text]");
+  const labelEl = root.querySelector("[data-fed-label]");
+  if (!textEl) return;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    resetFeaturedDemo(root);
+    for (const step of featuredDemoSteps) {
+      setFeaturedDemoTab(root, step.tab);
+      if (labelEl) labelEl.textContent = step.label;
+      await typeFeaturedDemoText(textEl, step.text, 30);
+      await featuredDemoSleep(240);
+      applyFeaturedDemoFill(root, step.fill);
+      setFeaturedDemoScore(root, step.score);
+      await featuredDemoSleep(640);
+    }
+    await featuredDemoSleep(1600);
+  }
+}
+
 function renderFeaturedTemplate(template) {
   const ready = template.selectable === true;
   const preview = template.previewUrl
     ? `<img src="${escapeHtml(template.previewUrl)}" alt="${escapeHtml(template.name)}模板预览" />`
     : `<div class="template-preview-placeholder"><span>${escapeHtml(template.name.slice(0, 1))}</span></div>`;
   return `
-    <article class="template-card is-ready is-recommended template-card--featured">
-      <div class="template-preview">${preview}<span class="template-badge">★ 推荐</span><span class="template-status">可使用</span></div>
-      <div class="template-card__body">
-        <div><strong>${escapeHtml(template.name)}</strong><span>${escapeHtml(template.category)} · v${template.version}</span></div>
-        <p>${escapeHtml("AI 快速生成的默认模板，极简清晰、ATS 友好。")}</p>
-        <div class="template-recommend-reason"><strong>推荐理由</strong>：无需整理个人信息，粘贴经历描述即可由 AI 自动生成结构化简历。</div>
-        <button type="button" data-action="select-template" data-template-slug="${escapeHtml(template.slug)}" data-template-version="${template.version}" ${ready ? "" : "disabled"}>快速开始</button>
+    <div class="template-featured__grid">
+      <article class="template-card is-ready is-recommended template-card--featured">
+        <div class="template-preview">${preview}<span class="template-badge">★ 推荐</span><span class="template-status">可使用</span></div>
+        <div class="template-card__body">
+          <div><strong>${escapeHtml(template.name)}</strong><span>${escapeHtml(template.category)} · v${template.version}</span></div>
+          <p>${escapeHtml("AI 快速生成的默认模板，极简清晰、ATS 友好。")}</p>
+          <div class="template-recommend-reason"><strong>推荐理由</strong>：无需整理个人信息，粘贴经历描述即可由 AI 自动生成结构化简历。</div>
+          <button type="button" data-action="select-template" data-template-slug="${escapeHtml(template.slug)}" data-template-version="${template.version}" ${ready ? "" : "disabled"}>快速开始</button>
+        </div>
+      </article>
+      <div class="featured-editor-demo template-featured__demo" id="featuredDemo" aria-hidden="true">
+        <div class="fed-paper">
+          <div class="fed-paper__name" data-fed-name></div>
+          <div class="fed-paper__role" data-fed-role></div>
+          <div class="fed-section" data-fed-section="experience">
+            <span class="fed-section__title">工作经历</span>
+            <div class="fed-section__lines"><i></i><i></i><i></i></div>
+          </div>
+          <div class="fed-section" data-fed-section="skills">
+            <span class="fed-section__title">技能特长</span>
+            <div class="fed-section__lines"><i></i><i></i></div>
+          </div>
+          <div class="fed-section" data-fed-section="summary">
+            <span class="fed-section__title">自我评价</span>
+            <div class="fed-section__lines"><i></i><i></i></div>
+          </div>
+        </div>
+        <div class="fed-drawer">
+          <div class="fed-tabs">
+            <span class="fed-tab is-active" data-fed-tab="profile">基本信息</span>
+            <span class="fed-tab" data-fed-tab="experience">工作经历</span>
+            <span class="fed-tab" data-fed-tab="skills">技能特长</span>
+            <span class="fed-tab" data-fed-tab="summary">自我评价</span>
+          </div>
+          <div class="fed-field">
+            <span class="fed-field__label" data-fed-label>姓名</span>
+            <div class="fed-field__input"><span data-fed-text></span><span class="fed-caret"></span></div>
+          </div>
+        </div>
+        <div class="fed-status">
+          <span class="fed-status__score">完成度 <strong data-fed-score>0%</strong></span>
+          <span class="fed-status__bar"><i data-fed-bar></i></span>
+        </div>
       </div>
-    </article>`;
+    </div>`;
 }
 
 function renderTemplateLibrary() {
@@ -3733,6 +4053,7 @@ function renderTemplateLibrary() {
   if (featured) {
     elements.templateFeatured.innerHTML = renderFeaturedTemplate(featured);
     elements.templateFeatured.hidden = false;
+    runFeaturedDemo();
   } else {
     elements.templateFeatured.hidden = true;
     elements.templateFeatured.innerHTML = "";
@@ -3947,6 +4268,7 @@ document.addEventListener("click", async (event) => {
   else if (action === "ai-regen") generateAi();
   else if (action === "ai-save") saveAiDraft();
   else if (action === "ai-import-word") elements.aiWordFile.click();
+  else if (action === "ai-voice") toggleAiVoice();
   else if (action === "manual-edit") manualEdit();
   else if (action === "toggle-add-module") toggleAddModuleMenu();
   else if (action === "add-module") addModule(actionTarget.dataset.moduleId);

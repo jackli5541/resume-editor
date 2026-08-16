@@ -598,6 +598,10 @@
               <input type="file" id="aiWordFile"
                      accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                      hidden />
+              <button class="ai-import-btn ai-mic-btn" type="button" data-action="ai-voice" id="aiVoiceBtn" aria-pressed="false" aria-label="语音输入个人经历描述">
+                <span class="ai-mic-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z"/><path d="M19 11a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V20H8a1 1 0 0 0 0 2h8a1 1 0 0 0 0-2h-3v-2.08A7 7 0 0 0 19 11Z"/></svg></span>
+                <span data-ai-voice-label>语音输入</span>
+              </button>
               <span class="ai-import-status" id="aiImportStatus" role="status"></span>
             </div>
             <label class="ai-label" for="aiDescription">个人经历描述</label>
@@ -872,6 +876,10 @@
             <span>密码</span>
             <input type="password" id="loginPassword" autocomplete="current-password" required />
           </label>
+          <label class="form-field" id="loginPasswordConfirmField" hidden>
+            <span>确认密码</span>
+            <input type="password" id="loginPasswordConfirm" autocomplete="new-password" required />
+          </label>
           <p class="auth-hint" id="loginPasswordHint" hidden>密码需 8–200 位，且同时包含字母和数字。</p>
           <label class="form-field" id="loginCodeField" hidden>
             <span>验证码</span>
@@ -966,10 +974,16 @@
     </div>
 
     <aside class="support-float" id="supportFloat" hidden>
-      <button class="support-float__trigger" type="button" data-action="toggle-support" aria-expanded="false" aria-controls="supportCard" aria-haspopup="dialog">
-        <span class="support-float__icon" aria-hidden="true">☕</span>
-        <span>赞赏</span>
-      </button>
+      <div class="support-float__stack">
+        <button class="support-float__trigger" type="button" data-action="open-feedback" aria-haspopup="dialog">
+          <span class="support-float__icon" aria-hidden="true">💬</span>
+          <span>反馈</span>
+        </button>
+        <button class="support-float__trigger" type="button" data-action="toggle-support" aria-expanded="false" aria-controls="supportCard" aria-haspopup="dialog">
+          <span class="support-float__icon" aria-hidden="true">☕</span>
+          <span>赞赏</span>
+        </button>
+      </div>
       <section class="support-card" id="supportCard" role="dialog" aria-modal="false" aria-labelledby="supportTitle" hidden>
         <button class="support-card__close" type="button" data-action="close-support" aria-label="关闭">×</button>
         <div class="support-card__head">
