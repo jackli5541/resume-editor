@@ -37,7 +37,7 @@ test("配置中心：读取默认值并可热改", async (context) => {
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
 
   const initial = await (await fetch(`${app.origin}/api/admin/config`, { headers: authHeaders(admin.cookie) })).json();
   assert.equal(initial.config.maintenance_mode, false);
@@ -53,8 +53,8 @@ test("维护模式阻止普通用户写操作，管理员不受影响", async (c
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
 
   await patchConfig(app, admin.cookie, { maintenance_mode: true });
 
@@ -79,23 +79,23 @@ test("关闭注册后新用户无法注册", async (context) => {
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
 
   await patchConfig(app, admin.cookie, { registration_enabled: false });
 
-  const blocked = await register(app, { identifier: "newuser@example.com", password: "password123" });
+  const blocked = await register(app, { identifier: "newuser@example.com", password: "Test1234!" });
   assert.equal(blocked.status, 403);
 
   await patchConfig(app, admin.cookie, { registration_enabled: true });
-  assert.equal((await register(app, { identifier: "newuser@example.com", password: "password123" })).status, 201);
+  assert.equal((await register(app, { identifier: "newuser@example.com", password: "Test1234!" })).status, 201);
 });
 
 test("系统运维面板返回组件状态，普通用户 403", async (context) => {
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
 
   assert.equal((await fetch(`${app.origin}/api/admin/system`, { headers: authHeaders(bob.cookie) })).status, 403);
 

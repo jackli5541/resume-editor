@@ -70,11 +70,23 @@ const elements = {
   loginTitle: document.querySelector("#loginTitle"),
   loginIdentifier: document.querySelector("#loginIdentifier"),
   loginPassword: document.querySelector("#loginPassword"),
+  loginPasswordConfirmField: document.querySelector("#loginPasswordConfirmField"),
+  loginPasswordConfirm: document.querySelector("#loginPasswordConfirm"),
   loginNameField: document.querySelector("#loginNameField"),
   loginName: document.querySelector("#loginName"),
   loginError: document.querySelector("#loginError"),
   loginSubmit: document.querySelector("#loginSubmit"),
-  loginToggle: document.querySelector("#loginToggle"),
+  loginMethodSwitch: document.querySelector("#loginMethodSwitch"),
+  loginPasswordHint: document.querySelector("#loginPasswordHint"),
+  turnstileWrap: document.querySelector("#turnstileWrap"),
+  loginTabLogin: document.querySelector("#loginTabLogin"),
+  loginTabRegister: document.querySelector("#loginTabRegister"),
+  loginIdentifierLabel: document.querySelector("#loginIdentifierLabel"),
+  loginPasswordField: document.querySelector("#loginPasswordField"),
+  loginCodeField: document.querySelector("#loginCodeField"),
+  loginCode: document.querySelector("#loginCode"),
+  sendCodeButton: document.querySelector("#sendCodeButton"),
+  loginMethodSwitchRow: document.querySelector("#loginMethodSwitchRow"),
   settingsForm: document.querySelector("#settingsForm"),
   settingsName: document.querySelector("#settingsName"),
   settingsEmail: document.querySelector("#settingsEmail"),
@@ -172,6 +184,10 @@ const elements = {
   adminConfigForm: document.querySelector("#adminConfigForm"),
   adminConfigFields: document.querySelector("#adminConfigFields"),
   adminConfigMsg: document.querySelector("#adminConfigMsg"),
+  adminAuthStatus: document.querySelector("#adminAuthStatus"),
+  adminAuthSecretForm: document.querySelector("#adminAuthSecretForm"),
+  adminAuthSecretFields: document.querySelector("#adminAuthSecretFields"),
+  adminAuthSecretMsg: document.querySelector("#adminAuthSecretMsg"),
   adminSystemStats: document.querySelector("#adminSystemStats"),
   adminSystemDetail: document.querySelector("#adminSystemDetail"),
   adminSystemStatus: document.querySelector("#adminSystemStatus"),
@@ -191,6 +207,7 @@ const elements = {
   aiWordFile: document.querySelector("#aiWordFile"),
   aiImportStatus: document.querySelector("#aiImportStatus"),
   aiCharCount: document.querySelector("#aiCharCount"),
+  aiVoiceBtn: document.querySelector("#aiVoiceBtn"),
   addModuleButton: document.querySelector("#addModuleButton"),
   addModuleMenu: document.querySelector("#addModuleMenu"),
   appDialog: document.querySelector("#appDialog"),
@@ -231,8 +248,16 @@ const FIELD_TYPE_LABELS = {
 };
 
 let currentUser = null;
-let loginMode = "login";
 let loginNext = null;
+let authTab = "login";
+let loginMethod = "password";
+let sendCodeTimer = null;
+let sendCodeCountdown = 0;
+let turnstileConfig = { enabled: false, siteKey: "" };
+let turnstileReady = false;
+let turnstileRequested = false;
+let codeLoginMethods = { email: false, phone: false };
+let codeLoginAvailable = false;
 let adminUsers = [];
 let adminDrafts = [];
 let adminUserSearchTimer = null;
@@ -255,6 +280,10 @@ let aiResult = null;
 let aiGenerating = false;
 let aiWordImporting = false;
 let mammothPromise = null;
+let aiRecognition = null;
+let aiVoiceActive = false;
+let aiVoiceBase = "";
+let aiVoicePrefix = "";
 let aiLimits = { maxInputChars: 8000, enabled: true };
 const AI_MAX_WORD_BYTES = 5 * 1024 * 1024;
 const AI_FALLBACK_MAX_CHARS = 8000;
@@ -1142,14 +1171,234 @@ function openLogin(next = null) {
   showLoginPage();
 }
 
-function setLoginMode(mode) {
-  loginMode = mode === "register" ? "register" : "login";
-  const isRegister = loginMode === "register";
-  elements.loginTitle.textContent = isRegister ? "注册" : "登录";
-  elements.loginSubmit.textContent = isRegister ? "注册并登录" : "登录";
-  elements.loginToggle.textContent = isRegister ? "已有账号？去登录" : "还没有账号？立即注册";
+function loadTurnstileScript() {
+  if (window.turnstile) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("人机验证组件加载失败，请刷新后重试"));
+    document.head.appendChild(script);
+  });
+}
+
+// 拉取 Turnstile 配置并在登录页渲染人机验证组件（仅当服务端已配置 secret key）。
+async function ensureTurnstile() {
+  if (turnstileRequested) return;
+  turnstileRequested = true;
+  try {
+    const payload = await readApiResponse(await fetch("/api/auth/turnstile-config", { cache: "no-store" }));
+    turnstileConfig = { enabled: Boolean(payload.enabled && payload.siteKey), siteKey: payload.siteKey || "" };
+  } catch {
+    turnstileConfig = { enabled: false, siteKey: "" };
+  }
+  if (!turnstileConfig.enabled || !turnstileConfig.siteKey) return;
+  try {
+    await loadTurnstileScript();
+    elements.turnstileWrap.hidden = false;
+    window.turnstile.render(elements.turnstileWrap, {
+      sitekey: turnstileConfig.siteKey,
+      theme: "auto"
+    });
+    turnstileReady = true;
+  } catch {
+    turnstileReady = false;
+  }
+}
+
+function turnstileTokenValue() {
+  return turnstileReady && window.turnstile ? (window.turnstile.getResponse() || "") : "";
+}
+
+function resetTurnstile() {
+  if (turnstileReady && window.turnstile) window.turnstile.reset();
+}
+
+// 拉取验证码登录开关，决定是否显示「使用验证码登录」入口（默认关闭，由管理端开启）。
+async function loadLoginMethods() {
+  try {
+    const payload = await readApiResponse(await fetch("/api/auth/login-methods", { cache: "no-store" }));
+    codeLoginMethods = { email: Boolean(payload.emailCodeEnabled), phone: Boolean(payload.phoneCodeEnabled) };
+  } catch {
+    codeLoginMethods = { email: false, phone: false };
+  }
+  codeLoginAvailable = codeLoginMethods.email || codeLoginMethods.phone;
+  if (!codeLoginAvailable && loginMethod === "code") loginMethod = "password";
+  refreshLoginForm();
+}
+
+// 邮箱/手机号的基础校验：与服务端规则保持一致，仅在提交前做即时提示。
+function identifierError(value) {
+  const v = String(value || "").trim();
+  if (!v) return "请输入邮箱或手机号";
+  if (v.includes("@")) {
+    return v.length <= 320 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
+      ? null
+      : "邮箱格式不正确，请检查后重试";
+  }
+  const phone = v.replace(/[\s()-]/g, "");
+  return /^\+?[0-9]{6,15}$/.test(phone) ? null : "手机号需为 6–15 位数字（可带 + 号）";
+}
+
+// 密码强度基础校验：与服务端 password-policy 保持一致（弱口令黑名单仍由服务端拦截）。
+function passwordError(password) {
+  if (typeof password !== "string" || password.length < 8 || password.length > 200) {
+    return "密码长度需为 8–200 个字符";
+  }
+  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+    return "密码需同时包含字母和数字";
+  }
+  return null;
+}
+
+function refreshLoginForm() {
+  const isRegister = authTab === "register";
+  const isCode = authTab === "login" && loginMethod === "code";
+
+  elements.loginTabLogin.classList.toggle("is-active", !isRegister);
+  elements.loginTabRegister.classList.toggle("is-active", isRegister);
+  elements.loginTabLogin.setAttribute("aria-selected", String(!isRegister));
+  elements.loginTabRegister.setAttribute("aria-selected", String(isRegister));
+
+  elements.loginIdentifierLabel.textContent = "邮箱或手机号";
+  elements.loginIdentifier.autocomplete = "username";
+  elements.loginIdentifier.type = "text";
+
+  elements.loginPasswordField.hidden = isCode;
+  elements.loginPasswordHint.hidden = !isRegister;
+  elements.loginPasswordConfirmField.hidden = !isRegister;
+  elements.loginPassword.autocomplete = isRegister ? "new-password" : "current-password";
+  elements.loginCodeField.hidden = !isCode;
   elements.loginNameField.hidden = !isRegister;
+  elements.loginMethodSwitchRow.hidden = isRegister || !codeLoginAvailable;
+
+  elements.loginTitle.textContent = isRegister ? "注册" : (isCode ? "验证码登录" : "登录");
+  elements.loginSubmit.textContent = isRegister ? "注册并登录" : (isCode ? "登录 / 注册" : "登录");
+  elements.loginMethodSwitch.textContent = isCode ? "使用密码登录" : "使用验证码登录";
   elements.loginError.hidden = true;
+}
+
+function setAuthTab(tab) {
+  authTab = tab === "register" ? "register" : "login";
+  refreshLoginForm();
+  elements.loginIdentifier.focus();
+}
+
+function toggleLoginMethod() {
+  loginMethod = loginMethod === "code" ? "password" : "code";
+  refreshLoginForm();
+  elements.loginIdentifier.focus();
+}
+
+function updateSendCodeButton() {
+  if (sendCodeCountdown > 0) {
+    elements.sendCodeButton.disabled = true;
+    elements.sendCodeButton.textContent = `${sendCodeCountdown}s 后重发`;
+  } else {
+    elements.sendCodeButton.disabled = false;
+    elements.sendCodeButton.textContent = "获取验证码";
+  }
+}
+
+function startSendCodeCountdown() {
+  sendCodeCountdown = 60;
+  updateSendCodeButton();
+  clearInterval(sendCodeTimer);
+  sendCodeTimer = setInterval(() => {
+    sendCodeCountdown -= 1;
+    if (sendCodeCountdown <= 0) {
+      clearInterval(sendCodeTimer);
+      sendCodeTimer = null;
+    }
+    updateSendCodeButton();
+  }, 1000);
+}
+
+async function handleSendCode() {
+  const identifier = elements.loginIdentifier.value.trim();
+  const idError = identifierError(identifier);
+  if (idError) {
+    elements.loginError.textContent = idError;
+    elements.loginError.hidden = false;
+    elements.loginIdentifier.focus();
+    return;
+  }
+  elements.sendCodeButton.disabled = true;
+  try {
+    await readApiResponse(await fetch("/api/auth/send-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier })
+    }));
+    showToast("验证码已发送", "success");
+    startSendCodeCountdown();
+    elements.loginCode.focus();
+  } catch (error) {
+    elements.loginError.textContent = error?.message || "验证码发送失败";
+    elements.loginError.hidden = false;
+  } finally {
+    elements.sendCodeButton.disabled = sendCodeCountdown > 0;
+  }
+}
+
+async function submitCodeLogin() {
+  const identifier = elements.loginIdentifier.value.trim();
+  const code = elements.loginCode.value.trim();
+  const idError = identifierError(identifier);
+  if (idError) {
+    elements.loginError.textContent = idError;
+    elements.loginError.hidden = false;
+    elements.loginIdentifier.focus();
+    return;
+  }
+  if (!code) {
+    elements.loginError.textContent = "请输入验证码";
+    elements.loginError.hidden = false;
+    return;
+  }
+  if (turnstileConfig.enabled) {
+    if (!turnstileReady) {
+      elements.loginError.textContent = "人机验证组件加载失败，请刷新页面重试";
+      elements.loginError.hidden = false;
+      ensureTurnstile();
+      return;
+    }
+    if (!turnstileTokenValue()) {
+      elements.loginError.textContent = "请完成人机验证后再提交";
+      elements.loginError.hidden = false;
+      return;
+    }
+  }
+  elements.loginSubmit.disabled = true;
+  elements.loginError.hidden = true;
+  try {
+    const deviceId = await getDeviceId().catch(() => "");
+    const headers = { "Content-Type": "application/json" };
+    if (deviceId) headers["X-Device-Id"] = deviceId;
+    const payload = await readApiResponse(await fetch("/api/auth/login/code", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ identifier, code, turnstileToken: turnstileTokenValue() })
+    }));
+    currentUser = payload.user || null;
+    updateAccountUi();
+    refreshUnreadCount();
+    closeAllAccountMenus();
+    showToast("登录成功", "success");
+    const fallback = defaultPathFor(currentUser);
+    const target = loginNext && isAppPath(loginNext) ? loginNext : fallback;
+    loginNext = null;
+    window.history.replaceState({}, "", target);
+    await applyCurrentRoute();
+  } catch (error) {
+    elements.loginError.textContent = error?.message || "登录失败";
+    elements.loginError.hidden = false;
+    if (/人机验证/.test(error?.message || "")) resetTurnstile();
+  } finally {
+    elements.loginSubmit.disabled = false;
+  }
 }
 
 // 页面切换淡入：用 Web Animations API 显式播放，避免依赖浏览器对
@@ -1170,10 +1419,21 @@ function showLoginPage() {
   elements.adminPage.hidden = true;
   elements.aiPage.hidden = true;
   revealView(elements.loginPage);
-  setLoginMode("login");
+  authTab = "login";
+  loginMethod = "password";
+  refreshLoginForm();
   elements.loginIdentifier.value = "";
   elements.loginPassword.value = "";
+  elements.loginPasswordConfirm.value = "";
   elements.loginName.value = "";
+  elements.loginCode.value = "";
+  clearInterval(sendCodeTimer);
+  sendCodeTimer = null;
+  sendCodeCountdown = 0;
+  updateSendCodeButton();
+  ensureTurnstile();
+  resetTurnstile();
+  loadLoginMethods();
   window.scrollTo({ top: 0, behavior: "auto" });
   elements.loginIdentifier.focus();
 }
@@ -1224,13 +1484,62 @@ function closeSettings() {
 
 async function handleLoginSubmit(event) {
   event.preventDefault();
+  if (authTab === "login" && loginMethod === "code") {
+    await submitCodeLogin();
+    return;
+  }
   const identifier = elements.loginIdentifier.value.trim();
   const password = elements.loginPassword.value;
-  const isRegister = loginMode === "register";
+  const isRegister = authTab === "register";
+
+  const idError = identifierError(identifier);
+  if (idError) {
+    elements.loginError.textContent = idError;
+    elements.loginError.hidden = false;
+    elements.loginIdentifier.focus();
+    return;
+  }
+  if (!password) {
+    elements.loginError.textContent = "请输入密码";
+    elements.loginError.hidden = false;
+    elements.loginPassword.focus();
+    return;
+  }
+  if (isRegister) {
+    const pwError = passwordError(password);
+    if (pwError) {
+      elements.loginError.textContent = pwError;
+      elements.loginError.hidden = false;
+      elements.loginPassword.focus();
+      return;
+    }
+    if (password !== elements.loginPasswordConfirm.value) {
+      elements.loginError.textContent = "两次输入的密码不一致";
+      elements.loginError.hidden = false;
+      elements.loginPasswordConfirm.focus();
+      return;
+    }
+  }
+  if (turnstileConfig.enabled) {
+    if (!turnstileReady) {
+      elements.loginError.textContent = "人机验证组件加载失败，请刷新页面重试";
+      elements.loginError.hidden = false;
+      ensureTurnstile();
+      return;
+    }
+    if (!turnstileTokenValue()) {
+      elements.loginError.textContent = "请完成人机验证后再提交";
+      elements.loginError.hidden = false;
+      return;
+    }
+  }
   const path = isRegister ? "/api/auth/register" : "/api/auth/login";
-  const body = isRegister
-    ? { identifier, password, displayName: elements.loginName.value.trim() }
-    : { identifier, password };
+  const body = {
+    identifier,
+    password,
+    turnstileToken: turnstileTokenValue()
+  };
+  if (isRegister) body.displayName = elements.loginName.value.trim();
   elements.loginSubmit.disabled = true;
   elements.loginError.hidden = true;
   try {
@@ -1256,6 +1565,7 @@ async function handleLoginSubmit(event) {
   } catch (error) {
     elements.loginError.textContent = error?.message || "操作失败";
     elements.loginError.hidden = false;
+    if (/人机验证/.test(error?.message || "")) resetTurnstile();
   } finally {
     elements.loginSubmit.disabled = false;
   }
@@ -1333,15 +1643,16 @@ const ADMIN_TAB_PERMISSIONS = [
   ["users", "users.read"],
   ["duplicates", "users.read"],
   ["resumes", "resumes.read"],
+  ["recycle", "recycle.read"],
   ["announcements", "announcements.read"],
   ["feedback", "feedback.read"],
   ["templates", "templates.read"],
   ["ai", "ai_config.read"],
   ["logs", "ai_logs.read"],
   ["costs", "ai_logs.read"],
-  ["audit", "audit.read"],
-  ["recycle", "recycle.read"],
   ["config", "config.read"],
+  ["auth", "config.read"],
+  ["audit", "audit.read"],
   ["system", "system.read"]
 ];
 
@@ -1366,6 +1677,10 @@ function showAdminPage() {
   document.querySelectorAll("[data-admin-tab]").forEach((button) => {
     button.hidden = !visibleTabs.includes(button.dataset.adminTab);
   });
+  document.querySelectorAll("[data-admin-group]").forEach((group) => {
+    const hasVisible = [...group.querySelectorAll("[data-admin-tab]")].some((button) => !button.hidden);
+    group.hidden = !hasVisible;
+  });
   setAdminTab(visibleTabs[0] || "users");
 
   loadAdminOverview();
@@ -1382,7 +1697,11 @@ function showAdminPage() {
   if (hasAdminPermission("ai_logs.read")) loadAdminCosts();
   if (hasAdminPermission("audit.read")) loadAdminAuditLogs();
   if (hasAdminPermission("recycle.read")) loadAdminRecycle();
-  if (hasAdminPermission("config.read")) loadAdminConfig();
+  if (hasAdminPermission("config.read")) {
+    loadAdminConfig();
+    loadAdminAuthStatus();
+    loadAdminAuthSecrets();
+  }
   if (hasAdminPermission("system.read")) {
     loadAdminSystem();
     loadAdminAlerts();
@@ -2418,20 +2737,26 @@ async function markMessageRead(target) {
   }
 }
 
+function applyUnreadBadges(unread) {
+  const count = Number(unread) || 0;
+  document.querySelectorAll("[data-msg-badge]").forEach((node) => {
+    node.hidden = count === 0;
+    node.textContent = String(count);
+  });
+  document.querySelectorAll("[data-account-unread]").forEach((node) => {
+    node.hidden = count === 0;
+    node.textContent = count > 99 ? "99+" : String(count);
+  });
+}
+
 async function refreshUnreadCount() {
   if (!currentUser) {
-    document.querySelectorAll("[data-msg-badge]").forEach((node) => {
-      node.hidden = true;
-    });
+    applyUnreadBadges(0);
     return;
   }
   try {
     const payload = await readApiResponse(await fetch("/api/me/messages", { cache: "no-store" }));
-    const unread = Number(payload.unread || 0);
-    document.querySelectorAll("[data-msg-badge]").forEach((node) => {
-      node.hidden = unread === 0;
-      node.textContent = String(unread);
-    });
+    applyUnreadBadges(payload.unread || 0);
   } catch {
     // 忽略
   }
@@ -2486,6 +2811,16 @@ function injectAccountItems() {
     settings.after(feedbackBtn);
     feedbackBtn.after(msgBtn);
   });
+
+  // 在账户按钮右上角追加未读红点徽标（与下拉菜单里的数字徽标共用同一未读数）。
+  document.querySelectorAll(".account-button").forEach((button) => {
+    if (button.querySelector("[data-account-unread]")) return;
+    const badge = document.createElement("span");
+    badge.className = "account-unread-badge";
+    badge.dataset.accountUnread = "";
+    badge.hidden = true;
+    button.appendChild(badge);
+  });
 }
 
 function populateAdminResumeTemplates() {
@@ -2506,6 +2841,116 @@ async function loadAdminConfig() {
     elements.adminConfigMsg.textContent = "";
   } catch (error) {
     elements.adminConfigMsg.textContent = error?.message || "加载配置失败";
+  }
+}
+
+async function loadAdminAuthStatus() {
+  try {
+    const payload = await readApiResponse(await fetch("/api/admin/auth-status", { cache: "no-store" }));
+    const badge = (configured, offText = "未配置（开发模式）") => configured
+      ? '<span class="auth-status-badge is-on">已配置</span>'
+      : `<span class="auth-status-badge is-off">${offText}</span>`;
+    elements.adminAuthStatus.innerHTML = `
+      <span class="admin-auth-status__label">认证渠道状态</span>
+      <span class="admin-auth-status__item">人机验证（Turnstile）：${payload.turnstileEnabled ? "开启" : "关闭"} · 密钥 ${badge(payload.turnstileConfigured, "未配置密钥")}</span>
+      <span class="admin-auth-status__item">邮箱验证码登录：${payload.emailCodeLoginEnabled ? "开启" : "关闭"} · 通道 ${badge(payload.emailConfigured)}</span>
+      <span class="admin-auth-status__item">手机验证码登录：${payload.phoneCodeLoginEnabled ? "开启" : "关闭"} · 通道 ${badge(payload.phoneConfigured)}</span>
+      <small>开关在「运行配置」中设置；密钥在「认证配置」中填写（加密落库，优先于环境变量）。</small>`;
+  } catch {
+    elements.adminAuthStatus.innerHTML = "";
+  }
+}
+
+const AUTH_SECRET_FIELDS = [
+  { key: "turnstile_site_key", label: "Turnstile Site Key", group: "人机验证（Turnstile）", type: "text" },
+  { key: "turnstile_secret_key", label: "Turnstile Secret Key", group: "人机验证（Turnstile）", type: "password" },
+  { key: "smtp_host", label: "SMTP 主机", group: "邮箱验证码（SMTP）", type: "text" },
+  { key: "smtp_port", label: "SMTP 端口", group: "邮箱验证码（SMTP）", type: "text" },
+  { key: "smtp_secure", label: "SMTP 加密（true/false）", group: "邮箱验证码（SMTP）", type: "text" },
+  { key: "smtp_user", label: "SMTP 账号", group: "邮箱验证码（SMTP）", type: "text" },
+  { key: "smtp_pass", label: "SMTP 密码/授权码", group: "邮箱验证码（SMTP）", type: "password" },
+  { key: "smtp_from", label: "发件人地址", group: "邮箱验证码（SMTP）", type: "text" },
+  { key: "aliyun_sms_access_key_id", label: "AccessKey ID", group: "手机验证码（阿里云短信）", type: "text" },
+  { key: "aliyun_sms_access_key_secret", label: "AccessKey Secret", group: "手机验证码（阿里云短信）", type: "password" },
+  { key: "aliyun_sms_sign_name", label: "短信签名", group: "手机验证码（阿里云短信）", type: "text" },
+  { key: "aliyun_sms_template_code", label: "模板 Code", group: "手机验证码（阿里云短信）", type: "text" }
+];
+
+function renderAdminAuthSecrets(secrets) {
+  const groups = {};
+  for (const field of AUTH_SECRET_FIELDS) {
+    (groups[field.group] ||= []).push(field);
+  }
+  const canWrite = hasAdminPermission("config.write");
+  elements.adminAuthSecretFields.innerHTML = Object.entries(groups).map(([group, fields]) => `
+    <div class="admin-secret-group">
+      <span class="admin-secret-group__label">${escapeHtml(group)}</span>
+      ${fields.map((field) => {
+        const record = secrets?.[field.key] || {};
+        const placeholder = record.set ? record.hint || "已配置" : "未配置";
+        return `
+          <div class="admin-field">
+            <span class="admin-field__label">${escapeHtml(field.label)}</span>
+            <div class="admin-key-row">
+              <input type="${field.type}" data-secret-key="${escapeHtml(field.key)}" placeholder="${escapeHtml(placeholder)}" autocomplete="new-password" ${canWrite ? "" : "disabled"} />
+              ${record.set && canWrite ? `<button type="button" class="danger-link" data-action="admin-clear-secret" data-secret-key="${escapeHtml(field.key)}">清除</button>` : ""}
+            </div>
+          </div>`;
+      }).join("")}
+    </div>`).join("");
+  const submit = elements.adminAuthSecretForm.querySelector("button[type='submit']");
+  if (submit) submit.disabled = !canWrite;
+}
+
+async function loadAdminAuthSecrets() {
+  try {
+    const payload = await readApiResponse(await fetch("/api/admin/auth-secrets", { cache: "no-store" }));
+    renderAdminAuthSecrets(payload.secrets || {});
+  } catch {
+    renderAdminAuthSecrets({});
+  }
+}
+
+async function saveAdminAuthSecrets(event) {
+  event.preventDefault();
+  const body = {};
+  elements.adminAuthSecretFields.querySelectorAll("[data-secret-key]").forEach((input) => {
+    const value = input.value.trim();
+    if (value) body[input.dataset.secretKey] = value;
+  });
+  elements.adminAuthSecretMsg.hidden = false;
+  elements.adminAuthSecretMsg.textContent = "正在保存…";
+  try {
+    const result = await readApiResponse(await fetch("/api/admin/auth-secrets", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }));
+    renderAdminAuthSecrets(result.secrets || {});
+    elements.adminAuthSecretMsg.textContent = "已保存";
+    showToast("密钥已保存", "success");
+    loadAdminAuthStatus();
+  } catch (error) {
+    elements.adminAuthSecretMsg.textContent = error?.message || "保存失败";
+  }
+}
+
+async function clearAdminSecret(target) {
+  const key = target.dataset.secretKey;
+  if (!key) return;
+  elements.adminAuthSecretMsg.hidden = false;
+  elements.adminAuthSecretMsg.textContent = "正在清除…";
+  try {
+    const result = await readApiResponse(await fetch("/api/admin/auth-secrets", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [key]: "" })
+    }));
+    renderAdminAuthSecrets(result.secrets || {});
+    elements.adminAuthSecretMsg.textContent = "已清除";
+    loadAdminAuthStatus();
+  } catch (error) {
+    elements.adminAuthSecretMsg.textContent = error?.message || "清除失败";
   }
 }
 
@@ -2868,6 +3313,106 @@ async function handleAiWordImport(file) {
   }
 }
 
+// —— 语音输入：Web Speech API 将口述实时转成文字，追加到「个人经历描述」 ——
+
+function speechRecognitionCtor() {
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
+function setAiVoiceState(recording) {
+  aiVoiceActive = recording;
+  const btn = elements.aiVoiceBtn;
+  if (!btn) return;
+  btn.classList.toggle("is-recording", recording);
+  btn.setAttribute("aria-pressed", String(recording));
+  const label = btn.querySelector("[data-ai-voice-label]");
+  if (label) label.textContent = recording ? "停止输入" : "语音输入";
+}
+
+function aiVoiceErrorText(code) {
+  switch (code) {
+    case "not-allowed":
+    case "service-not-allowed":
+      return "麦克风权限被拒绝，请在浏览器地址栏允许麦克风访问";
+    case "no-speech":
+      return "未检测到语音，请靠近麦克风再试";
+    case "audio-capture":
+      return "未找到麦克风设备，请检查设备连接";
+    case "network":
+      return "语音识别网络异常，请检查网络后重试";
+    case "aborted":
+      return "";
+    default:
+      return "语音识别出错，请重试";
+  }
+}
+
+function stopAiVoice() {
+  if (aiRecognition) {
+    try { aiRecognition.stop(); } catch { /* 已停止则忽略 */ }
+  }
+  setAiVoiceState(false);
+}
+
+function toggleAiVoice() {
+  if (!speechRecognitionCtor()) {
+    showToast("当前浏览器不支持语音输入，请使用 Chrome、Edge 或 Safari", "warning");
+    return;
+  }
+  if (aiVoiceActive) {
+    stopAiVoice();
+    return;
+  }
+  if (!window.isSecureContext) {
+    showToast("语音输入需要 HTTPS 或 localhost 环境，请改用 https 访问", "warning");
+    return;
+  }
+
+  const recognition = new (speechRecognitionCtor())();
+  aiRecognition = recognition;
+  recognition.lang = "zh-CN";
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+
+  // 以当前描述内容为基准，识别结果追加到其后。
+  aiVoiceBase = elements.aiDescription.value;
+  aiVoicePrefix = aiVoiceBase && !/\s$/.test(aiVoiceBase) ? " " : "";
+
+  recognition.onstart = () => setAiVoiceState(true);
+  recognition.onresult = (event) => {
+    let finalText = "";
+    let interimText = "";
+    for (let i = 0; i < event.results.length; i++) {
+      const result = event.results[i];
+      const text = result[0]?.transcript ?? "";
+      if (result.isFinal) finalText += text;
+      else interimText += text;
+    }
+    elements.aiDescription.value = aiVoiceBase + aiVoicePrefix + finalText + interimText;
+    updateAiCharCount();
+  };
+  recognition.onerror = (event) => {
+    const message = aiVoiceErrorText(event.error);
+    stopAiVoice();
+    if (message) showToast(message, "warning");
+  };
+  recognition.onend = () => {
+    if (aiRecognition === recognition) {
+      setAiVoiceState(false);
+      aiRecognition = null;
+    }
+  };
+
+  try {
+    recognition.start();
+  } catch {
+    aiRecognition = null;
+    setAiVoiceState(false);
+    showToast("无法启动语音识别，请检查麦克风权限", "warning");
+  }
+}
+
 function aiMaxInputChars() {
   return Number.isFinite(aiLimits?.maxInputChars) && aiLimits.maxInputChars > 0
     ? aiLimits.maxInputChars
@@ -2901,6 +3446,11 @@ async function loadAiLimits() {
   updateAiCharCount();
 }
 
+function aiToneValue() {
+  const checked = elements.aiTone?.querySelector('input[type="radio"]:checked');
+  return checked?.value || "professional";
+}
+
 async function generateAi() {
   if (aiGenerating) return;
   if (!currentUser) {
@@ -2930,7 +3480,7 @@ async function generateAi() {
       body: JSON.stringify({
         templateSlug: "clean-single",
         description,
-        tone: elements.aiTone.value
+        tone: aiToneValue()
       })
     }));
     renderAiPreview();
@@ -3335,21 +3885,159 @@ function renderTemplateCard(template) {
     </article>`;
 }
 
+// —— 推荐模板旁的「编辑器操作」演示循环：模拟在编辑面板逐模块填写字段、实时更新预览 ——
+let featuredDemoStarted = false;
+
+const featuredDemoSteps = [
+  { tab: "profile", label: "姓名", text: "林晓", score: 22, fill: "profile" },
+  { tab: "experience", label: "工作内容", text: "负责订单系统重构，接口 QPS 提升 50%", score: 55, fill: "experience" },
+  { tab: "skills", label: "技能描述", text: "Java · Spring · Redis · MySQL", score: 82, fill: "skills" },
+  { tab: "summary", label: "自我评价", text: "5 年后端，擅长高并发与系统稳定性", score: 100, fill: "summary" }
+];
+
+function featuredDemoReducedMotion() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+}
+
+function featuredDemoSleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function typeFeaturedDemoText(el, text, speed) {
+  for (let i = 0; i <= text.length; i += 1) {
+    el.textContent = text.slice(0, i);
+    await featuredDemoSleep(speed);
+  }
+}
+
+function setFeaturedDemoTab(root, tab) {
+  root.querySelectorAll("[data-fed-tab]").forEach((node) => {
+    node.classList.toggle("is-active", node.dataset.fedTab === tab);
+  });
+}
+
+function setFeaturedDemoScore(root, score) {
+  const scoreEl = root.querySelector("[data-fed-score]");
+  const barEl = root.querySelector("[data-fed-bar]");
+  if (scoreEl) scoreEl.textContent = `${score}%`;
+  if (barEl) barEl.style.width = `${score}%`;
+}
+
+function applyFeaturedDemoFill(root, fill) {
+  if (fill === "profile") {
+    const nameEl = root.querySelector("[data-fed-name]");
+    const roleEl = root.querySelector("[data-fed-role]");
+    if (nameEl) nameEl.textContent = "林晓";
+    if (roleEl) roleEl.textContent = "产品经理 · 5 年经验";
+    return;
+  }
+  const section = root.querySelector(`[data-fed-section="${fill}"]`);
+  if (section) section.classList.add("is-filled");
+}
+
+function resetFeaturedDemo(root) {
+  const nameEl = root.querySelector("[data-fed-name]");
+  const roleEl = root.querySelector("[data-fed-role]");
+  const textEl = root.querySelector("[data-fed-text]");
+  if (nameEl) nameEl.textContent = "";
+  if (roleEl) roleEl.textContent = "";
+  if (textEl) textEl.textContent = "";
+  root.querySelectorAll("[data-fed-section]").forEach((section) => section.classList.remove("is-filled"));
+  setFeaturedDemoScore(root, 0);
+}
+
+function fillFeaturedDemo() {
+  const root = document.getElementById("featuredDemo");
+  if (!root) return;
+  featuredDemoSteps.forEach((step) => applyFeaturedDemoFill(root, step.fill));
+  setFeaturedDemoTab(root, "summary");
+  setFeaturedDemoScore(root, 100);
+  const textEl = root.querySelector("[data-fed-text]");
+  const labelEl = root.querySelector("[data-fed-label]");
+  const last = featuredDemoSteps[featuredDemoSteps.length - 1];
+  if (textEl) textEl.textContent = last.text;
+  if (labelEl) labelEl.textContent = last.label;
+}
+
+async function runFeaturedDemo() {
+  if (featuredDemoStarted) return;
+  featuredDemoStarted = true;
+  const root = document.getElementById("featuredDemo");
+  if (!root) return;
+  if (featuredDemoReducedMotion()) {
+    fillFeaturedDemo();
+    return;
+  }
+  const textEl = root.querySelector("[data-fed-text]");
+  const labelEl = root.querySelector("[data-fed-label]");
+  if (!textEl) return;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    resetFeaturedDemo(root);
+    for (const step of featuredDemoSteps) {
+      setFeaturedDemoTab(root, step.tab);
+      if (labelEl) labelEl.textContent = step.label;
+      await typeFeaturedDemoText(textEl, step.text, 30);
+      await featuredDemoSleep(240);
+      applyFeaturedDemoFill(root, step.fill);
+      setFeaturedDemoScore(root, step.score);
+      await featuredDemoSleep(640);
+    }
+    await featuredDemoSleep(1600);
+  }
+}
+
 function renderFeaturedTemplate(template) {
   const ready = template.selectable === true;
   const preview = template.previewUrl
     ? `<img src="${escapeHtml(template.previewUrl)}" alt="${escapeHtml(template.name)}模板预览" />`
     : `<div class="template-preview-placeholder"><span>${escapeHtml(template.name.slice(0, 1))}</span></div>`;
   return `
-    <article class="template-card is-ready is-recommended template-card--featured">
-      <div class="template-preview">${preview}<span class="template-badge">★ 推荐</span><span class="template-status">可使用</span></div>
-      <div class="template-card__body">
-        <div><strong>${escapeHtml(template.name)}</strong><span>${escapeHtml(template.category)} · v${template.version}</span></div>
-        <p>${escapeHtml("AI 快速生成的默认模板，极简清晰、ATS 友好。")}</p>
-        <div class="template-recommend-reason"><strong>推荐理由</strong>：无需整理个人信息，粘贴经历描述即可由 AI 自动生成结构化简历。</div>
-        <button type="button" data-action="select-template" data-template-slug="${escapeHtml(template.slug)}" data-template-version="${template.version}" ${ready ? "" : "disabled"}>快速开始</button>
+    <div class="template-featured__grid">
+      <article class="template-card is-ready is-recommended template-card--featured">
+        <div class="template-preview">${preview}<span class="template-badge">★ 推荐</span><span class="template-status">可使用</span></div>
+        <div class="template-card__body">
+          <div><strong>${escapeHtml(template.name)}</strong><span>${escapeHtml(template.category)} · v${template.version}</span></div>
+          <p>${escapeHtml("AI 快速生成的默认模板，极简清晰、ATS 友好。")}</p>
+          <div class="template-recommend-reason"><strong>推荐理由</strong>：无需整理个人信息，粘贴经历描述即可由 AI 自动生成结构化简历。</div>
+          <button type="button" data-action="select-template" data-template-slug="${escapeHtml(template.slug)}" data-template-version="${template.version}" ${ready ? "" : "disabled"}>快速开始</button>
+        </div>
+      </article>
+      <div class="featured-editor-demo template-featured__demo" id="featuredDemo" aria-hidden="true">
+        <div class="fed-paper">
+          <div class="fed-paper__name" data-fed-name></div>
+          <div class="fed-paper__role" data-fed-role></div>
+          <div class="fed-section" data-fed-section="experience">
+            <span class="fed-section__title">工作经历</span>
+            <div class="fed-section__lines"><i></i><i></i><i></i></div>
+          </div>
+          <div class="fed-section" data-fed-section="skills">
+            <span class="fed-section__title">技能特长</span>
+            <div class="fed-section__lines"><i></i><i></i></div>
+          </div>
+          <div class="fed-section" data-fed-section="summary">
+            <span class="fed-section__title">自我评价</span>
+            <div class="fed-section__lines"><i></i><i></i></div>
+          </div>
+        </div>
+        <div class="fed-drawer">
+          <div class="fed-tabs">
+            <span class="fed-tab is-active" data-fed-tab="profile">基本信息</span>
+            <span class="fed-tab" data-fed-tab="experience">工作经历</span>
+            <span class="fed-tab" data-fed-tab="skills">技能特长</span>
+            <span class="fed-tab" data-fed-tab="summary">自我评价</span>
+          </div>
+          <div class="fed-field">
+            <span class="fed-field__label" data-fed-label>姓名</span>
+            <div class="fed-field__input"><span data-fed-text></span><span class="fed-caret"></span></div>
+          </div>
+        </div>
+        <div class="fed-status">
+          <span class="fed-status__score">完成度 <strong data-fed-score>0%</strong></span>
+          <span class="fed-status__bar"><i data-fed-bar></i></span>
+        </div>
       </div>
-    </article>`;
+    </div>`;
 }
 
 function renderTemplateLibrary() {
@@ -3365,6 +4053,7 @@ function renderTemplateLibrary() {
   if (featured) {
     elements.templateFeatured.innerHTML = renderFeaturedTemplate(featured);
     elements.templateFeatured.hidden = false;
+    runFeaturedDemo();
   } else {
     elements.templateFeatured.hidden = true;
     elements.templateFeatured.innerHTML = "";
@@ -3445,6 +4134,33 @@ async function selectTemplate(target) {
   target.textContent = "使用此模板";
 }
 
+function manualEdit() {
+  const template = availableTemplates.find((item) => item.slug === "clean-single");
+  resume = createResumeForTemplate({
+    slug: "clean-single",
+    version: template?.version || 1,
+    name: template?.name || "极简轻",
+    engine: template?.engine || "html-native",
+    previewUrl: template?.previewUrl || null,
+    editorSchema: template?.editorSchema || getTemplateSchema("clean-single"),
+    defaultResume: template?.defaultResume || null
+  });
+  activeModuleId = "profile";
+  activeItemBySection.clear();
+  hasUnsavedChanges = true;
+  saveNow();
+  if (!currentUser) {
+    openLogin("/editor");
+    showToast("登录后开始编辑", "info");
+    return;
+  }
+  hideAiPage();
+  revealView(elements.app);
+  updateBrowserRoute({ name: "editor" });
+  renderAll();
+  showToast("已进入手动编辑，填写内容后点击保存即可生成草稿", "info");
+}
+
 function fitOnePage() {
   if (currentPages <= 1) {
     showToast("当前已经是一页简历", "info");
@@ -3517,6 +4233,7 @@ document.addEventListener("click", async (event) => {
   else if (action === "admin-download-draft") adminDownloadDraft(actionTarget.dataset.resumeId);
   else if (action === "admin-delete-draft") adminDeleteDraft(actionTarget);
   else if (action === "admin-clear-ai-key") clearAdminAiKey();
+  else if (action === "admin-clear-secret") clearAdminSecret(actionTarget);
   else if (action === "admin-revoke-sessions") adminRevokeSessions(actionTarget);
   else if (action === "admin-restore-user") adminRestoreUser(actionTarget);
   else if (action === "admin-purge-user") adminPurgeUser(actionTarget);
@@ -3551,6 +4268,8 @@ document.addEventListener("click", async (event) => {
   else if (action === "ai-regen") generateAi();
   else if (action === "ai-save") saveAiDraft();
   else if (action === "ai-import-word") elements.aiWordFile.click();
+  else if (action === "ai-voice") toggleAiVoice();
+  else if (action === "manual-edit") manualEdit();
   else if (action === "toggle-add-module") toggleAddModuleMenu();
   else if (action === "add-module") addModule(actionTarget.dataset.moduleId);
   else if (action === "select-template") selectTemplate(actionTarget);
@@ -3897,9 +4616,10 @@ document.addEventListener("click", (event) => {
 
 elements.loginForm.addEventListener("submit", handleLoginSubmit);
 elements.settingsForm.addEventListener("submit", handleSettingsSubmit);
-elements.loginToggle.addEventListener("click", () => {
-  setLoginMode(loginMode === "login" ? "register" : "login");
-});
+elements.loginMethodSwitch.addEventListener("click", toggleLoginMethod);
+elements.loginTabLogin.addEventListener("click", () => setAuthTab("login"));
+elements.loginTabRegister.addEventListener("click", () => setAuthTab("register"));
+elements.sendCodeButton.addEventListener("click", handleSendCode);
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".account-area")) closeAllAccountMenus();
   if (!event.target.closest(".module-add")) elements.addModuleMenu.hidden = true;
@@ -3956,6 +4676,7 @@ elements.adminAnnouncementForm.addEventListener("submit", saveAnnouncement);
 elements.adminFeedbackReplyForm.addEventListener("submit", saveFeedbackReply);
 elements.feedbackForm.addEventListener("submit", submitFeedback);
 elements.adminConfigForm.addEventListener("submit", saveAdminConfig);
+elements.adminAuthSecretForm.addEventListener("submit", saveAdminAuthSecrets);
 
 // Word 简历导入：文件选择、字数实时统计、拖拽导入。
 elements.aiWordFile.addEventListener("change", () => {

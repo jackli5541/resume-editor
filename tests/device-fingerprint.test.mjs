@@ -83,7 +83,7 @@ test("集成：同 X-Device-Id 注册两个账号，管理端只读列表返回�
     const response = await fetch(`${app.origin}/api/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Device-Id": deviceId },
-      body: JSON.stringify({ identifier, password: "password123" })
+      body: JSON.stringify({ identifier, password: "Test1234!" })
     });
     return { status: response.status, body: await response.json().catch(() => ({})), cookie: cookieFrom(response) };
   }
@@ -128,7 +128,7 @@ test("集成：单账号不产生疑似关联，且接口要求登录", async (c
   const admin = await fetch(`${app.origin}/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ identifier: "admin@example.com", password: "password123" })
+    body: JSON.stringify({ identifier: "admin@example.com", password: "Test1234!" })
   });
   const adminCookie = cookieFrom(admin);
 

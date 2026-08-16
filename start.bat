@@ -3,6 +3,9 @@ setlocal
 
 cd /d "%~dp0"
 
+rem 加载 .env（若存在）：让容器、应用与迁移脚本使用同一份配置（强口令）。
+if exist ".env" for /f "usebackq eol=# tokens=1,* delims==" %%a in (".env") do set "%%a=%%b"
+
 if not defined PORT set "PORT=4173"
 rem 本地开发专用口令（仅绑定 127.0.0.1）；compose 与宿主进程需保持一致
 if not defined POSTGRES_USER set "POSTGRES_USER=resume"
@@ -16,6 +19,7 @@ if not defined REDIS_URL set "REDIS_URL=redis://:%REDIS_PASSWORD%@127.0.0.1:6379
 where node >nul 2>nul
 if errorlevel 1 (
   echo Node.js 20 or later is required. Install Node.js and try again.
+  pause
   exit /b 1
 )
 
@@ -27,6 +31,7 @@ where docker >nul 2>nul
 if errorlevel 1 (
   echo Docker Desktop is required to run the document worker and fidelity preview.
   echo For lightweight local editing without DOCX preview, use start_dev.bat instead.
+  pause
   exit /b 1
 )
 
@@ -42,6 +47,7 @@ echo First run builds the document-worker image, which can take several minutes.
 if errorlevel 1 (
   echo Failed to start Docker services. Make sure Docker Desktop is running.
   echo Inspect with: %COMPOSE_CMD% ps
+  pause
   exit /b 1
 )
 
@@ -49,6 +55,7 @@ echo Applying database migrations...
 call npm run db:migrate
 if errorlevel 1 (
   echo Database migration failed. Check DATABASE_URL and that PostgreSQL is healthy.
+  pause
   exit /b 1
 )
 
@@ -66,3 +73,6 @@ echo Fidelity preview and DOCX export are handled by the Docker worker.
 echo.
 
 node server.mjs
+echo.
+echo Server process ended. Check the message above, then press any key to close.
+pause

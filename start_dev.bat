@@ -3,6 +3,9 @@ setlocal
 
 cd /d "%~dp0"
 
+rem 加载 .env（若存在）：让容器、应用与迁移脚本使用同一份配置（强口令）。
+if exist ".env" for /f "usebackq eol=# tokens=1,* delims==" %%a in (".env") do set "%%a=%%b"
+
 if not defined PORT set "PORT=4173"
 set "NODE_ENV=development"
 set "REDIS_URL="
@@ -18,6 +21,7 @@ if not defined DATABASE_URL set "DATABASE_URL=postgres://%POSTGRES_USER%:%POSTGR
 where node >nul 2>nul
 if errorlevel 1 (
   echo Node.js 20 or later is required. Install Node.js and try again.
+  pause
   exit /b 1
 )
 
@@ -28,6 +32,7 @@ if not defined AI_CONFIG_ENC_KEY (
 where docker >nul 2>nul
 if errorlevel 1 (
   echo Docker Desktop is required for the development PostgreSQL database.
+  pause
   exit /b 1
 )
 
@@ -41,6 +46,7 @@ echo Preparing the development database...
 %COMPOSE_CMD% up -d --no-deps --wait --wait-timeout 120 postgres
 if errorlevel 1 (
   echo Failed to start PostgreSQL. Make sure Docker Desktop is running.
+  pause
   exit /b 1
 )
 
@@ -48,6 +54,7 @@ echo Applying database migrations...
 call npm run db:migrate
 if errorlevel 1 (
   echo Database migration failed. Check DATABASE_URL and that PostgreSQL is healthy.
+  pause
   exit /b 1
 )
 
@@ -64,3 +71,6 @@ echo Database: %DATABASE_URL%
 echo.
 
 node server.mjs
+echo.
+echo Server process ended. Check the message above, then press any key to close.
+pause

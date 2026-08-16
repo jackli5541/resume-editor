@@ -12,6 +12,24 @@ const CONFIG_SCHEMA = Object.freeze({
     defaultValue: true,
     label: "开放注册",
     description: "关闭后，新用户将无法注册（环境变量 DISABLE_REGISTRATION 仍为硬开关）"
+  }),
+  turnstile_enabled: Object.freeze({
+    type: "boolean",
+    defaultValue: false,
+    label: "人机验证（Turnstile）",
+    description: "开启且已配置 Turnstile Secret Key 时，登录/注册/验证码登录需通过人机验证（默认关闭）"
+  }),
+  phone_code_login_enabled: Object.freeze({
+    type: "boolean",
+    defaultValue: false,
+    label: "手机验证码登录",
+    description: "开启后，手机号验证码登录/注册可用（短信通道由 ALIYUN_SMS_* 环境变量配置；默认关闭）"
+  }),
+  email_code_login_enabled: Object.freeze({
+    type: "boolean",
+    defaultValue: false,
+    label: "邮箱验证码登录",
+    description: "开启后，邮箱验证码登录/注册可用（SMTP 通道由 SMTP_* 环境变量配置；默认关闭）"
   })
 });
 

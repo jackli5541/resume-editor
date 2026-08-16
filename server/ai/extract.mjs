@@ -55,9 +55,12 @@ const BASE_SYSTEM_PROMPT = `你是专业的简历信息抽取助手。你的唯�
 }`;
 
 const TONE_HINTS = {
-  professional: "整体语气专业、简洁。",
-  concise: "整体语气尽量简洁。",
-  confident: "整体语气自信、有力，但仍不得夸大或编造事实。"
+  professional: "整体语气专业、严谨、客观，措辞规范克制，句式正式。",
+  concise: "整体语气尽量简洁，删去冗余修饰，用最短的句子表达最核心的信息，每条要点只保留关键事实。",
+  confident: "整体语气自信、有力，主动突出个人贡献、主动性和成果，但仍不得夸大或编造事实。",
+  quantified: "表达经历与成果时尽量量化：把可衡量的结果写成具体数字、百分比、规模或指标，突出业绩与影响。",
+  dynamic: "每条要点尽量以强行动动词开头（如主导、推动、搭建、优化、落地），突出主动性与执行力。",
+  elegant: "措辞文雅、沉稳得体，句式讲究但不堆砌辞藻，适合高端岗位或对文字修养要求较高的场合。"
 };
 
 function clean(value) {
@@ -168,4 +171,4 @@ export function mapModelOutput(modelJson) {
   return { resume, uncertain, notices };
 }
 
-export { buildSystemPrompt, buildUserPrompt, bulletsToHtml, paragraphToHtml, DECLARED_SECTIONS };
+export { buildSystemPrompt, buildUserPrompt, bulletsToHtml, paragraphToHtml, DECLARED_SECTIONS, TONE_HINTS };

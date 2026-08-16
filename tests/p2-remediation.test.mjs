@@ -30,8 +30,8 @@ test("一键补救与告警接口冒烟", async (context) => {
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
 
   // 普通用户无写权限 → 403
   assert.equal((await fetch(`${app.origin}/api/admin/system/retry-failed`, { method: "POST", headers: authHeaders(bob.cookie) })).status, 403);
@@ -62,8 +62,8 @@ test("一键重试失败导出任务", async (context) => {
   });
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
 
   const created = await fetch(`${app.origin}/api/resumes`, {
     method: "POST",

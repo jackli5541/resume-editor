@@ -8,6 +8,8 @@ import {
 import { promisify } from "node:util";
 import { ADMIN_ROLES, effectiveRole, listPermissions } from "./permissions.mjs";
 import { isDisposableEmail } from "./email-guard.mjs";
+import { TONE_HINTS } from "./ai/extract.mjs";
+import { passwordPolicyError } from "./password-policy.mjs";
 
 const scryptAsync = promisify(scrypt);
 
@@ -55,9 +57,8 @@ export function normalizeIdentifier(value) {
 }
 
 export function validatePassword(password) {
-  if (typeof password !== "string" || password.length < 8 || password.length > 200) {
-    throw new AuthError("密码长度需为 8–200 个字符", 400);
-  }
+  const error = passwordPolicyError(password);
+  if (error) throw new AuthError(error, 400);
 }
 
 export function hashSessionToken(token) {
@@ -210,6 +211,62 @@ export class AuthService {
       if (normalizedEmail) this.localUsersByEmail.set(normalizedEmail, id);
       if (normalizedPhone) this.localUsersByPhone.set(normalizedPhone, id);
     }
+    return this.toPublicUser({
+      id, email: normalizedEmail, phone: normalizedPhone, displayName: name,
+      settings: {}, isAdmin: admin, disabled: false, role: assignedRole, createdAt: now, updatedAt: now
+    });
+  }
+
+  // 免密账号：邮箱/手机号验证码登录自动注册（无密码，password_hash 为 NULL）。
+  async createOtpUser({ email = "", phone = "", displayName = "" }) {
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedEmail && !normalizedPhone) throw new AuthError("邮箱或手机号至少填写一个", 400);
+    if (normalizedEmail && !isValidEmail(normalizedEmail)) throw new AuthError("邮箱格式不正确", 400);
+    if (normalizedEmail && isDisposableEmail(normalizedEmail)) throw new AuthError("不支持使用一次性邮箱注册", 400);
+    if (normalizedPhone && !isValidPhone(normalizedPhone)) throw new AuthError("手机号格式不正确", 400);
+
+    const id = randomUUID();
+    const name = sanitizeDisplayName(displayName);
+    const admin = this.adminEmails.has(normalizedEmail) || this.adminPhones.has(normalizedPhone);
+    const assignedRole = admin ? "super_admin" : null;
+    const now = new Date().toISOString();
+
+    if (this.database) {
+      try {
+        await this.database.query(
+          `INSERT INTO users (id, email, phone, password_hash, display_name, is_admin, role)
+           VALUES ($1, $2, $3, NULL, $4, $5, $6)`,
+          [id, normalizedEmail || null, normalizedPhone || null, name, admin, assignedRole]
+        );
+      } catch (error) {
+        if (String(error?.code) === "23505") throw new AuthError("该邮箱或手机号已注册", 409);
+        throw error;
+      }
+    } else {
+      if ((normalizedEmail && this.localUsersByEmail.has(normalizedEmail))
+        || (normalizedPhone && this.localUsersByPhone.has(normalizedPhone))) {
+        throw new AuthError("该邮箱或手机号已注册", 409);
+      }
+      const user = {
+        id,
+        email: normalizedEmail,
+        phone: normalizedPhone,
+        passwordHash: "",
+        displayName: name,
+        settings: {},
+        isAdmin: admin,
+        disabled: false,
+        role: assignedRole,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now
+      };
+      this.localUsersById.set(id, user);
+      if (normalizedEmail) this.localUsersByEmail.set(normalizedEmail, id);
+      if (normalizedPhone) this.localUsersByPhone.set(normalizedPhone, id);
+    }
+
     return this.toPublicUser({
       id, email: normalizedEmail, phone: normalizedPhone, displayName: name,
       settings: {}, isAdmin: admin, disabled: false, role: assignedRole, createdAt: now, updatedAt: now
@@ -698,6 +755,8 @@ const ALLOWED_SETTING_KEYS = new Set([
 
 const ALLOWED_AI_KEYS = new Set(["enabled", "targetRole", "tone", "provider"]);
 
+const ALLOWED_TONES = Object.keys(TONE_HINTS);
+
 function sanitizeSettings(next, existing) {
   const base = existing && typeof existing === "object" ? { ...existing } : {};
   if (!next || typeof next !== "object" || Array.isArray(next)) return base;
@@ -718,7 +777,7 @@ function sanitizeAi(next, existing) {
     if (!ALLOWED_AI_KEYS.has(key)) continue;
     if (key === "enabled") base.enabled = Boolean(value);
     else if (key === "targetRole") base.targetRole = String(value ?? "").slice(0, 120);
-    else if (key === "tone") base.tone = ["professional", "concise", "confident"].includes(value) ? value : (base.tone || "professional");
+    else if (key === "tone") base.tone = ALLOWED_TONES.includes(value) ? value : (base.tone || "professional");
     else if (key === "provider") base.provider = String(value ?? "").slice(0, 40);
   }
   return base;

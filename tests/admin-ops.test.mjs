@@ -46,12 +46,12 @@ test("超级管理员默认拥有全部权限，运营/审计按角色受控", a
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
   assert.equal(admin.body.user.isAdmin, true);
   assert.equal(admin.body.user.role, "super_admin");
   assert.deepEqual(admin.body.user.permissions, ["*"]);
 
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
   const bobId = bob.body.user.id;
   assert.equal(bob.body.user.role, null);
 
@@ -70,11 +70,11 @@ test("运营不能设置角色，也不能操作超级管理员", async (context
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
   const adminId = admin.body.user.id;
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
   const bobId = bob.body.user.id;
-  const carol = await register(app, { identifier: "carol@example.com", password: "password123" });
+  const carol = await register(app, { identifier: "carol@example.com", password: "Test1234!" });
 
   // carol 被提升为运营（最小权限管理员）。
   await patchUser(app, admin.cookie, carol.body.user.id, { isAdmin: true });
@@ -99,10 +99,10 @@ test("审计角色只读：可查看用户但不可写入/删除", async (contex
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
   const bobId = bob.body.user.id;
-  const dave = await register(app, { identifier: "dave@example.com", password: "password123" });
+  const dave = await register(app, { identifier: "dave@example.com", password: "Test1234!" });
 
   await patchUser(app, admin.cookie, dave.body.user.id, { isAdmin: true, role: "auditor" });
 
@@ -123,8 +123,8 @@ test("管理员写操作写入审计日志", async (context) => {
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
   const bobId = bob.body.user.id;
 
   await patchUser(app, admin.cookie, bobId, { disabled: true });
@@ -140,7 +140,7 @@ test("普通用户访问审计与回收站接口返回 403", async (context) => 
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
   assert.equal((await fetch(`${app.origin}/api/admin/audit-logs`, { headers: authHeaders(bob.cookie) })).status, 403);
   assert.equal((await fetch(`${app.origin}/api/admin/recycle`, { headers: authHeaders(bob.cookie) })).status, 403);
 });
@@ -149,15 +149,15 @@ test("软删除用户进入回收站，恢复后可登录，彻底删除后释�
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
   const bobId = bob.body.user.id;
 
   const del = await fetch(`${app.origin}/api/admin/users/${bobId}`, { method: "DELETE", headers: authHeaders(admin.cookie) });
   assert.equal(del.status, 204);
 
   // 被软删除后无法登录。
-  const relogin = await login(app, { identifier: "bob@example.com", password: "password123" });
+  const relogin = await login(app, { identifier: "bob@example.com", password: "Test1234!" });
   assert.equal(relogin.status, 401);
 
   // 出现在回收站。
@@ -171,7 +171,7 @@ test("软删除用户进入回收站，恢复后可登录，彻底删除后释�
     headers: authHeaders(admin.cookie)
   });
   assert.equal(restore.status, 200);
-  assert.equal((await login(app, { identifier: "bob@example.com", password: "password123" })).status, 200);
+  assert.equal((await login(app, { identifier: "bob@example.com", password: "Test1234!" })).status, 200);
 
   // 再次删除并彻底清除。
   await fetch(`${app.origin}/api/admin/users/${bobId}`, { method: "DELETE", headers: authHeaders(admin.cookie) });
@@ -185,15 +185,15 @@ test("软删除用户进入回收站，恢复后可登录，彻底删除后释�
   assert.equal(afterPurge.userTotal, 0);
 
   // 标识被释放，可重新注册。
-  assert.equal((await register(app, { identifier: "bob@example.com", password: "password123" })).status, 201);
+  assert.equal((await register(app, { identifier: "bob@example.com", password: "Test1234!" })).status, 201);
 });
 
 test("软删除草稿进入回收站，恢复与彻底删除", async (context) => {
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
 
   const created = await fetch(`${app.origin}/api/resumes`, {
     method: "POST",
@@ -234,8 +234,8 @@ test("管理员踢下线后用户会话立即失效", async (context) => {
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
   const bobId = bob.body.user.id;
 
   assert.equal((await (await fetch(`${app.origin}/api/auth/session`, { headers: authHeaders(bob.cookie) })).json()).user.id, bobId);

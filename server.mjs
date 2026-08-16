@@ -12,7 +12,7 @@ import { TemplateRepository } from "./server/template-repository.mjs";
 import { RequestValidationError, validateExportPayload } from "./server/validation.mjs";
 import { BullExportService, BullPreviewService, createRedisConnection } from "./server/bull-services.mjs";
 import { getObject } from "./server/object-storage.mjs";
-import { AuthError, AuthService, parseCookies } from "./server/auth.mjs";
+import { AuthError, AuthService, parseCookies, normalizePhone, isValidPhone, normalizeEmail, isValidEmail, identifierType } from "./server/auth.mjs";
 import { RateLimiter, RedisRateLimiter, clientKey } from "./server/rate-limit.mjs";
 import { applySecurityHeaders, getClientIp, isCrossSiteRequest, isSecureRequest } from "./server/security.mjs";
 import { seedTestUsers } from "./server/seed-users.mjs";
@@ -32,6 +32,12 @@ import { sendCsv } from "./server/csv.mjs";
 import { AppConfigService, configSchema } from "./server/config.mjs";
 import { AlertService } from "./server/alerts.mjs";
 import { DeviceFingerprintService } from "./server/device-fingerprint.mjs";
+import { verifyTurnstileToken } from "./server/turnstile.mjs";
+import { SmsService } from "./server/sms.mjs";
+import { VerificationCodeService } from "./server/verification-codes.mjs";
+import { MailerService } from "./server/mailer.mjs";
+import { AppSecretsService } from "./server/app-secrets.mjs";
+import { createAuthChannels } from "./server/auth-channels.mjs";
 
 const publicRoot = fileURLToPath(new URL("./public/", import.meta.url));
 const projectRoot = dirname(fileURLToPath(import.meta.url));
@@ -191,6 +197,11 @@ export function createAppServer(options = {}) {
   const feedbacks = options.feedbacks || new FeedbackRepository({ database });
   const metrics = options.metrics || new MetricsService({ database });
   const configService = options.configService || new AppConfigService({ database });
+  const appSecretsService = options.appSecretsService || new AppSecretsService({ database });
+  const authChannels = createAuthChannels({ secrets: appSecretsService, config: configService });
+  const smsService = options.smsService || new SmsService({ getConfig: () => authChannels.aliyunSms() });
+  const mailerService = options.mailerService || new MailerService({ getConfig: () => authChannels.smtp() });
+  const verificationCodeService = options.verificationCodeService || new VerificationCodeService({ database });
 
   const getQueueStats = async () => {
     let exportFailed = 0;
@@ -244,6 +255,7 @@ export function createAppServer(options = {}) {
   const loginLimiter = redisConnection ? new RedisRateLimiter(redisConnection) : new RateLimiter();
   const registerLimiter = redisConnection ? new RedisRateLimiter(redisConnection) : new RateLimiter();
   const apiLimiter = redisConnection ? new RedisRateLimiter(redisConnection) : new RateLimiter();
+  const codeLimiter = redisConnection ? new RedisRateLimiter(redisConnection) : new RateLimiter();
 
   function appendSetCookie(response, cookie) {
     const existing = response.getHeader("Set-Cookie");
@@ -404,6 +416,20 @@ export function createAppServer(options = {}) {
       return;
     }
 
+    if (request.method === "GET" && pathname === "/api/auth/turnstile-config") {
+      const turnstile = await authChannels.turnstile();
+      sendJson(response, 200, { enabled: turnstile.enabled, siteKey: turnstile.siteKey });
+      return;
+    }
+
+    if (request.method === "GET" && pathname === "/api/auth/login-methods") {
+      sendJson(response, 200, {
+        emailCodeEnabled: (await configService.get("email_code_login_enabled")) === true,
+        phoneCodeEnabled: (await configService.get("phone_code_login_enabled")) === true
+      });
+      return;
+    }
+
     if (request.method === "POST" && pathname === "/api/auth/register") {
       try {
         if (disableRegistration || (await configService.get("registration_enabled")) === false) {
@@ -418,6 +444,11 @@ export function createAppServer(options = {}) {
         const deviceId = parseCookies(request)["device"];
         if (deviceId && await rejectIfLimited(response, registerLimiter, clientKey(deviceId, "register-device"), { limit: 3, windowMs: 24 * 60 * 60 * 1000 })) return;
         const payload = await readJson(request);
+        const turnstile = await authChannels.turnstile();
+        if (turnstile.enabled) {
+          const turnstileOk = await verifyTurnstileToken(payload?.turnstileToken, { secretKey: turnstile.secretKey, ip });
+          if (!turnstileOk) throw new AuthError("人机验证未通过，请重试", 400);
+        }
         const identifier = String(payload?.identifier || "").trim();
         const isEmail = identifier.includes("@");
         const user = await authService.createUser({
@@ -445,6 +476,11 @@ export function createAppServer(options = {}) {
         const ip = getClientIp(request);
         if (await rejectIfLimited(response, loginLimiter, clientKey(ip, "login"), { limit: 30, windowMs: 15 * 60 * 1000 })) return;
         const payload = await readJson(request);
+        const turnstile = await authChannels.turnstile();
+        if (turnstile.enabled) {
+          const turnstileOk = await verifyTurnstileToken(payload?.turnstileToken, { secretKey: turnstile.secretKey, ip });
+          if (!turnstileOk) throw new AuthError("人机验证未通过，请重试", 400);
+        }
         const identifier = String(payload?.identifier || "").trim().toLowerCase();
         if (await rejectIfLimited(response, loginLimiter, clientKey(ip, `login:${identifier}`), { limit: 5, windowMs: 15 * 60 * 1000 })) return;
         const user = await authService.verifyCredentials(payload?.identifier, payload?.password);
@@ -455,6 +491,91 @@ export function createAppServer(options = {}) {
         sendJson(response, 200, { user });
       } catch (error) {
         sendJson(response, errorStatusOf(error), { error: error?.message || "登录失败" });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && pathname === "/api/auth/send-code") {
+      try {
+        if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
+          throw new AuthError("Content-Type 必须是 application/json", 415);
+        }
+        const ip = getClientIp(request);
+        if (await rejectIfLimited(response, codeLimiter, clientKey(ip, "send-code"), { limit: 10, windowMs: 60 * 60 * 1000 })) return;
+        const payload = await readJson(request);
+        const raw = String(payload?.identifier || "").trim();
+        const isEmail = identifierType(raw) === "email";
+        const identifier = isEmail ? normalizeEmail(raw) : normalizePhone(raw);
+        if (isEmail) {
+          if (!isValidEmail(identifier)) throw new AuthError("邮箱格式不正确", 400);
+          if ((await configService.get("email_code_login_enabled")) === false) throw new AuthError("邮箱验证码登录已关闭", 403);
+        } else {
+          if (!isValidPhone(identifier)) throw new AuthError("手机号格式不正确", 400);
+          if ((await configService.get("phone_code_login_enabled")) === false) throw new AuthError("手机验证码登录已关闭", 403);
+        }
+        if (await rejectIfLimited(response, codeLimiter, clientKey(identifier, "send-code"), { limit: 1, windowMs: 60 * 1000 })) return;
+        const { code } = await verificationCodeService.issue(identifier, "login");
+        try {
+          if (isEmail) {
+            await mailerService.send(identifier, "轻简历登录验证码", `你的登录验证码是：${code}，5 分钟内有效，请勿泄露给他人。`);
+          } else {
+            await smsService.send(identifier, code);
+          }
+        } catch (error) {
+          throw new AuthError(error?.message || "验证码发送失败，请稍后再试", 502);
+        }
+        sendJson(response, 200, { ok: true, expiresIn: 300 });
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "验证码发送失败" });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && pathname === "/api/auth/login/code") {
+      try {
+        if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
+          throw new AuthError("Content-Type 必须是 application/json", 415);
+        }
+        const ip = getClientIp(request);
+        if (await rejectIfLimited(response, codeLimiter, clientKey(ip, "login-code"), { limit: 30, windowMs: 15 * 60 * 1000 })) return;
+        const payload = await readJson(request);
+        const turnstile = await authChannels.turnstile();
+        if (turnstile.enabled) {
+          const turnstileOk = await verifyTurnstileToken(payload?.turnstileToken, { secretKey: turnstile.secretKey, ip });
+          if (!turnstileOk) throw new AuthError("人机验证未通过，请重试", 400);
+        }
+        const raw = String(payload?.identifier || "").trim();
+        const code = String(payload?.code || "");
+        const isEmail = identifierType(raw) === "email";
+        const identifier = isEmail ? normalizeEmail(raw) : normalizePhone(raw);
+        if (isEmail) {
+          if (!isValidEmail(identifier)) throw new AuthError("邮箱格式不正确", 400);
+          if ((await configService.get("email_code_login_enabled")) === false) throw new AuthError("邮箱验证码登录已关闭", 403);
+        } else {
+          if (!isValidPhone(identifier)) throw new AuthError("手机号格式不正确", 400);
+          if ((await configService.get("phone_code_login_enabled")) === false) throw new AuthError("手机验证码登录已关闭", 403);
+        }
+        if (!code) throw new AuthError("请输入验证码", 400);
+        if (await rejectIfLimited(response, codeLimiter, clientKey(identifier, "login-code"), { limit: 10, windowMs: 15 * 60 * 1000 })) return;
+        const valid = await verificationCodeService.verify(identifier, "login", code);
+        if (!valid) throw new AuthError("验证码错误或已过期", 400);
+        let user = isEmail
+          ? await authService.findUserByEmail(identifier)
+          : await authService.findUserByPhone(identifier);
+        let isNewUser = false;
+        if (!user) {
+          user = await authService.createOtpUser(isEmail ? { email: identifier } : { phone: identifier });
+          isNewUser = true;
+        }
+        if (user.disabled) throw new AuthError("账户已被禁用，请联系管理员", 403);
+        const session = await authService.createSession(user.id);
+        setSessionCookie(response, session.token, sessionTtlMs, secure);
+        if (isNewUser) await eventLog.record({ userId: user.id, event: "register" });
+        await eventLog.record({ userId: user.id, event: "login_code" });
+        await recordDeviceSignals(request, user.id);
+        sendJson(response, 200, { user });
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "验证码登录失败" });
       }
       return;
     }
@@ -950,6 +1071,52 @@ export function createAppServer(options = {}) {
       return;
     }
 
+    if (request.method === "GET" && pathname === "/api/admin/auth-status") {
+      try {
+        await requirePermission(request, "config.read");
+        const smtp = await authChannels.smtp();
+        const aliyun = await authChannels.aliyunSms();
+        const turnstile = await authChannels.turnstile();
+        sendJson(response, 200, {
+          emailCodeLoginEnabled: (await configService.get("email_code_login_enabled")) !== false,
+          phoneCodeLoginEnabled: (await configService.get("phone_code_login_enabled")) !== false,
+          emailConfigured: smtp.enabled,
+          phoneConfigured: aliyun.enabled,
+          turnstileEnabled: (await configService.get("turnstile_enabled")) !== false,
+          turnstileConfigured: Boolean(turnstile.siteKey && turnstile.secretKey)
+        });
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "读取认证状态失败" });
+      }
+      return;
+    }
+
+    if (request.method === "GET" && pathname === "/api/admin/auth-secrets") {
+      try {
+        await requirePermission(request, "config.read");
+        sendJson(response, 200, { secrets: await appSecretsService.getAll() });
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "读取密钥配置失败" });
+      }
+      return;
+    }
+
+    if (request.method === "PATCH" && pathname === "/api/admin/auth-secrets") {
+      try {
+        const admin = await requirePermission(request, "config.write");
+        if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
+          throw new RequestValidationError("Content-Type 必须是 application/json", 415);
+        }
+        const payload = await readJson(request);
+        await appSecretsService.update(payload);
+        await recordAudit(request, admin, "auth_secrets.update", "app_secrets", null, null, null);
+        sendJson(response, 200, { secrets: await appSecretsService.getAll() });
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "保存密钥配置失败" });
+      }
+      return;
+    }
+
     // —— 系统运维面板 ——
 
     if (request.method === "GET" && pathname === "/api/admin/system") {
@@ -1232,7 +1399,11 @@ export function createAppServer(options = {}) {
 
     if (request.method === "POST" && pathname === "/api/feedback") {
       try {
+        // 防刷：同一 IP / 账号短时间仅允许少量反馈，避免被批量提交滥用
+        const ip = getClientIp(request);
+        if (await rejectIfLimited(response, apiLimiter, clientKey(ip, "feedback"), { limit: 5, windowMs: 60 * 60 * 1000 })) return;
         const user = await authorize(request);
+        if (user && await rejectIfLimited(response, apiLimiter, clientKey(user.id, "feedback"), { limit: 5, windowMs: 60 * 60 * 1000 })) return;
         if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
           throw new RequestValidationError("Content-Type 必须是 application/json", 415);
         }
@@ -1670,7 +1841,7 @@ export function createAppServer(options = {}) {
         "X-Content-Type-Options": "nosniff"
       };
       if (contentType.startsWith("text/html")) {
-        headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+        headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
       }
       response.writeHead(200, headers);
       response.end(request.method === "HEAD" ? undefined : body);
@@ -1681,7 +1852,7 @@ export function createAppServer(options = {}) {
           "Content-Type": "text/html; charset=utf-8",
           "Cache-Control": "no-store",
           "X-Content-Type-Options": "nosniff",
-          "Content-Security-Policy": "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+          "Content-Security-Policy": "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
         });
         response.end(request.method === "HEAD" ? undefined : body);
       } catch {
@@ -1698,9 +1869,10 @@ export function createAppServer(options = {}) {
     loginLimiter.dispose();
     registerLimiter.dispose();
     apiLimiter.dispose();
+    codeLimiter.dispose();
     database?.end().catch(() => {});
   });
-  return { server, service, previewService, database, templateRepository, authService, aiService, aiConfigRepository, aiAuditLog, adminAuditLog, eventLog, announcements, messages, feedbacks, metrics, configService, alertService, deviceFingerprintService };
+  return { server, service, previewService, database, templateRepository, authService, aiService, aiConfigRepository, aiAuditLog, adminAuditLog, eventLog, announcements, messages, feedbacks, metrics, configService, alertService, deviceFingerprintService, smsService, mailerService, verificationCodeService, appSecretsService };
 }
 
 export async function startServer(options = {}) {
