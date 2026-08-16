@@ -19,7 +19,7 @@ export function createAuthChannels({ secrets, config }) {
     const flagEnabled = config ? (await config.get("turnstile_enabled")) === true : false;
     const siteKey = pick(await secretValue("turnstile_site_key"), process.env.TURNSTILE_SITE_KEY);
     const secretKey = pick(await secretValue("turnstile_secret_key"), process.env.TURNSTILE_SECRET_KEY);
-    return { enabled: flagEnabled && Boolean(secretKey), siteKey, secretKey };
+    return { enabled: flagEnabled && Boolean(siteKey) && Boolean(secretKey), siteKey, secretKey };
   }
 
   async function smtp() {

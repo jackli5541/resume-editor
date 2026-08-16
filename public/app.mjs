@@ -1183,7 +1183,7 @@ async function ensureTurnstile() {
   turnstileRequested = true;
   try {
     const payload = await readApiResponse(await fetch("/api/auth/turnstile-config", { cache: "no-store" }));
-    turnstileConfig = { enabled: Boolean(payload.enabled), siteKey: payload.siteKey || "" };
+    turnstileConfig = { enabled: Boolean(payload.enabled && payload.siteKey), siteKey: payload.siteKey || "" };
   } catch {
     turnstileConfig = { enabled: false, siteKey: "" };
   }
@@ -1322,11 +1322,18 @@ async function submitCodeLogin() {
     elements.loginError.hidden = false;
     return;
   }
-  if (turnstileConfig.enabled && !turnstileTokenValue()) {
-    elements.loginError.textContent = "请完成人机验证后再提交";
-    elements.loginError.hidden = false;
-    if (!turnstileReady) ensureTurnstile();
-    return;
+  if (turnstileConfig.enabled) {
+    if (!turnstileReady) {
+      elements.loginError.textContent = "人机验证组件加载失败，请刷新页面重试";
+      elements.loginError.hidden = false;
+      ensureTurnstile();
+      return;
+    }
+    if (!turnstileTokenValue()) {
+      elements.loginError.textContent = "请完成人机验证后再提交";
+      elements.loginError.hidden = false;
+      return;
+    }
   }
   elements.loginSubmit.disabled = true;
   elements.loginError.hidden = true;
@@ -1447,11 +1454,18 @@ async function handleLoginSubmit(event) {
   const identifier = elements.loginIdentifier.value.trim();
   const password = elements.loginPassword.value;
   const isRegister = authTab === "register";
-  if (turnstileConfig.enabled && !turnstileTokenValue()) {
-    elements.loginError.textContent = "请完成人机验证后再提交";
-    elements.loginError.hidden = false;
-    if (!turnstileReady) ensureTurnstile();
-    return;
+  if (turnstileConfig.enabled) {
+    if (!turnstileReady) {
+      elements.loginError.textContent = "人机验证组件加载失败，请刷新页面重试";
+      elements.loginError.hidden = false;
+      ensureTurnstile();
+      return;
+    }
+    if (!turnstileTokenValue()) {
+      elements.loginError.textContent = "请完成人机验证后再提交";
+      elements.loginError.hidden = false;
+      return;
+    }
   }
   const path = isRegister ? "/api/auth/register" : "/api/auth/login";
   const body = {

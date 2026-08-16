@@ -1083,7 +1083,7 @@ export function createAppServer(options = {}) {
           emailConfigured: smtp.enabled,
           phoneConfigured: aliyun.enabled,
           turnstileEnabled: (await configService.get("turnstile_enabled")) !== false,
-          turnstileConfigured: Boolean(turnstile.secretKey)
+          turnstileConfigured: Boolean(turnstile.siteKey && turnstile.secretKey)
         });
       } catch (error) {
         sendJson(response, errorStatusOf(error), { error: error?.message || "读取认证状态失败" });
@@ -1837,7 +1837,7 @@ export function createAppServer(options = {}) {
         "X-Content-Type-Options": "nosniff"
       };
       if (contentType.startsWith("text/html")) {
-        headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+        headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
       }
       response.writeHead(200, headers);
       response.end(request.method === "HEAD" ? undefined : body);
@@ -1848,7 +1848,7 @@ export function createAppServer(options = {}) {
           "Content-Type": "text/html; charset=utf-8",
           "Cache-Control": "no-store",
           "X-Content-Type-Options": "nosniff",
-          "Content-Security-Policy": "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+          "Content-Security-Policy": "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
         });
         response.end(request.method === "HEAD" ? undefined : body);
       } catch {
