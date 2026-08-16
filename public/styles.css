@@ -4035,9 +4035,48 @@ select:focus-visible,
 }
 
 .admin-main {
-  width: min(1200px, calc(100% - 48px));
+  width: min(1400px, calc(100% - 48px));
   margin: 0 auto;
   padding: 30px 0 64px;
+}
+
+.admin-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.admin-sidebar {
+  position: sticky;
+  top: 24px;
+  padding: 16px;
+  border: 1px solid #e5e9ef;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.admin-sidebar__title {
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e5e9ef;
+  color: #1d2939;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-content {
+  min-width: 0;
+}
+
+@media (max-width: 860px) {
+  .admin-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-sidebar {
+    position: static;
+  }
 }
 
 .admin-heading {
@@ -4089,17 +4128,17 @@ select:focus-visible,
 .admin-tabs {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: 14px;
 }
 
 .admin-tab-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .admin-tab-group__label {
+  padding: 0 10px;
   color: #98a2b3;
   font-size: 11px;
   font-weight: 700;
@@ -4108,32 +4147,34 @@ select:focus-visible,
 
 .admin-tab-group__tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .admin-tab {
-  padding: 7px 14px;
-  border: 1px solid #e5e9ef;
-  border-radius: 999px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
   color: #667085;
-  background: #fff;
+  background: transparent;
   font: inherit;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
+  text-align: left;
   cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  transition: color 0.15s ease, background 0.15s ease;
 }
 
 .admin-tab:hover {
-  border-color: var(--brand);
-  color: var(--brand-dark);
+  color: #273548;
+  background: #f2f4f7;
 }
 
 .admin-tab.is-active {
-  color: #fff;
-  border-color: var(--brand);
-  background: var(--brand);
+  color: var(--brand-dark);
+  background: #e8f6f1;
+  font-weight: 700;
 }
 
 .admin-panel {

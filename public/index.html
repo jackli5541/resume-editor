@@ -218,48 +218,52 @@
           </div>
         </div>
       </header>
-      <main class="library-main admin-main">
-        <div class="admin-heading">
-          <div><span class="eyebrow">ADMIN</span><h1>管理控制台</h1></div>
-        </div>
-        <div class="admin-stats" id="adminStats"></div>
-        <div id="adminChart" class="admin-chart" hidden></div>
-        <div class="admin-tabs" role="tablist" aria-label="管理功能">
-          <div class="admin-tab-group" data-admin-group="content">
-            <span class="admin-tab-group__label">用户与内容</span>
-            <div class="admin-tab-group__tabs">
-              <button class="admin-tab is-active" type="button" data-admin-tab="users">用户管理</button>
-              <button class="admin-tab" type="button" data-admin-tab="duplicates">疑似多账号</button>
-              <button class="admin-tab" type="button" data-admin-tab="resumes">草稿管理</button>
-              <button class="admin-tab" type="button" data-admin-tab="recycle">回收站</button>
+      <main class="library-main admin-main admin-layout">
+        <aside class="admin-sidebar">
+          <div class="admin-sidebar__title">管理功能</div>
+          <nav class="admin-tabs" role="tablist" aria-label="管理功能">
+            <div class="admin-tab-group" data-admin-group="content">
+              <span class="admin-tab-group__label">用户与内容</span>
+              <div class="admin-tab-group__tabs">
+                <button class="admin-tab is-active" type="button" data-admin-tab="users">用户管理</button>
+                <button class="admin-tab" type="button" data-admin-tab="duplicates">疑似多账号</button>
+                <button class="admin-tab" type="button" data-admin-tab="resumes">草稿管理</button>
+                <button class="admin-tab" type="button" data-admin-tab="recycle">回收站</button>
+              </div>
             </div>
-          </div>
-          <div class="admin-tab-group" data-admin-group="ops">
-            <span class="admin-tab-group__label">运营</span>
-            <div class="admin-tab-group__tabs">
-              <button class="admin-tab" type="button" data-admin-tab="announcements">公告</button>
-              <button class="admin-tab" type="button" data-admin-tab="feedback">反馈</button>
-              <button class="admin-tab" type="button" data-admin-tab="templates">模板</button>
+            <div class="admin-tab-group" data-admin-group="ops">
+              <span class="admin-tab-group__label">运营</span>
+              <div class="admin-tab-group__tabs">
+                <button class="admin-tab" type="button" data-admin-tab="announcements">公告</button>
+                <button class="admin-tab" type="button" data-admin-tab="feedback">反馈</button>
+                <button class="admin-tab" type="button" data-admin-tab="templates">模板</button>
+              </div>
             </div>
-          </div>
-          <div class="admin-tab-group" data-admin-group="ai">
-            <span class="admin-tab-group__label">AI 能力</span>
-            <div class="admin-tab-group__tabs">
-              <button class="admin-tab" type="button" data-admin-tab="ai">AI 配置</button>
-              <button class="admin-tab" type="button" data-admin-tab="logs">AI 调用</button>
-              <button class="admin-tab" type="button" data-admin-tab="costs">AI 成本</button>
+            <div class="admin-tab-group" data-admin-group="ai">
+              <span class="admin-tab-group__label">AI 能力</span>
+              <div class="admin-tab-group__tabs">
+                <button class="admin-tab" type="button" data-admin-tab="ai">AI 配置</button>
+                <button class="admin-tab" type="button" data-admin-tab="logs">AI 调用</button>
+                <button class="admin-tab" type="button" data-admin-tab="costs">AI 成本</button>
+              </div>
             </div>
-          </div>
-          <div class="admin-tab-group" data-admin-group="system">
-            <span class="admin-tab-group__label">系统与安全</span>
-            <div class="admin-tab-group__tabs">
-              <button class="admin-tab" type="button" data-admin-tab="config">运行配置</button>
-              <button class="admin-tab" type="button" data-admin-tab="auth">认证配置</button>
-              <button class="admin-tab" type="button" data-admin-tab="audit">审计日志</button>
-              <button class="admin-tab" type="button" data-admin-tab="system">运维状态</button>
+            <div class="admin-tab-group" data-admin-group="system">
+              <span class="admin-tab-group__label">系统与安全</span>
+              <div class="admin-tab-group__tabs">
+                <button class="admin-tab" type="button" data-admin-tab="config">运行配置</button>
+                <button class="admin-tab" type="button" data-admin-tab="auth">认证配置</button>
+                <button class="admin-tab" type="button" data-admin-tab="audit">审计日志</button>
+                <button class="admin-tab" type="button" data-admin-tab="system">运维状态</button>
+              </div>
             </div>
+          </nav>
+        </aside>
+        <div class="admin-content">
+          <div class="admin-heading">
+            <div><span class="eyebrow">ADMIN</span><h1>管理控制台</h1></div>
           </div>
-        </div>
+          <div class="admin-stats" id="adminStats"></div>
+          <div id="adminChart" class="admin-chart" hidden></div>
         <section class="admin-panel" data-admin-panel="users">
           <div class="admin-toolbar">
             <input type="search" id="adminUserSearch" placeholder="搜索邮箱、手机号或昵称" aria-label="搜索用户" />
@@ -548,6 +552,7 @@
           <div id="adminAlertList" class="admin-table-wrap"></div>
           <p id="adminSystemStatus" class="library-status">正在加载运维状态…</p>
         </section>
+        </div>
       </main>
     </section>
 
