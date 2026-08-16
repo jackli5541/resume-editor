@@ -3209,7 +3209,7 @@ select:focus-visible,
 /* AI 优化聊天面板（左侧滑出） */
 .ai-chat-panel {
   position: fixed;
-  top: 70px;
+  top: 118px; /* 70px 主导航 + 48px 工具栏，避免被 sticky 头部遮挡 */
   bottom: 0;
   left: 0;
   z-index: 45;
