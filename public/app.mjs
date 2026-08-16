@@ -25,6 +25,35 @@ import {
 import { isAppPath, parseAppRoute, routePath } from "./router.mjs";
 import { getDeviceId } from "./fingerprint.mjs";
 
+// —— 外观主题（暗色模式）——
+const THEME_STORAGE_KEY = "qingjianli.theme";
+
+function currentTheme() {
+  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+}
+
+function applyTheme(theme) {
+  const dark = theme === "dark";
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", dark ? "#0e1116" : "#12a77d");
+  try { localStorage.setItem(THEME_STORAGE_KEY, theme); } catch (e) { /* 忽略隐私模式下的写入失败 */ }
+  refreshThemeButtons();
+}
+
+function toggleTheme() {
+  applyTheme(currentTheme() === "dark" ? "light" : "dark");
+  closeAllAccountMenus();
+}
+
+function refreshThemeButtons() {
+  const dark = currentTheme() === "dark";
+  document.querySelectorAll('[data-action="toggle-theme"]').forEach((button) => {
+    button.textContent = dark ? "外观 · 深色" : "外观 · 浅色";
+    button.setAttribute("aria-pressed", String(dark));
+  });
+}
+
 const elements = {
   app: document.querySelector("#app"),
   homePage: document.querySelector("#homePage"),
@@ -46,6 +75,12 @@ const elements = {
   tabs: document.querySelector("#moduleTabs"),
   editor: document.querySelector("#drawerContent"),
   drawer: document.querySelector("#editorDrawer"),
+  aiFloatBtn: document.querySelector("#aiFloatBtn"),
+  aiChatPanel: document.querySelector("#aiChatPanel"),
+  aiChatBody: document.querySelector("#aiChatBody"),
+  aiChatForm: document.querySelector("#aiChatForm"),
+  aiChatInput: document.querySelector("#aiChatInput"),
+  aiChatSend: document.querySelector("#aiChatSend"),
   saveState: document.querySelector("#saveState"),
   pageCount: document.querySelector("#pageCountBadge"),
   sidePageCount: document.querySelector("#sidePageCount"),
@@ -80,7 +115,7 @@ const elements = {
   loginSubmit: document.querySelector("#loginSubmit"),
   loginMethodSwitch: document.querySelector("#loginMethodSwitch"),
   loginPasswordHint: document.querySelector("#loginPasswordHint"),
-  turnstileWrap: document.querySelector("#turnstileWrap"),
+  captchaWrap: document.querySelector("#captchaWrap"),
   loginTabLogin: document.querySelector("#loginTabLogin"),
   loginTabRegister: document.querySelector("#loginTabRegister"),
   loginIdentifierLabel: document.querySelector("#loginIdentifierLabel"),
@@ -107,6 +142,7 @@ const elements = {
   adminResumeStatus: document.querySelector("#adminResumeStatus"),
   adminAiForm: document.querySelector("#adminAiForm"),
   adminAiEnabled: document.querySelector("#adminAiEnabled"),
+  adminAiOptimizeEnabled: document.querySelector("#adminAiOptimizeEnabled"),
   adminAiBaseUrl: document.querySelector("#adminAiBaseUrl"),
   adminAiModel: document.querySelector("#adminAiModel"),
   adminAiTemperature: document.querySelector("#adminAiTemperature"),
@@ -180,6 +216,8 @@ const elements = {
   feedbackType: document.querySelector("#feedbackType"),
   feedbackContent: document.querySelector("#feedbackContent"),
   feedbackError: document.querySelector("#feedbackError"),
+  feedbackDetailOverlay: document.querySelector("#feedbackDetailOverlay"),
+  feedbackDetailBody: document.querySelector("#feedbackDetailBody"),
   messagesOverlay: document.querySelector("#messagesOverlay"),
   messagesList: document.querySelector("#messagesList"),
   messagesStatus: document.querySelector("#messagesStatus"),
@@ -255,9 +293,11 @@ let authTab = "login";
 let loginMethod = "password";
 let sendCodeTimer = null;
 let sendCodeCountdown = 0;
-let turnstileConfig = { enabled: false, siteKey: "" };
-let turnstileReady = false;
-let turnstileRequested = false;
+let captchaConfig = { enabled: false, sceneId: "", prefix: "" };
+let captchaReady = false;
+let captchaRequested = false;
+let captchaInstance = null;
+let captchaAuthResult = null;
 let codeLoginMethods = { email: false, phone: false };
 let codeLoginAvailable = false;
 let adminUsers = [];
@@ -282,6 +322,8 @@ let aiResult = null;
 let aiGenerating = false;
 let aiWordImporting = false;
 let mammothPromise = null;
+let aiOptimizePending = null;
+let aiOptimizing = false;
 let aiRecognition = null;
 let aiVoiceActive = false;
 let aiVoiceBase = "";
@@ -1184,49 +1226,111 @@ function closeLogin() {
   applyCurrentRoute();
 }
 
-function loadTurnstileScript() {
-  if (window.turnstile) return Promise.resolve();
+function loadCaptchaScript() {
+  if (window.initAliyunCaptcha) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    script.src = "https://o.alicdn.com/captcha-frontend/aliyunCaptcha/AliyunCaptcha.js";
     script.async = true;
-    script.defer = true;
     script.onload = () => resolve();
     script.onerror = () => reject(new Error("人机验证组件加载失败，请刷新后重试"));
     document.head.appendChild(script);
   });
 }
 
-// 拉取 Turnstile 配置并在登录页渲染人机验证组件（仅当服务端已配置 secret key）。
-async function ensureTurnstile() {
-  if (turnstileRequested) return;
-  turnstileRequested = true;
+// 拉取阿里云验证码配置并初始化（仅当服务端已配置 AccessKey + 场景ID + 身份标）。
+async function ensureCaptcha() {
+  if (captchaRequested) return;
+  captchaRequested = true;
   try {
-    const payload = await readApiResponse(await fetch("/api/auth/turnstile-config", { cache: "no-store" }));
-    turnstileConfig = { enabled: Boolean(payload.enabled && payload.siteKey), siteKey: payload.siteKey || "" };
+    const payload = await readApiResponse(await fetch("/api/auth/captcha-config", { cache: "no-store" }));
+    captchaConfig = { enabled: Boolean(payload.enabled && payload.sceneId && payload.prefix), sceneId: payload.sceneId || "", prefix: payload.prefix || "" };
   } catch {
-    turnstileConfig = { enabled: false, siteKey: "" };
+    captchaConfig = { enabled: false, sceneId: "", prefix: "" };
   }
-  if (!turnstileConfig.enabled || !turnstileConfig.siteKey) return;
+  if (!captchaConfig.enabled || !captchaConfig.sceneId || !captchaConfig.prefix) return;
   try {
-    await loadTurnstileScript();
-    elements.turnstileWrap.hidden = false;
-    window.turnstile.render(elements.turnstileWrap, {
-      sitekey: turnstileConfig.siteKey,
-      theme: "auto"
+    // 全局配置（地区 + 身份标）必须在加载 SDK 前设置。
+    window.AliyunCaptchaConfig = { region: "cn", prefix: captchaConfig.prefix };
+    await loadCaptchaScript();
+    elements.captchaWrap.hidden = false;
+    window.initAliyunCaptcha({
+      SceneId: captchaConfig.sceneId,
+      mode: "embed",
+      element: "#captchaWrap",
+      button: "#loginSubmit",
+      captchaVerifyCallback: handleCaptchaVerify,
+      onBizResultCallback: handleBizResult,
+      getInstance: (instance) => { captchaInstance = instance; },
+      language: "cn",
+      immediate: false
     });
-    turnstileReady = true;
+    captchaReady = true;
   } catch {
-    turnstileReady = false;
+    captchaReady = false;
   }
 }
 
-function turnstileTokenValue() {
-  return turnstileReady && window.turnstile ? (window.turnstile.getResponse() || "") : "";
+// 仅发起认证请求并返回 payload；不负责跳转。
+async function postAuthRequest(path, body) {
+  const deviceId = await getDeviceId().catch(() => "");
+  const headers = { "Content-Type": "application/json" };
+  if (deviceId) headers["X-Device-Id"] = deviceId;
+  return readApiResponse(await fetch(path, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body)
+  }));
 }
 
-function resetTurnstile() {
-  if (turnstileReady && window.turnstile) window.turnstile.reset();
+// 登录/注册成功后的统一收尾：更新会话状态并跳转。
+async function completeAuthSuccess(payload, isRegister) {
+  currentUser = payload.user || null;
+  updateAccountUi();
+  refreshUnreadCount();
+  closeAllAccountMenus();
+  showToast(isRegister ? "注册成功，已登录" : "登录成功", "success");
+  const fallback = defaultPathFor(currentUser);
+  const target = loginNext && isAppPath(loginNext) ? loginNext : fallback;
+  loginNext = null;
+  window.history.replaceState({}, "", target);
+  await applyCurrentRoute();
+}
+
+// 验证码通过后由 SDK 调用：在此读取表单并发起真实的登录/注册/验证码登录请求。
+async function handleCaptchaVerify(captchaVerifyParam) {
+  const sub = buildAuthSubmission();
+  if (sub.error) {
+    captchaAuthResult = { ok: false, error: new Error(sub.error) };
+    return { captchaResult: true, bizResult: false };
+  }
+  try {
+    const payload = await postAuthRequest(sub.path, { ...sub.body, captchaVerifyParam });
+    captchaAuthResult = { ok: true, isRegister: sub.isRegister, payload };
+    return { captchaResult: true, bizResult: true };
+  } catch (error) {
+    const captchaFailed = /人机验证/.test(error?.message || "");
+    captchaAuthResult = { ok: false, error };
+    return { captchaResult: !captchaFailed, bizResult: false };
+  }
+}
+
+// SDK 完成验证码校验后回调业务结果（仅验证码通过时会调用）。
+function handleBizResult() {
+  const result = captchaAuthResult;
+  captchaAuthResult = null;
+  elements.loginSubmit.disabled = false;
+  if (!result) return;
+  if (result.ok) {
+    completeAuthSuccess(result.payload, result.isRegister);
+  } else {
+    elements.loginError.textContent = result.error?.message || "操作失败";
+    elements.loginError.hidden = false;
+  }
+}
+
+function resetCaptcha() {
+  captchaAuthResult = null;
 }
 
 // 拉取验证码登录开关，决定是否显示「使用验证码登录」入口（默认关闭，由管理端开启）。
@@ -1356,59 +1460,52 @@ async function handleSendCode() {
   }
 }
 
-async function submitCodeLogin() {
+// 读取并校验当前登录表单，返回待提交动作或错误信息。
+function buildAuthSubmission() {
+  if (authTab === "login" && loginMethod === "code") {
+    const identifier = elements.loginIdentifier.value.trim();
+    const code = elements.loginCode.value.trim();
+    const idError = identifierError(identifier);
+    if (idError) return { error: idError };
+    if (!code) return { error: "请输入验证码" };
+    return {
+      path: "/api/auth/login/code",
+      body: { identifier, code, remember: elements.loginRemember.checked },
+      isRegister: false
+    };
+  }
   const identifier = elements.loginIdentifier.value.trim();
-  const code = elements.loginCode.value.trim();
+  const password = elements.loginPassword.value;
+  const isRegister = authTab === "register";
   const idError = identifierError(identifier);
-  if (idError) {
-    elements.loginError.textContent = idError;
-    elements.loginError.hidden = false;
-    elements.loginIdentifier.focus();
-    return;
+  if (idError) return { error: idError };
+  if (!password) return { error: "请输入密码" };
+  if (isRegister) {
+    const pwError = passwordError(password);
+    if (pwError) return { error: pwError };
+    if (password !== elements.loginPasswordConfirm.value) return { error: "两次输入的密码不一致" };
   }
-  if (!code) {
-    elements.loginError.textContent = "请输入验证码";
+  const body = { identifier, password, remember: elements.loginRemember.checked };
+  if (isRegister) body.displayName = elements.loginName.value.trim();
+  return { path: isRegister ? "/api/auth/register" : "/api/auth/login", body, isRegister };
+}
+
+// 直接提交（未启用验证码时）。
+async function submitAuthNow() {
+  const sub = buildAuthSubmission();
+  if (sub.error) {
+    elements.loginError.textContent = sub.error;
     elements.loginError.hidden = false;
     return;
-  }
-  if (turnstileConfig.enabled) {
-    if (!turnstileReady) {
-      elements.loginError.textContent = "人机验证组件加载失败，请刷新页面重试";
-      elements.loginError.hidden = false;
-      ensureTurnstile();
-      return;
-    }
-    if (!turnstileTokenValue()) {
-      elements.loginError.textContent = "请完成人机验证后再提交";
-      elements.loginError.hidden = false;
-      return;
-    }
   }
   elements.loginSubmit.disabled = true;
   elements.loginError.hidden = true;
   try {
-    const deviceId = await getDeviceId().catch(() => "");
-    const headers = { "Content-Type": "application/json" };
-    if (deviceId) headers["X-Device-Id"] = deviceId;
-    const payload = await readApiResponse(await fetch("/api/auth/login/code", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ identifier, code, remember: elements.loginRemember.checked, turnstileToken: turnstileTokenValue() })
-    }));
-    currentUser = payload.user || null;
-    updateAccountUi();
-    refreshUnreadCount();
-    closeAllAccountMenus();
-    showToast("登录成功", "success");
-    const fallback = defaultPathFor(currentUser);
-    const target = loginNext && isAppPath(loginNext) ? loginNext : fallback;
-    loginNext = null;
-    window.history.replaceState({}, "", target);
-    await applyCurrentRoute();
+    const payload = await postAuthRequest(sub.path, sub.body);
+    await completeAuthSuccess(payload, sub.isRegister);
   } catch (error) {
-    elements.loginError.textContent = error?.message || "登录失败";
+    elements.loginError.textContent = error?.message || "操作失败";
     elements.loginError.hidden = false;
-    if (/人机验证/.test(error?.message || "")) resetTurnstile();
   } finally {
     elements.loginSubmit.disabled = false;
   }
@@ -1445,8 +1542,8 @@ function showLoginPage() {
   sendCodeTimer = null;
   sendCodeCountdown = 0;
   updateSendCodeButton();
-  ensureTurnstile();
-  resetTurnstile();
+  ensureCaptcha();
+  resetCaptcha();
   loadLoginMethods();
   window.scrollTo({ top: 0, behavior: "auto" });
   elements.loginIdentifier.focus();
@@ -1498,92 +1595,16 @@ function closeSettings() {
 
 async function handleLoginSubmit(event) {
   event.preventDefault();
-  if (authTab === "login" && loginMethod === "code") {
-    await submitCodeLogin();
-    return;
-  }
-  const identifier = elements.loginIdentifier.value.trim();
-  const password = elements.loginPassword.value;
-  const isRegister = authTab === "register";
-
-  const idError = identifierError(identifier);
-  if (idError) {
-    elements.loginError.textContent = idError;
-    elements.loginError.hidden = false;
-    elements.loginIdentifier.focus();
-    return;
-  }
-  if (!password) {
-    elements.loginError.textContent = "请输入密码";
-    elements.loginError.hidden = false;
-    elements.loginPassword.focus();
-    return;
-  }
-  if (isRegister) {
-    const pwError = passwordError(password);
-    if (pwError) {
-      elements.loginError.textContent = pwError;
-      elements.loginError.hidden = false;
-      elements.loginPassword.focus();
-      return;
-    }
-    if (password !== elements.loginPasswordConfirm.value) {
-      elements.loginError.textContent = "两次输入的密码不一致";
-      elements.loginError.hidden = false;
-      elements.loginPasswordConfirm.focus();
-      return;
-    }
-  }
-  if (turnstileConfig.enabled) {
-    if (!turnstileReady) {
+  if (captchaConfig.enabled) {
+    // 启用验证码（内嵌式）时：点「登录/注册」由 SDK 触发 captchaVerifyCallback 完成提交。
+    if (!captchaReady) {
       elements.loginError.textContent = "人机验证组件加载失败，请刷新页面重试";
       elements.loginError.hidden = false;
-      ensureTurnstile();
-      return;
+      ensureCaptcha();
     }
-    if (!turnstileTokenValue()) {
-      elements.loginError.textContent = "请完成人机验证后再提交";
-      elements.loginError.hidden = false;
-      return;
-    }
+    return;
   }
-  const path = isRegister ? "/api/auth/register" : "/api/auth/login";
-  const body = {
-    identifier,
-    password,
-    remember: elements.loginRemember.checked,
-    turnstileToken: turnstileTokenValue()
-  };
-  if (isRegister) body.displayName = elements.loginName.value.trim();
-  elements.loginSubmit.disabled = true;
-  elements.loginError.hidden = true;
-  try {
-    const deviceId = await getDeviceId().catch(() => "");
-    const headers = { "Content-Type": "application/json" };
-    if (deviceId) headers["X-Device-Id"] = deviceId;
-    const payload = await readApiResponse(await fetch(path, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body)
-    }));
-    currentUser = payload.user || null;
-    updateAccountUi();
-    refreshUnreadCount();
-    closeAllAccountMenus();
-    showToast(isRegister ? "注册成功，已登录" : "登录成功", "success");
-    const fallback = defaultPathFor(currentUser);
-    // 仅允许跳转到本站已知的界面路由，防止把外部或未知路径写入历史记录。
-    const target = loginNext && isAppPath(loginNext) ? loginNext : fallback;
-    loginNext = null;
-    window.history.replaceState({}, "", target);
-    await applyCurrentRoute();
-  } catch (error) {
-    elements.loginError.textContent = error?.message || "操作失败";
-    elements.loginError.hidden = false;
-    if (/人机验证/.test(error?.message || "")) resetTurnstile();
-  } finally {
-    elements.loginSubmit.disabled = false;
-  }
+  await submitAuthNow();
 }
 
 async function handleSettingsSubmit(event) {
@@ -1771,16 +1792,17 @@ function renderAdminUsers() {
   const isSuper = currentUser?.role === "super_admin";
   elements.adminUserList.innerHTML = `
     <table class="admin-table">
-      <thead><tr><th>用户</th><th>角色</th><th>状态</th><th>草稿</th><th>注册时间</th><th>操作</th></tr></thead>
+      <thead><tr><th>用户</th><th>角色</th><th>状态</th><th>草稿</th><th>AI 限额/日</th><th>注册时间</th><th>操作</th></tr></thead>
       <tbody>${adminUsers.map((user) => {
         const created = new Date(user.createdAt);
         const createdLabel = Number.isNaN(created.getTime()) ? "—" : created.toLocaleDateString("zh-CN");
+        const isSelf = currentUser?.id === user.id;
+        const canManageThisUser = isSuper || !user.isAdmin;
         const ops = [];
-        if (currentUser?.id === user.id) {
+        if (isSelf) {
           ops.push('<span class="admin-self">本人</span>');
         } else {
           // 超级管理员可管理管理员与普通用户；普通管理员只能管理普通用户。
-          const canManageThisUser = isSuper || !user.isAdmin;
           if (canWrite && canManageThisUser) {
             if (isSuper) {
               ops.push(`<button type="button" data-action="admin-toggle-admin" data-user-id="${escapeHtml(user.id)}" data-is-admin="${user.isAdmin}">${user.isAdmin ? "取消管理员" : "设为管理员"}</button>`);
@@ -1800,11 +1822,18 @@ function renderAdminUsers() {
             ops.push(`<button class="danger-link" type="button" data-action="admin-delete-user" data-user-id="${escapeHtml(user.id)}" data-account="${escapeHtml(user.email || user.phone)}">删除</button>`);
           }
         }
+        const canEditLimit = canWrite && canManageThisUser && !isSelf && !user.isAdmin;
+        const aiLimitCell = user.isAdmin
+          ? '<span class="admin-self">不限</span>'
+          : canEditLimit
+            ? `<input class="admin-ai-limit-input" type="number" min="1" max="10000" step="1" value="${Number(user.aiDailyLimit) || 8}" data-action="admin-set-ai-limit" data-user-id="${escapeHtml(user.id)}" aria-label="AI 日限额" title="每日 AI 调用上限" />`
+            : `${Number(user.aiDailyLimit) || 8} 次`;
         return `<tr>
           <td><div class="admin-user"><strong>${escapeHtml(user.displayName || "未命名")}</strong><small>${escapeHtml(user.email || user.phone || "—")}</small></div></td>
           <td>${adminRoleBadge(user)}</td>
           <td>${user.disabled ? '<span class="badge badge--disabled">已禁用</span>' : '<span class="badge badge--active">正常</span>'}</td>
           <td>${user.draftCount ?? 0}</td>
+          <td>${aiLimitCell}</td>
           <td>${escapeHtml(createdLabel)}</td>
           <td class="admin-table__ops">${ops.join("") || '<span class="admin-self">—</span>'}</td>
         </tr>`;
@@ -2124,6 +2153,27 @@ async function adminSetRole(select) {
     showToast(error?.message || "操作失败", "warning");
     await loadAdminUsers();
   }
+}
+
+async function adminSetAiLimit(input) {
+  const userId = input.dataset.userId;
+  const value = Number(input.value);
+  if (!Number.isSafeInteger(value) || value < 1 || value > 10000) {
+    showToast("请输入 1–10000 之间的整数", "warning");
+    await loadAdminUsers();
+    return;
+  }
+  try {
+    await readApiResponse(await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ aiDailyLimit: value })
+    }));
+    showToast("AI 日限额已更新", "success");
+  } catch (error) {
+    showToast(error?.message || "操作失败", "warning");
+  }
+  await loadAdminUsers();
 }
 
 async function adminRevokeSessions(target) {
@@ -2459,7 +2509,7 @@ function renderAdminFeedbacks() {
   };
   elements.adminFeedbackList.innerHTML = `
     <table class="admin-table">
-      <thead><tr><th>时间</th><th>用户</th><th>类型</th><th>内容</th><th>状态</th><th>回复</th><th>操作</th></tr></thead>
+      <thead><tr><th>时间</th><th>用户</th><th>类型</th><th>状态</th><th>操作</th></tr></thead>
       <tbody>${adminFeedbacks.map((f) => {
         const time = new Date(f.createdAt);
         const timeLabel = Number.isNaN(time.getTime()) ? "—" : time.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
@@ -2467,13 +2517,38 @@ function renderAdminFeedbacks() {
           <td>${escapeHtml(timeLabel)}</td>
           <td>${escapeHtml(f.userIdentifier || f.userId || "—")}</td>
           <td>${escapeHtml(typeLabel[f.type] || f.type)}</td>
-          <td>${escapeHtml(f.content)}</td>
           <td>${statusLabel[f.status] || escapeHtml(f.status)}</td>
-          <td>${escapeHtml(f.reply || "—")}</td>
-          <td class="admin-table__ops">${canWrite ? `<button type="button" data-action="admin-reply-feedback" data-feedback-id="${escapeHtml(f.id)}" data-status="${escapeHtml(f.status)}" data-reply="${escapeHtml(f.reply)}">回复</button>` : '<span class="admin-self">—</span>'}</td>
+          <td class="admin-table__ops">
+            <button type="button" data-action="view-feedback" data-feedback-id="${escapeHtml(f.id)}">查看</button>
+            ${canWrite ? `<button type="button" data-action="admin-reply-feedback" data-feedback-id="${escapeHtml(f.id)}" data-status="${escapeHtml(f.status)}" data-reply="${escapeHtml(f.reply)}">回复</button>` : ""}
+          </td>
         </tr>`;
       }).join("")}</tbody>
     </table>`;
+}
+
+function openFeedbackDetail(feedback) {
+  const typeLabel = { bug: "问题", suggestion: "建议", question: "咨询", other: "其他" };
+  const statusLabel = { open: "待处理", in_progress: "处理中", resolved: "已解决", closed: "已关闭" };
+  const time = new Date(feedback.createdAt);
+  const timeLabel = Number.isNaN(time.getTime()) ? "—" : time.toLocaleString("zh-CN", { year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+  elements.feedbackDetailBody.innerHTML = `
+    <div class="feedback-detail__row"><span>类型</span><strong>${escapeHtml(typeLabel[feedback.type] || feedback.type || "—")}</strong></div>
+    <div class="feedback-detail__row"><span>状态</span><strong>${escapeHtml(statusLabel[feedback.status] || feedback.status || "—")}</strong></div>
+    <div class="feedback-detail__row"><span>用户</span><strong>${escapeHtml(feedback.userIdentifier || feedback.userId || "—")}</strong></div>
+    <div class="feedback-detail__row"><span>提交时间</span><strong>${escapeHtml(timeLabel)}</strong></div>
+    <div class="feedback-detail__block"><span>反馈内容</span><p>${escapeHtml(feedback.content || "—")}</p></div>
+    <div class="feedback-detail__block"><span>回复</span><p>${escapeHtml(feedback.reply || "暂无回复")}</p></div>`;
+  elements.feedbackDetailOverlay.hidden = false;
+}
+
+function closeFeedbackDetail() {
+  elements.feedbackDetailOverlay.hidden = true;
+}
+
+function viewFeedback(target) {
+  const feedback = adminFeedbacks.find((f) => f.id === target.dataset.feedbackId);
+  if (feedback) openFeedbackDetail(feedback);
 }
 
 function openFeedbackReply(target) {
@@ -2828,7 +2903,14 @@ function injectAccountItems() {
     msgBtn.innerHTML = '站内信 <span class="msg-badge" data-msg-badge hidden>0</span>';
     settings.after(feedbackBtn);
     feedbackBtn.after(msgBtn);
+    const themeBtn = document.createElement("button");
+    themeBtn.className = "account-dropdown__item";
+    themeBtn.type = "button";
+    themeBtn.dataset.action = "toggle-theme";
+    themeBtn.setAttribute("aria-pressed", "false");
+    msgBtn.after(themeBtn);
   });
+  refreshThemeButtons();
 
   // 在账户按钮右上角追加未读红点徽标（与下拉菜单里的数字徽标共用同一未读数）。
   document.querySelectorAll(".account-button").forEach((button) => {
@@ -2870,7 +2952,7 @@ async function loadAdminAuthStatus() {
       : `<span class="auth-status-badge is-off">${offText}</span>`;
     elements.adminAuthStatus.innerHTML = `
       <span class="admin-auth-status__label">认证渠道状态</span>
-      <span class="admin-auth-status__item">人机验证（Turnstile）：${payload.turnstileEnabled ? "开启" : "关闭"} · 密钥 ${badge(payload.turnstileConfigured, "未配置密钥")}</span>
+      <span class="admin-auth-status__item">人机验证（阿里云验证码）：${payload.captchaEnabled ? "开启" : "关闭"} · 密钥 ${badge(payload.captchaConfigured, "未配置密钥")}</span>
       <span class="admin-auth-status__item">邮箱验证码登录：${payload.emailCodeLoginEnabled ? "开启" : "关闭"} · 通道 ${badge(payload.emailConfigured)}</span>
       <span class="admin-auth-status__item">手机验证码登录：${payload.phoneCodeLoginEnabled ? "开启" : "关闭"} · 通道 ${badge(payload.phoneConfigured)}</span>
       <small>开关在「运行配置」中设置；密钥在「认证配置」中填写（加密落库，优先于环境变量）。</small>`;
@@ -2880,8 +2962,10 @@ async function loadAdminAuthStatus() {
 }
 
 const AUTH_SECRET_FIELDS = [
-  { key: "turnstile_site_key", label: "Turnstile Site Key", group: "人机验证（Turnstile）", type: "text" },
-  { key: "turnstile_secret_key", label: "Turnstile Secret Key", group: "人机验证（Turnstile）", type: "password" },
+  { key: "aliyun_captcha_access_key_id", label: "AccessKey ID（RAM）", group: "人机验证（阿里云验证码）", type: "text" },
+  { key: "aliyun_captcha_access_key_secret", label: "AccessKey Secret（RAM）", group: "人机验证（阿里云验证码）", type: "password" },
+  { key: "aliyun_captcha_scene_id", label: "场景 ID（SceneId）", group: "人机验证（阿里云验证码）", type: "text" },
+  { key: "aliyun_captcha_prefix", label: "身份标（prefix）", group: "人机验证（阿里云验证码）", type: "text" },
   { key: "smtp_host", label: "SMTP 主机", group: "邮箱验证码（SMTP）", type: "text" },
   { key: "smtp_port", label: "SMTP 端口", group: "邮箱验证码（SMTP）", type: "text" },
   { key: "smtp_secure", label: "SMTP 加密（true/false）", group: "邮箱验证码（SMTP）", type: "text" },
@@ -3152,6 +3236,7 @@ async function loadAdminAiConfig() {
 
 function renderAdminAiConfig(config) {
   elements.adminAiEnabled.checked = Boolean(config.enabled);
+  elements.adminAiOptimizeEnabled.checked = config.optimizeEnabled !== false;
   elements.adminAiBaseUrl.value = config.baseUrl || "";
   elements.adminAiModel.value = config.model || "";
   elements.adminAiTemperature.value = config.temperature ?? 0.2;
@@ -3172,6 +3257,7 @@ async function saveAdminAiConfig(event) {
   event.preventDefault();
   const payload = {
     enabled: elements.adminAiEnabled.checked,
+    optimizeEnabled: elements.adminAiOptimizeEnabled.checked,
     baseUrl: elements.adminAiBaseUrl.value.trim(),
     model: elements.adminAiModel.value.trim(),
     temperature: Number(elements.adminAiTemperature.value),
@@ -3531,6 +3617,313 @@ async function saveAiDraft() {
   } catch (error) {
     showToast(error?.message || "保存草稿失败", "warning");
   }
+}
+
+// —— AI 优化：左侧聊天框 → 结构化提案 → 用户确认后应用到当前简历 ——
+
+const AI_FIELD_LABELS = {
+  name: "姓名", job: "求职岗位", mobile: "联系电话", email: "联系邮箱", city: "城市",
+  workYears: "工作年限", birthday: "出生年月", gender: "性别", start: "开始时间", end: "结束时间",
+  organization: "名称", role: "职位", content: "内容", level: "级别", date: "时间",
+  salary: "期望薪资", availability: "到岗时间", items: "兴趣"
+};
+
+function plainText(value) {
+  return String(value ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function aiFieldLabel(section, field) {
+  const def = (section?.fields || []).find((item) => item.key === field);
+  return def?.label || AI_FIELD_LABELS[field] || field;
+}
+
+function aiSectionTitle(sectionId) {
+  return sectionById(sectionId)?.title || sectionId;
+}
+
+function aiChangeTargetLabel(change) {
+  if (change.op === "addModule") return `新增模块 · ${aiSectionTitle(change.sectionId)}`;
+  if (change.op === "removeModule") return `移除模块 · ${aiSectionTitle(change.sectionId)}`;
+  if (change.op === "add") return `${aiSectionTitle(change.sectionId)} · 新增条目`;
+  if (change.op === "remove") {
+    const section = sectionById(change.sectionId);
+    const item = section?.items?.[change.itemIndex];
+    const summary = plainText([item?.organization, item?.role, item?.name, item?.content].filter(Boolean).join(" "));
+    return `${aiSectionTitle(change.sectionId)} · 删除条目${summary ? `（${summary.slice(0, 24)}）` : ""}`;
+  }
+  if (!change.sectionId) return `基本信息 · ${aiFieldLabel(null, change.field)}`;
+  const base = aiSectionTitle(change.sectionId);
+  const label = aiFieldLabel(sectionById(change.sectionId), change.field);
+  return change.itemIndex !== undefined ? `${base} · 第 ${change.itemIndex + 1} 条 · ${label}` : `${base} · ${label}`;
+}
+
+function aiReadField(change) {
+  if (!change.sectionId) return resume.profile?.[change.field];
+  const section = sectionById(change.sectionId);
+  if (!section) return "";
+  if (change.itemIndex !== undefined) return section.items?.[change.itemIndex]?.[change.field];
+  if (section.type === "richtext" && change.field === "content") return section.content;
+  if (section.data && change.field in section.data) return section.data[change.field];
+  return section[change.field];
+}
+
+function aiChangeBeforeText(change) {
+  if (change.op === "add") return "";
+  if (change.op === "addModule") return "";
+  if (change.op === "removeModule") {
+    const section = sectionById(change.sectionId);
+    const count = Array.isArray(section?.items) ? section.items.length : 0;
+    return count ? `（含 ${count} 条内容）` : "（空模块）";
+  }
+  if (change.op === "remove") {
+    const section = sectionById(change.sectionId);
+    const item = section?.items?.[change.itemIndex];
+    return plainText([item?.organization, item?.role, item?.name, item?.level, item?.date, item?.content].filter(Boolean).join(" "));
+  }
+  return plainText(aiReadField(change));
+}
+
+function aiApplyChange(change) {
+  if (change.op === "addModule") {
+    const section = sectionById(change.sectionId);
+    if (section) section.visible = true;
+    return;
+  }
+  if (change.op === "removeModule") {
+    const section = sectionById(change.sectionId);
+    if (section) section.visible = false;
+    return;
+  }
+  if (change.op === "remove") {
+    const section = sectionById(change.sectionId);
+    if (section?.items) section.items.splice(change.itemIndex, 1);
+    return;
+  }
+  if (change.op === "add") {
+    const section = sectionById(change.sectionId);
+    if (!section?.items) return;
+    const definition = renderableSectionSchemas().find((value) => value.id === section.id);
+    const base = definition?.type === "timeline"
+      ? emptyTimelineItem(section.id)
+      : emptyStructuredItem(section.id, (section.fields || []).map((fieldItem) => fieldItem.key));
+    const item = { ...base, ...(change.item || {}), id: makeId(section.id) };
+    for (const fieldItem of (section.fields || [])) {
+      if (item[fieldItem.key] === undefined) item[fieldItem.key] = "";
+    }
+    section.items.push(item);
+    return;
+  }
+  if (!change.sectionId) {
+    resume.profile[change.field] = change.after;
+    return;
+  }
+  const section = sectionById(change.sectionId);
+  if (!section) return;
+  if (change.itemIndex !== undefined) {
+    const item = section.items?.[change.itemIndex];
+    if (item) item[change.field] = change.after;
+  } else if (section.type === "richtext" && change.field === "content") {
+    section.content = change.after;
+  } else if (section.data !== undefined) {
+    section.data[change.field] = change.after;
+  } else {
+    section[change.field] = change.after;
+  }
+}
+
+function setAiChatOpen(open) {
+  elements.aiChatPanel.classList.toggle("is-open", open);
+  elements.aiChatPanel.setAttribute("aria-hidden", String(!open));
+  if (elements.aiFloatBtn) {
+    elements.aiFloatBtn.setAttribute("aria-pressed", String(open));
+    elements.aiFloatBtn.hidden = open;
+  }
+}
+
+// 浮动按钮拖动：pointer 拖拽调整位置，点击（未拖动）才切换面板。
+let aiFloatDragging = false;
+let aiFloatMoved = false;
+let aiFloatStart = { x: 0, y: 0, left: 0, top: 0 };
+
+function restoreAiFloatPosition(btn) {
+  try {
+    const saved = JSON.parse(localStorage.getItem("aiFloatPos") || "null");
+    if (saved?.left && saved?.top) {
+      btn.style.left = saved.left;
+      btn.style.top = saved.top;
+    }
+  } catch { /* 忽略无效的本地存储 */ }
+}
+
+function setupAiFloatDrag() {
+  const btn = elements.aiFloatBtn;
+  if (!btn) return;
+  restoreAiFloatPosition(btn);
+
+  btn.addEventListener("pointerdown", (event) => {
+    const rect = btn.getBoundingClientRect();
+    aiFloatDragging = true;
+    aiFloatMoved = false;
+    aiFloatStart = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top };
+    try { btn.setPointerCapture(event.pointerId); } catch { /* 忽略 */ }
+  });
+  btn.addEventListener("pointermove", (event) => {
+    if (!aiFloatDragging) return;
+    const dx = event.clientX - aiFloatStart.x;
+    const dy = event.clientY - aiFloatStart.y;
+    if (Math.abs(dx) + Math.abs(dy) > 5) aiFloatMoved = true;
+    if (!aiFloatMoved) return;
+    const rect = btn.getBoundingClientRect();
+    const left = Math.max(8, Math.min(window.innerWidth - rect.width - 8, aiFloatStart.left + dx));
+    const top = Math.max(8, Math.min(window.innerHeight - rect.height - 8, aiFloatStart.top + dy));
+    btn.style.left = `${left}px`;
+    btn.style.top = `${top}px`;
+  });
+  btn.addEventListener("pointerup", () => {
+    if (aiFloatMoved) {
+      try {
+        localStorage.setItem("aiFloatPos", JSON.stringify({ left: btn.style.left, top: btn.style.top }));
+      } catch { /* 忽略 */ }
+    }
+    aiFloatDragging = false;
+  });
+  btn.addEventListener("click", (event) => {
+    if (aiFloatMoved) {
+      aiFloatMoved = false;
+      event.stopPropagation();
+      event.preventDefault();
+    }
+  });
+}
+
+function ensureAiChatHint() {
+  if (!elements.aiChatBody.children.length) {
+    elements.aiChatBody.innerHTML = '<p class="ai-chat__hint">描述你想怎么改这份简历，AI 会先给你一份修改方案，确认后才应用。例如：把工作经历写得更量化、新增一条项目经历、删除第二条教育经历。</p>';
+  }
+}
+
+function toggleAiChat() {
+  const open = !elements.aiChatPanel.classList.contains("is-open");
+  setAiChatOpen(open);
+  if (open) {
+    ensureAiChatHint();
+    elements.aiChatInput.focus();
+  }
+}
+
+function closeAiChat() {
+  setAiChatOpen(false);
+}
+
+function appendAiMessage(kind, text) {
+  const msg = document.createElement("div");
+  msg.className = `ai-msg ai-msg--${kind}`;
+  msg.textContent = text;
+  elements.aiChatBody.appendChild(msg);
+  elements.aiChatBody.scrollTop = elements.aiChatBody.scrollHeight;
+}
+
+function clearAiChat() {
+  elements.aiChatBody.innerHTML = "";
+}
+
+function renderAiProposal(proposal) {
+  const changes = proposal.changes || [];
+  const opText = { set: "改", add: "增", remove: "删", addModule: "加模块", removeModule: "删模块" };
+  const changesHtml = changes.map((change) => {
+    const opClass = change.op === "addModule" ? "ai-change__op--add" : change.op === "removeModule" ? "ai-change__op--remove" : `ai-change__op--${change.op}`;
+    let diffHtml = "";
+    if (change.op === "set") {
+      const before = aiChangeBeforeText(change);
+      diffHtml = `<div class="ai-change__diff">
+        <div class="ai-change__before">${escapeHtml(before || "（空）")}</div>
+        <div class="ai-change__arrow">↓</div>
+        <div class="ai-change__after">${escapeHtml(plainText(change.after) || "（空）")}</div>
+      </div>`;
+    } else if (change.op === "add") {
+      const section = sectionById(change.sectionId);
+      const fields = Object.entries(change.item || {}).filter(([, value]) => String(value).trim());
+      diffHtml = `<div class="ai-change__diff"><div class="ai-change__after">${fields.length ? fields.map(([key, value]) => `${escapeHtml(aiFieldLabel(section, key))}：${escapeHtml(plainText(value))}`).join("；") : "（空条目）"}</div></div>`;
+    } else if (change.op === "remove") {
+      diffHtml = `<div class="ai-change__diff"><div class="ai-change__before">${escapeHtml(aiChangeBeforeText(change) || "（空条目）")}</div></div>`;
+    } else if (change.op === "addModule") {
+      diffHtml = `<div class="ai-change__diff"><div class="ai-change__after">启用该模块（当前未显示）</div></div>`;
+    } else if (change.op === "removeModule") {
+      diffHtml = `<div class="ai-change__diff"><div class="ai-change__before">${escapeHtml(aiChangeBeforeText(change) || "隐藏该模块")}</div></div>`;
+    }
+    return `<div class="ai-change">
+      <div class="ai-change__target">${escapeHtml(aiChangeTargetLabel(change))}<span class="ai-change__op ${opClass}">${opText[change.op]}</span></div>
+      ${diffHtml}
+    </div>`;
+  }).join("");
+
+  const card = document.createElement("div");
+  card.className = "ai-proposal";
+  card.innerHTML = `
+    ${proposal.summary ? `<div class="ai-proposal__summary">${escapeHtml(proposal.summary)}</div>` : ""}
+    <div class="ai-proposal__list">${changesHtml}</div>
+    <div class="ai-proposal__actions">
+      <button type="button" class="ai-proposal__cancel" data-action="ai-cancel">取消</button>
+      <button type="button" class="ai-proposal__apply" data-action="ai-apply">确认应用</button>
+    </div>`;
+  elements.aiChatBody.appendChild(card);
+  elements.aiChatBody.scrollTop = elements.aiChatBody.scrollHeight;
+}
+
+async function handleAiChatSubmit(event) {
+  event.preventDefault();
+  if (aiOptimizing) return;
+  const instruction = elements.aiChatInput.value.trim();
+  if (!instruction) {
+    showToast("请先填写修改要求", "warning");
+    elements.aiChatInput.focus();
+    return;
+  }
+  if (!currentUser) {
+    showToast("登录后才能使用 AI 优化", "info");
+    openLogin("/editor");
+    return;
+  }
+  aiOptimizing = true;
+  elements.aiChatSend.disabled = true;
+  elements.aiChatSend.textContent = "生成中…";
+  appendAiMessage("user", instruction);
+  elements.aiChatInput.value = "";
+
+  try {
+    const deviceId = await getDeviceId().catch(() => "");
+    const headers = { "Content-Type": "application/json" };
+    if (deviceId) headers["X-Device-Id"] = deviceId;
+    const proposal = await readApiResponse(await fetch("/api/ai/optimize", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ resume, instruction })
+    }));
+    aiOptimizePending = proposal;
+    renderAiProposal(proposal);
+  } catch (error) {
+    appendAiMessage("error", error?.message || "AI 优化失败，请稍后重试");
+  } finally {
+    aiOptimizing = false;
+    elements.aiChatSend.disabled = false;
+    elements.aiChatSend.textContent = "发送";
+  }
+}
+
+function applyAiOptimize() {
+  if (!aiOptimizePending) return;
+  for (const change of (aiOptimizePending.changes || [])) aiApplyChange(change);
+  aiOptimizePending = null;
+  clearAiChat();
+  renderAll();
+  scheduleSave(0);
+  showToast("AI 修改已应用", "success");
+}
+
+function cancelAiOptimize() {
+  aiOptimizePending = null;
+  clearAiChat();
+  showToast("已取消 AI 修改", "info");
 }
 
 async function createRemoteDraft() {
@@ -4242,6 +4635,7 @@ document.addEventListener("click", async (event) => {
   const action = actionTarget.dataset.action;
 
   if (action === "account") { if (currentUser) toggleAccountMenu(actionTarget); else openLogin(window.location.pathname || "/"); }
+  else if (action === "toggle-theme") toggleTheme();
   else if (action === "open-settings") openSettings();
   else if (action === "close-settings") closeSettings();
   else if (action === "close-login") closeLogin();
@@ -4266,6 +4660,8 @@ document.addEventListener("click", async (event) => {
   } else if (action === "admin-toggle-announcement") adminToggleAnnouncement(actionTarget);
   else if (action === "admin-delete-announcement") adminDeleteAnnouncement(actionTarget);
   else if (action === "admin-reply-feedback") openFeedbackReply(actionTarget);
+  else if (action === "view-feedback") viewFeedback(actionTarget);
+  else if (action === "close-feedback-detail") closeFeedbackDetail();
   else if (action === "admin-cancel-feedback") cancelFeedbackReply();
   else if (action === "admin-template-status") adminTemplateStatus(actionTarget);
   else if (action === "admin-export-csv") adminExportCsv(actionTarget);
@@ -4322,6 +4718,14 @@ document.addEventListener("click", async (event) => {
   } else if (action === "toggle-drawer") {
     drawerOpen = !drawerOpen;
     elements.drawer.classList.toggle("is-open", drawerOpen);
+  } else if (action === "toggle-ai-chat") {
+    toggleAiChat();
+  } else if (action === "close-ai-chat") {
+    closeAiChat();
+  } else if (action === "ai-apply") {
+    applyAiOptimize();
+  } else if (action === "ai-cancel") {
+    cancelAiOptimize();
   } else if (action === "select-entry") {
     activeItemBySection.set(actionTarget.dataset.sectionId, actionTarget.dataset.itemId);
     renderEditor();
@@ -4508,6 +4912,8 @@ document.addEventListener("change", (event) => {
     reader.readAsDataURL(file);
   } else if (event.target.matches('[data-action="admin-set-role"]')) {
     adminSetRole(event.target);
+  } else if (event.target.matches('[data-action="admin-set-ai-limit"]')) {
+    adminSetAiLimit(event.target);
   } else if (event.target.matches('[data-scope="field-type"]')) {
     updateFieldType(event.target);
   }
@@ -4705,6 +5111,8 @@ elements.aiWordFile.addEventListener("change", () => {
 
 elements.aiDescription.addEventListener("input", updateAiCharCount);
 
+elements.aiChatForm.addEventListener("submit", handleAiChatSubmit);
+
 if (elements.aiInputCard) {
   elements.aiInputCard.addEventListener("dragover", (event) => {
     if (!Array.from(event.dataTransfer?.types || []).includes("Files")) return;
@@ -4724,6 +5132,7 @@ if (elements.aiInputCard) {
 
 async function initialize() {
   injectAccountItems();
+  setupAiFloatDrag();
   await refreshSession();
   await Promise.all([loadTemplates(), loadDrafts(), loadAnnouncementBanner()]);
   populateAdminResumeTemplates();

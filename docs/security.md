@@ -50,7 +50,7 @@
 | 威胁 | 防护 |
 | --- | --- |
 | 暴力破解 / 撞库 | 登录按「IP + 标识（邮箱/手机号）」限流（5 次/15 分钟），按 IP 限流（30 次/15 分钟）；注册按 IP 限流（10 次/小时） |
-| 机器人批量注册/登录 | Cloudflare Turnstile 人机验证：配置 `TURNSTILE_SECRET_KEY` 即启用，`TURNSTILE_SITE_KEY` 下发前端；未配置时自动关闭 |
+| 机器人批量注册/登录 | 阿里云验证码（Captcha 2.0）人机验证：服务端用 RAM `ALIYUN_CAPTCHA_ACCESS_KEY_ID` / `ALIYUN_CAPTCHA_ACCESS_KEY_SECRET` 签名校验，前端用 `ALIYUN_CAPTCHA_SCENE_ID`（场景）+ `ALIYUN_CAPTCHA_PREFIX`（身份标）初始化；未配置时自动关闭 |
 | 资源耗尽 | 导出 30 次/小时、高保真预览 60 次/小时（按用户，未登录按 IP） |
 | CSRF | 状态变更请求校验 `Sec-Fetch-Site` 与 `Origin`，跨站直接 403；配合 `SameSite=Lax` Cookie |
 | XSS | 富文本白名单清洗、模板渲染 `escapeHtml`、`Content-Security-Policy`（`script-src 'self'`） |
@@ -101,6 +101,6 @@
 3. **发送通道**：`server/mailer.mjs`（SMTP）与 `server/sms.mjs`（阿里云短信）抽象。各自环境变量齐备即启用真实发信；未配置时降级为「验证码打到服务端日志」，供本地跑通全流程。
    - 邮箱：`SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM`（个人推荐，QQ/163 邮箱均提供 SMTP 授权码）。
    - 手机：`ALIYUN_SMS_ACCESS_KEY_ID` / `ALIYUN_SMS_ACCESS_KEY_SECRET` / `ALIYUN_SMS_SIGN_NAME` / `ALIYUN_SMS_TEMPLATE_CODE`（模板需含 `${code}` 变量）。
-   - 这些密钥亦可在管理端「系统与安全 → 认证配置」中填写（`server/app-secrets.mjs`，AES-256-GCM 加密落库，`infra/postgres/init/017_app_secrets.sql`），且**优先于环境变量**；Turnstile 的 site/secret key 同样支持管理端配置。
+   - 这些密钥亦可在管理端「系统与安全 → 认证配置」中填写（`server/app-secrets.mjs`，AES-256-GCM 加密落库，`infra/postgres/init/017_app_secrets.sql`），且**优先于环境变量**；阿里云验证码的 AccessKey / 场景 ID 同样支持管理端配置。
 4. **开关**：`phone_code_login_enabled` / `email_code_login_enabled` 为管理端可热改的 Feature Flag（见 `server/config.mjs`），关闭后对应验证码登录/发码接口返回 403。
 5. **安全要点**：验证码只存哈希、恒时比较、用后即焚；发送与校验双重限流；免密账号 `password_hash` 为空，对其使用密码登录一律返回「账号或密码不正确」，不泄露账号是否仅支持验证码登录。

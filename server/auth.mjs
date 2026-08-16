@@ -127,6 +127,7 @@ export function mapUserRow(row) {
     isAdmin: Boolean(row.is_admin ?? row.isAdmin),
     disabled: Boolean(row.disabled ?? false),
     role: row.role ?? null,
+    aiDailyLimit: Number(row.ai_daily_limit ?? row.aiDailyLimit) || 8,
     deletedAt: row.deleted_at ?? row.deletedAt ?? null,
     createdAt: row.created_at ?? row.createdAt ?? null,
     updatedAt: row.updated_at ?? row.updatedAt ?? null
@@ -629,6 +630,23 @@ export class AuthService {
     return this.toPublicUser({ ...existing, disabled: value });
   }
 
+  async setUserAiDailyLimit(id, limit) {
+    const existing = await this.getUserById(id);
+    if (!existing) throw new AuthError("用户不存在", 404);
+    const value = Number.isSafeInteger(Number(limit)) && Number(limit) > 0 ? Number(limit) : 8;
+    if (this.database) {
+      await this.database.query(
+        "UPDATE users SET ai_daily_limit = $2, updated_at = now() WHERE id = $1",
+        [id, value]
+      );
+    } else {
+      const stored = this.localUsersById.get(id);
+      stored.aiDailyLimit = value;
+      stored.updatedAt = new Date().toISOString();
+    }
+    return this.toPublicUser({ ...existing, aiDailyLimit: value });
+  }
+
   async deleteUser(id) {
     const existing = await this.getUserById(id);
     if (!existing) throw new AuthError("用户不存在", 404);
@@ -751,6 +769,7 @@ export class AuthService {
       isAdmin: Boolean(user.isAdmin),
       disabled: Boolean(user.disabled),
       role,
+      aiDailyLimit: Number(user.aiDailyLimit) || 8,
       permissions: listPermissions(normalized),
       createdAt: user.createdAt,
       updatedAt: user.updatedAt

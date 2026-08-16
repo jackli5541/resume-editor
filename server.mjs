@@ -14,7 +14,7 @@ import { BullExportService, BullPreviewService, createRedisConnection } from "./
 import { getObject } from "./server/object-storage.mjs";
 import { AuthError, AuthService, parseCookies, normalizePhone, isValidPhone, normalizeEmail, isValidEmail, identifierType } from "./server/auth.mjs";
 import { RateLimiter, RedisRateLimiter, clientKey } from "./server/rate-limit.mjs";
-import { applySecurityHeaders, getClientIp, isCrossSiteRequest, isSecureRequest } from "./server/security.mjs";
+import { applySecurityHeaders, HTML_CSP, getClientIp, isCrossSiteRequest, isSecureRequest } from "./server/security.mjs";
 import { seedTestUsers } from "./server/seed-users.mjs";
 import { AiGenerationService } from "./server/ai/service.mjs";
 import { AiConfigRepository } from "./server/ai/config-repository.mjs";
@@ -32,7 +32,7 @@ import { sendCsv } from "./server/csv.mjs";
 import { AppConfigService, configSchema } from "./server/config.mjs";
 import { AlertService } from "./server/alerts.mjs";
 import { DeviceFingerprintService } from "./server/device-fingerprint.mjs";
-import { verifyTurnstileToken } from "./server/turnstile.mjs";
+import { verifyCaptchaToken } from "./server/captcha.mjs";
 import { SmsService } from "./server/sms.mjs";
 import { VerificationCodeService } from "./server/verification-codes.mjs";
 import { MailerService } from "./server/mailer.mjs";
@@ -419,9 +419,9 @@ export function createAppServer(options = {}) {
       return;
     }
 
-    if (request.method === "GET" && pathname === "/api/auth/turnstile-config") {
-      const turnstile = await authChannels.turnstile();
-      sendJson(response, 200, { enabled: turnstile.enabled, siteKey: turnstile.siteKey });
+    if (request.method === "GET" && pathname === "/api/auth/captcha-config") {
+      const captcha = await authChannels.aliyunCaptcha();
+      sendJson(response, 200, { enabled: captcha.enabled, sceneId: captcha.sceneId, prefix: captcha.prefix });
       return;
     }
 
@@ -447,10 +447,10 @@ export function createAppServer(options = {}) {
         const deviceId = parseCookies(request)["device"];
         if (deviceId && await rejectIfLimited(response, registerLimiter, clientKey(deviceId, "register-device"), { limit: 3, windowMs: 24 * 60 * 60 * 1000 })) return;
         const payload = await readJson(request);
-        const turnstile = await authChannels.turnstile();
-        if (turnstile.enabled) {
-          const turnstileOk = await verifyTurnstileToken(payload?.turnstileToken, { secretKey: turnstile.secretKey, ip });
-          if (!turnstileOk) throw new AuthError("人机验证未通过，请重试", 400);
+        const captcha = await authChannels.aliyunCaptcha();
+        if (captcha.enabled) {
+          const captchaOk = await verifyCaptchaToken(payload?.captchaVerifyParam, { accessKeyId: captcha.accessKeyId, accessKeySecret: captcha.accessKeySecret, sceneId: captcha.sceneId, ip });
+          if (!captchaOk) throw new AuthError("人机验证未通过，请重试", 400);
         }
         const identifier = String(payload?.identifier || "").trim();
         const isEmail = identifier.includes("@");
@@ -481,10 +481,10 @@ export function createAppServer(options = {}) {
         const ip = getClientIp(request);
         if (await rejectIfLimited(response, loginLimiter, clientKey(ip, "login"), { limit: 30, windowMs: 15 * 60 * 1000 })) return;
         const payload = await readJson(request);
-        const turnstile = await authChannels.turnstile();
-        if (turnstile.enabled) {
-          const turnstileOk = await verifyTurnstileToken(payload?.turnstileToken, { secretKey: turnstile.secretKey, ip });
-          if (!turnstileOk) throw new AuthError("人机验证未通过，请重试", 400);
+        const captcha = await authChannels.aliyunCaptcha();
+        if (captcha.enabled) {
+          const captchaOk = await verifyCaptchaToken(payload?.captchaVerifyParam, { accessKeyId: captcha.accessKeyId, accessKeySecret: captcha.accessKeySecret, sceneId: captcha.sceneId, ip });
+          if (!captchaOk) throw new AuthError("人机验证未通过，请重试", 400);
         }
         const identifier = String(payload?.identifier || "").trim().toLowerCase();
         if (await rejectIfLimited(response, loginLimiter, clientKey(ip, `login:${identifier}`), { limit: 5, windowMs: 15 * 60 * 1000 })) return;
@@ -546,10 +546,10 @@ export function createAppServer(options = {}) {
         const ip = getClientIp(request);
         if (await rejectIfLimited(response, codeLimiter, clientKey(ip, "login-code"), { limit: 30, windowMs: 15 * 60 * 1000 })) return;
         const payload = await readJson(request);
-        const turnstile = await authChannels.turnstile();
-        if (turnstile.enabled) {
-          const turnstileOk = await verifyTurnstileToken(payload?.turnstileToken, { secretKey: turnstile.secretKey, ip });
-          if (!turnstileOk) throw new AuthError("人机验证未通过，请重试", 400);
+        const captcha = await authChannels.aliyunCaptcha();
+        if (captcha.enabled) {
+          const captchaOk = await verifyCaptchaToken(payload?.captchaVerifyParam, { accessKeyId: captcha.accessKeyId, accessKeySecret: captcha.accessKeySecret, sceneId: captcha.sceneId, ip });
+          if (!captchaOk) throw new AuthError("人机验证未通过，请重试", 400);
         }
         const raw = String(payload?.identifier || "").trim();
         const code = String(payload?.code || "");
@@ -711,13 +711,14 @@ export function createAppServer(options = {}) {
           throw new AuthError("不能取消唯一超级管理员的权限", 403);
         }
 
-        const before = { isAdmin: Boolean(existing.isAdmin), disabled: Boolean(existing.disabled), role: existing.role ?? null };
+        const before = { isAdmin: Boolean(existing.isAdmin), disabled: Boolean(existing.disabled), role: existing.role ?? null, aiDailyLimit: Number(existing.aiDailyLimit) || 8 };
         if (payload?.isAdmin !== undefined) await authService.setUserAdmin(targetId, payload.isAdmin);
         if (payload?.role !== undefined) await authService.setUserRole(targetId, payload.role);
         if (payload?.disabled !== undefined) await authService.setUserDisabled(targetId, payload.disabled);
+        if (payload?.aiDailyLimit !== undefined) await authService.setUserAiDailyLimit(targetId, payload.aiDailyLimit);
         const user = authService.toPublicUser(await authService.getUserById(targetId));
         await recordAudit(request, admin, "user.update", "user", targetId, before, {
-          isAdmin: Boolean(user.isAdmin), disabled: Boolean(user.disabled), role: user.role ?? null
+          isAdmin: Boolean(user.isAdmin), disabled: Boolean(user.disabled), role: user.role ?? null, aiDailyLimit: Number(user.aiDailyLimit) || 8
         });
         sendJson(response, 200, { user });
       } catch (error) {
@@ -857,7 +858,7 @@ export function createAppServer(options = {}) {
         }
         const config = await aiConfigRepository.update(payload, { updatedBy: admin.id });
         await recordAudit(request, admin, "ai_config.update", "ai_config", "1", null, {
-          enabled: Boolean(config.enabled), provider: config.provider, model: config.model, baseUrl: config.baseUrl
+          enabled: Boolean(config.enabled), optimizeEnabled: Boolean(config.optimizeEnabled), provider: config.provider, model: config.model, baseUrl: config.baseUrl
         });
         sendJson(response, 200, { config });
       } catch (error) {
@@ -1098,14 +1099,14 @@ export function createAppServer(options = {}) {
         await requirePermission(request, "config.read");
         const smtp = await authChannels.smtp();
         const aliyun = await authChannels.aliyunSms();
-        const turnstile = await authChannels.turnstile();
+        const captcha = await authChannels.aliyunCaptcha();
         sendJson(response, 200, {
           emailCodeLoginEnabled: (await configService.get("email_code_login_enabled")) !== false,
           phoneCodeLoginEnabled: (await configService.get("phone_code_login_enabled")) !== false,
           emailConfigured: smtp.enabled,
           phoneConfigured: aliyun.enabled,
-          turnstileEnabled: (await configService.get("turnstile_enabled")) !== false,
-          turnstileConfigured: Boolean(turnstile.siteKey && turnstile.secretKey)
+          captchaEnabled: (await configService.get("captcha_enabled")) !== false,
+          captchaConfigured: captcha.enabled
         });
       } catch (error) {
         sendJson(response, errorStatusOf(error), { error: error?.message || "读取认证状态失败" });
@@ -1639,7 +1640,7 @@ export function createAppServer(options = {}) {
         const user = await authorize(request);
         if (!user?.id) throw new AuthError("请先登录", 401);
         const config = await aiService.configRepository.get();
-        const quota = await aiService.quota.check(user.id);
+        const quota = await aiService.quota.check(user.id, { isAdmin: user.isAdmin, limit: user.aiDailyLimit });
         sendJson(response, 200, {
           enabled: Boolean(config.enabled),
           maxInputChars: config.maxInputChars,
@@ -1667,12 +1668,40 @@ export function createAppServer(options = {}) {
           userId: user.id,
           templateSlug: payload?.templateSlug,
           description: payload?.description,
-          tone: payload?.tone
+          tone: payload?.tone,
+          isAdmin: user.isAdmin,
+          aiDailyLimit: user.aiDailyLimit
         });
         await eventLog.record({ userId: user.id, event: "ai_generate" });
         sendJson(response, 200, result);
       } catch (error) {
         sendJson(response, errorStatusOf(error), { error: error?.message || "AI 生成失败" });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && pathname === "/api/ai/optimize") {
+      try {
+        const user = await authorize(request);
+        if (!user?.id) throw new AuthError("请先登录", 401);
+        if (await rejectIfLimited(response, apiLimiter, clientKey(user.id, "ai"), { limit: 30, windowMs: 60 * 60 * 1000 })) return;
+        if (await rejectIfLimited(response, apiLimiter, clientKey(getClientIp(request), "ai-daily"), { limit: Number.parseInt(process.env.AI_IP_DAILY_LIMIT || "24", 10), windowMs: 24 * 60 * 60 * 1000 })) return;
+        if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
+          throw new RequestValidationError("Content-Type 必须是 application/json", 415);
+        }
+        const payload = await readJson(request);
+        const result = await aiService.optimize({
+          userId: user.id,
+          resume: payload?.resume,
+          instruction: payload?.instruction,
+          tone: payload?.tone,
+          isAdmin: user.isAdmin,
+          aiDailyLimit: user.aiDailyLimit
+        });
+        await eventLog.record({ userId: user.id, event: "ai_optimize" });
+        sendJson(response, 200, result);
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "AI 优化失败" });
       }
       return;
     }
@@ -1863,7 +1892,7 @@ export function createAppServer(options = {}) {
         "X-Content-Type-Options": "nosniff"
       };
       if (contentType.startsWith("text/html")) {
-        headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+        headers["Content-Security-Policy"] = HTML_CSP;
       }
       response.writeHead(200, headers);
       response.end(request.method === "HEAD" ? undefined : body);
@@ -1874,7 +1903,7 @@ export function createAppServer(options = {}) {
           "Content-Type": "text/html; charset=utf-8",
           "Cache-Control": "no-store",
           "X-Content-Type-Options": "nosniff",
-          "Content-Security-Policy": "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+          "Content-Security-Policy": HTML_CSP
         });
         response.end(request.method === "HEAD" ? undefined : body);
       } catch {

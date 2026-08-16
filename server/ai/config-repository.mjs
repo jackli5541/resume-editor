@@ -9,7 +9,8 @@ export const AI_CONFIG_DEFAULTS = Object.freeze({
   maxOutputTokens: 1600,
   systemPrompt: "",
   enabled: false,
-  timeoutMs: 30000
+  timeoutMs: 30000,
+  optimizeEnabled: true
 });
 
 const COLUMN_MAP = {
@@ -21,7 +22,8 @@ const COLUMN_MAP = {
   maxOutputTokens: "max_output_tokens",
   systemPrompt: "system_prompt",
   enabled: "enabled",
-  timeoutMs: "timeout_ms"
+  timeoutMs: "timeout_ms",
+  optimizeEnabled: "optimize_enabled"
 };
 
 function clampNumber(value, fallback, min, max) {
@@ -43,6 +45,7 @@ export function sanitizeConfigInput(input) {
   if (typeof input.systemPrompt === "string") out.systemPrompt = input.systemPrompt.slice(0, 8000);
   if (input.enabled !== undefined) out.enabled = Boolean(input.enabled);
   if (input.timeoutMs !== undefined) out.timeoutMs = clampNumber(input.timeoutMs, AI_CONFIG_DEFAULTS.timeoutMs, 5000, 120000);
+  if (input.optimizeEnabled !== undefined) out.optimizeEnabled = Boolean(input.optimizeEnabled);
   if (typeof input.apiKey === "string") out.apiKey = input.apiKey.slice(0, 500);
   return out;
 }
@@ -58,6 +61,7 @@ function rowToPublic(row) {
     systemPrompt: row.system_prompt,
     enabled: row.enabled,
     timeoutMs: row.timeout_ms,
+    optimizeEnabled: row.optimize_enabled !== false,
     updatedAt: row.updated_at,
     apiKeySet: Boolean(row.api_key_enc),
     apiKeyHint: row.api_key_hint || ""
@@ -85,6 +89,7 @@ export class AiConfigRepository {
         systemPrompt: mem.systemPrompt ?? AI_CONFIG_DEFAULTS.systemPrompt,
         enabled: mem.enabled ?? AI_CONFIG_DEFAULTS.enabled,
         timeoutMs: mem.timeoutMs ?? AI_CONFIG_DEFAULTS.timeoutMs,
+        optimizeEnabled: mem.optimizeEnabled ?? AI_CONFIG_DEFAULTS.optimizeEnabled,
         updatedAt: mem.updatedAt || null,
         apiKeySet: Boolean(mem.apiKeyEnc),
         apiKeyHint: mem.apiKeyHint || ""
@@ -92,7 +97,7 @@ export class AiConfigRepository {
     }
     const result = await this.database.query(`
       SELECT provider, base_url, model, api_key_enc, api_key_hint, temperature,
-             max_input_chars, max_output_tokens, system_prompt, enabled, timeout_ms, updated_at
+             max_input_chars, max_output_tokens, system_prompt, enabled, timeout_ms, optimize_enabled, updated_at
       FROM ai_model_config WHERE id = 1
     `);
     const row = result.rows[0];

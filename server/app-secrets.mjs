@@ -4,8 +4,10 @@ import { decryptSecret, encryptSecret, loadEncryptionKey, maskSecret } from "./a
 
 // 白名单密钥键；value 为密文，hint 为脱敏展示。
 export const SECRET_KEYS = [
-  "turnstile_site_key",
-  "turnstile_secret_key",
+  "aliyun_captcha_access_key_id",
+  "aliyun_captcha_access_key_secret",
+  "aliyun_captcha_scene_id",
+  "aliyun_captcha_prefix",
   "smtp_host",
   "smtp_port",
   "smtp_secure",
@@ -20,7 +22,7 @@ export const SECRET_KEYS = [
 
 // 这些键的值属于敏感信息，hint 用脱敏形式；其余键（host/端口/发件人/签名等）hint 直接展示原值。
 const SENSITIVE_KEYS = new Set([
-  "turnstile_secret_key",
+  "aliyun_captcha_access_key_secret",
   "smtp_pass",
   "aliyun_sms_access_key_secret"
 ]);
