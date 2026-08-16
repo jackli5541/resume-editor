@@ -1,0 +1,433 @@
+{
+  "slug": "resume-collection-cn-002",
+  "name": "简约风求职简历模板",
+  "category": "中文简历",
+  "description": "简约风求职简历模板，已通过高保真模板验收",
+  "version": 1,
+  "status": "ready",
+  "engine": "docx-native",
+  "sourceUrl": "https://github.com/mmmlllnnn/ResumeCollection/blob/main/1.%E4%B8%AD%E6%96%87%E7%AE%80%E5%8E%86/002/%E7%AE%80%E7%BA%A6%E9%A3%8E%E6%B1%82%E8%81%8C%E7%AE%80%E5%8E%86%E6%A8%A1%E6%9D%BF.docx",
+  "sourcePath": "resume-collection-cn-002/v1/native.docx",
+  "previewPath": "resume-collection-cn-002/v1/preview.png",
+  "sha256": "4a73c04af88efec84d751f74ef33070afe4e2f3cba1d7079f92d0572774cd9b2",
+  "licenseStatus": "MIT",
+  "selectable": true,
+  "previewUrl": "/template-assets/resume-collection-cn-002/v1/preview.png",
+  "manifest": {
+    "pageSize": "A4",
+    "supportedFormats": [
+      "pdf",
+      "docx"
+    ],
+    "sourceRepository": "mmmlllnnn/ResumeCollection",
+    "sourceDirectory": "002",
+    "originalFileName": "简约风求职简历模板.docx",
+    "adapter": {
+      "version": 2,
+      "layout": "teal-single",
+      "theme": "#3f6f78"
+    },
+    "nativeSlots": {
+      "tags": [
+        "resume:item.content",
+        "resume:profile.birthday",
+        "resume:profile.education",
+        "resume:profile.ethnicity",
+        "resume:profile.height",
+        "resume:profile.mobile",
+        "resume:profile.name",
+        "resume:profile.photo",
+        "resume:profile.politicalStatus",
+        "resume:repeat:education",
+        "resume:repeat:experience",
+        "resume:section:campus.content",
+        "resume:section:campus.title",
+        "resume:section:certificates.content",
+        "resume:section:certificates.title",
+        "resume:section:education.content",
+        "resume:section:education.title",
+        "resume:section:experience.content",
+        "resume:section:experience.title",
+        "resume:section:summary.content",
+        "resume:section:summary.title"
+      ],
+      "hasProfile": true,
+      "repeatSections": [
+        "education",
+        "experience"
+      ]
+    },
+    "qa": {
+      "approved": true,
+      "automaticApproved": true,
+      "manualApproved": true,
+      "minimumSsim": 0.9949556599931236,
+      "maximumChangedRatio": 0.0028511546638434857,
+      "pageCount": 1,
+      "samplePageCount": 1,
+      "sampleVersion": "native-qa-v1",
+      "templateSha256": "4a73c04af88efec84d751f74ef33070afe4e2f3cba1d7079f92d0572774cd9b2",
+      "annotation": {
+        "resume:profile.ethnicity": true,
+        "resume:profile.birthday": true,
+        "resume:profile.height": true,
+        "resume:profile.politicalStatus": true,
+        "resume:profile.school": false,
+        "resume:profile.education": true,
+        "resume:profile.email": false,
+        "resume:profile.mobile": true,
+        "resume:profile.name": true,
+        "resume:profile.job": false,
+        "resume:profile.city": false,
+        "resume:profile.age": false,
+        "resume:profile.gender": false,
+        "resume:profile.major": false,
+        "resume:profile.nativePlace": false,
+        "resume:profile.photo": true,
+        "resume:section:education.title": true,
+        "resume:section:summary.title": true,
+        "resume:section:experience.title": true,
+        "resume:section:campus.title": true,
+        "resume:section:certificates.title": true,
+        "resume:repeat:education": true,
+        "resume:repeat:experience": true,
+        "resume:section:education.content": true,
+        "resume:section:summary.content": true,
+        "resume:section:experience.content": true,
+        "resume:section:campus.content": true,
+        "resume:section:certificates.content": true
+      },
+      "checkedAt": "2026-08-15T03:52:34.216969+00:00",
+      "manualChecks": [
+        "crop",
+        "overlap",
+        "alignment",
+        "pagination",
+        "font-substitution",
+        "image-distortion",
+        "decoration-loss"
+      ],
+      "reportPath": "output/native-template-qa/resume-collection-cn-002/qa-report.json"
+    },
+    "renderPipeline": "docx-libreoffice",
+    "editingCapabilities": {
+      "editableSlots": [
+        "resume:item.content",
+        "resume:profile.birthday",
+        "resume:profile.education",
+        "resume:profile.ethnicity",
+        "resume:profile.height",
+        "resume:profile.mobile",
+        "resume:profile.name",
+        "resume:profile.photo",
+        "resume:profile.politicalStatus",
+        "resume:repeat:education",
+        "resume:repeat:experience",
+        "resume:section:campus.content",
+        "resume:section:campus.title",
+        "resume:section:certificates.content",
+        "resume:section:certificates.title",
+        "resume:section:education.content",
+        "resume:section:education.title",
+        "resume:section:experience.content",
+        "resume:section:experience.title",
+        "resume:section:summary.content",
+        "resume:section:summary.title"
+      ],
+      "repeatableSections": [
+        "education",
+        "experience"
+      ],
+      "sortableZones": [],
+      "hideableSections": [],
+      "fixedTemplateElementsLocked": true
+    },
+    "editorSchema": {
+      "schemaVersion": 3,
+      "slug": "resume-collection-cn-002",
+      "name": "经典青灰",
+      "profileFields": [
+        "name",
+        "mobile",
+        "photo",
+        "birthday",
+        "education",
+        "politicalStatus",
+        "ethnicity",
+        "height"
+      ],
+      "profileDefinitions": {
+        "name": {
+          "label": "姓名",
+          "type": "text"
+        },
+        "mobile": {
+          "label": "联系电话",
+          "type": "text"
+        },
+        "photo": {
+          "label": "个人照片",
+          "type": "image"
+        },
+        "birthday": {
+          "label": "出生年月",
+          "type": "text"
+        },
+        "education": {
+          "label": "学历",
+          "type": "text"
+        },
+        "politicalStatus": {
+          "label": "政治面貌",
+          "type": "text"
+        },
+        "ethnicity": {
+          "label": "民族",
+          "type": "text"
+        },
+        "height": {
+          "label": "身高",
+          "type": "text"
+        }
+      },
+      "sections": [
+        {
+          "id": "education",
+          "title": "教育背景",
+          "type": "timeline",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": true,
+            "removeItems": true,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "summary",
+          "title": "自我评价",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "experience",
+          "title": "实习经历",
+          "type": "timeline",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": true,
+            "removeItems": true,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "campus",
+          "title": "校园经历",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "certificates",
+          "title": "技能证书",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        }
+      ],
+      "zones": [
+        {
+          "id": "main",
+          "sortable": false
+        }
+      ],
+      "layoutSchema": {
+        "renderer": "docx-pages",
+        "layout": "single-compact"
+      },
+      "styleControls": {
+        "fontFamily": false,
+        "fontSize": false,
+        "theme": false,
+        "lineHeight": false,
+        "pagePadding": false,
+        "sectionGap": false
+      },
+      "capabilities": {
+        "fixedTemplateElementsLocked": true
+      },
+      "renderers": {
+        "preview": "docx-native",
+        "pdf": "docx-native",
+        "docx": "docx-native"
+      }
+    },
+    "layoutSchema": {
+      "renderer": "docx-pages",
+      "layout": "single-compact"
+    },
+    "defaultResume": {
+      "profile": {
+        "name": "简历模板资源网",
+        "ethnicity": "汉",
+        "mobile": "13500135000",
+        "birthday": "1996.05",
+        "height": "177cm",
+        "politicalStatus": "中共党员",
+        "education": "本科"
+      },
+      "sections": [
+        {
+          "id": "education",
+          "type": "timeline",
+          "title": "教育背景",
+          "visible": true,
+          "items": [
+            {
+              "content": "2005.07-2009.06          简历模板资源网科技大学                      市场营销（本科）"
+            }
+          ]
+        },
+        {
+          "id": "summary",
+          "type": "richtext",
+          "title": "自我评价",
+          "visible": true,
+          "content": "深度互联网从业人员，对互联网保持高度的敏感性和关注度，熟悉产品开发流程，有很强的产品规划、需求分析、交互设计能力，能独立承担APP和WEB项目的管控工作，善于沟通，贴近用户。"
+        },
+        {
+          "id": "experience",
+          "type": "timeline",
+          "title": "实习经历",
+          "visible": true,
+          "items": [
+            {
+              "content": "2012-04至今            简历模板资源网信息科技有限公司           市场营销（实习生）"
+            }
+          ]
+        },
+        {
+          "id": "campus",
+          "type": "richtext",
+          "title": "校园经历",
+          "visible": true,
+          "content": "目标带领自己的团队，辅助完成在各高校的“伏龙计划”，向全球顶尖的AXA金融公司推送实习生资源。"
+        },
+        {
+          "id": "certificates",
+          "type": "richtext",
+          "title": "技能证书",
+          "visible": true,
+          "content": "大学英语四/六级（CET-4/6），良好的听说读写能力，快速浏览英语专业文件及书籍；"
+        }
+      ]
+    }
+  },
+  "analysis": {
+    "sha256": "4a73c04af88efec84d751f74ef33070afe4e2f3cba1d7079f92d0572774cd9b2",
+    "packageParts": 24,
+    "page": {
+      "widthTwips": 11906,
+      "heightTwips": 16838,
+      "marginsTwips": {
+        "top": 720,
+        "right": 720,
+        "bottom": 720,
+        "left": 720
+      }
+    },
+    "counts": {
+      "p": 84,
+      "t": 142,
+      "tbl": 0,
+      "tr": 0,
+      "tc": 0,
+      "drawing": 14,
+      "pict": 13,
+      "txbxContent": 30,
+      "sdt": 32,
+      "sectPr": 1,
+      "anchor": 14,
+      "inline": 0
+    },
+    "media": [
+      "word/media/image1.png"
+    ],
+    "macroParts": [],
+    "externalRelationships": [],
+    "sampleText": "���˼���ϸ�Ĵ�ÿһ��Сϸ�ڿ�ʼ��Personal resume���˼���ϸ�Ĵ�ÿһ��Сϸ�ڿ�ʼ��Personal resume��    ��������ģ����Դ����    �壺����    ����13500135000��    �䣺jianlimoban-ziyuan.comס    ַ�������ж������������£�1996.05��    �ߣ�177cm������ò���й���Ա��ҵԺУ����ѿƼ���ѧѧ    �������ƻ�����Ϣ��    ��������ģ����Դ����    �壺����    ����13500135000��    �䣺jianlimoban-ziyuan.comס    ַ�������ж������������£�1996.05��    �ߣ�177cm������ò���й���Ա��ҵԺУ����ѿƼ���ѧѧ    �������ƻ�����Ϣ��������2005.07-2009.06          ����ģ����Դ���Ƽ���ѧ                      �г�Ӫ�������ƣ����޿γ̣�����ѧ��΢�۾���ѧ����۾���ѧ��������Ϣϵͳ��ͳ��ѧ�����ѧ������������г�Ӫ�������÷�����������Ϊѧ�������г�Ӫ����������2005.07-2009.06          ����ģ����Դ���Ƽ���ѧ                      �г�Ӫ�������ƣ����޿γ̣�����ѧ��΢�۾���ѧ����۾���ѧ��������Ϣϵͳ��ͳ��ѧ�����ѧ������������г�Ӫ�������÷�����������Ϊѧ�������г�Ӫ������������Ȼ�������ҵ��Ա���Ի��������ָ߶ȵ������Ժ͹�ע�ȣ���Ϥ��Ʒ�������̣��к�ǿ�Ĳ�Ʒ�滮�������������������������ܶ����е�APP��WEB��Ŀ�Ĺܿع��������ڹ�ͨ�������û�������������Ȼ�������ҵ��Ա���Ի��������ָ߶ȵ������Ժ͹�ע�ȣ���Ϥ��Ʒ�������̣��к�ǿ�Ĳ�Ʒ�滮�������������������������ܶ����е�APP��WEB��Ŀ�Ĺܿع��������ڹ�ͨ�������û���ʵϰ����2012-04����            ����ģ����Դ����Ϣ�Ƽ����޹�˾           �г�Ӫ����ʵϰ��������˾���϶���Դ�����۹������Կ��ؿͻ�Ϊ��������˾��Ҫ��Դ�Թ��ͨ���ǻ��ơ��ٶȡ�С�ס�360�����Ż��ȣ�ʵʱ�˽���ҵ�ı仯�����ٿͻ�����ϸ���ݣ�Ϊ�ͻ��ƶ������Ƶ�Ͷ�żƻ����������䰮�������ͼ�Ե��56��Ƶ�������ȿͻ���2010.03-2012.03        ����ģ����Դ����Ϣ�Ƽ����޹�˾          ��������ʦ����˾ҵ��ϵͳ����Ƽ��Ľ������빫˾�����̳�ϵͳ��Ʒ������Ƽ�ʵʩ����������ͻ����С��ͻ��������������д���ȹ����� ���빫˾������͵���������Ŀ�Ĳ߻����������δ��̼��������̳�һ�ڽ�����Ŀ������ʵϰ����2012-04����            ����ģ����Դ����Ϣ�Ƽ����޹�˾           �г�Ӫ����ʵϰ��������˾���϶���Դ�����۹������Կ��ؿͻ�Ϊ��������˾��Ҫ��Դ�Թ��ͨ���ǻ��ơ��ٶȡ�С�ס�360�����Ż��ȣ�ʵʱ�˽���ҵ�ı仯�����ٿͻ�����ϸ���ݣ�Ϊ�ͻ��ƶ������Ƶ�Ͷ�żƻ����������䰮�������ͼ�Ե��56��Ƶ�������ȿͻ���2010.03-2012.03        ����ģ����Դ����Ϣ�Ƽ����޹�˾          ��������ʦ����˾ҵ��ϵͳ����Ƽ��Ľ������빫˾�����̳�ϵͳ��Ʒ������Ƽ�ʵʩ����������ͻ����С��ͻ��������������д���ȹ����� ���빫˾������͵���������Ŀ�Ĳ߻����������δ��̼��������̳�һ�ڽ�����Ŀ������У԰����2009.03-2011.06        ����ģ����Դ����Ϣ�Ƽ����޹�˾          У԰��ʹ��ϯ Ŀ������Լ����Ŷӣ���������ڸ���У�ġ������ƻ�������ȫ�򶥼��AXA���ڹ�˾����ʵϰ����Դ��������Ӫǰ�ڿ�չ����ص��������������������Ϊ������ѯ����Ա�ṩ���⡣���ڽ�������Ŀ��ά���׶Σ���֤��������Ŀ�������ԡ�У԰����2009.03-2011.06        ����ģ����Դ����Ϣ�Ƽ����޹�˾          У԰��ʹ��ϯ Ŀ������Լ����Ŷӣ���������ڸ���У�ġ������ƻ�������ȫ�򶥼��AXA���ڹ�˾����ʵϰ����Դ��������Ӫǰ�ڿ�չ����ص��������������������Ϊ������ѯ����Ա�ṩ���⡣���ڽ�������Ŀ��ά���׶Σ���֤��������Ŀ�������ԡ�����֤����ͨ��һ���׵ȣ���ѧӢ����/������CET-4/6�������õ���˵��д�������������Ӣ��רҵ�ļ����鼮��ͨ��ȫ��������������ԣ���������office�������������֤����ͨ��һ���׵ȣ���ѧӢ����/������CET-4/6�������õ���˵��д�������������Ӣ��רҵ�ļ����鼮��ͨ��ȫ��������������ԣ���������office���������",
+    "needsMapping": false,
+    "layoutRisk": "high"
+  },
+  "slotMap": {
+    "profile": [
+      "name",
+      "mobile",
+      "photo",
+      "birthday",
+      "education",
+      "politicalStatus",
+      "ethnicity",
+      "height"
+    ],
+    "sections": {
+      "education": [
+        "content"
+      ],
+      "summary": [
+        "content"
+      ],
+      "experience": [
+        "content"
+      ],
+      "campus": [
+        "content"
+      ],
+      "certificates": [
+        "content"
+      ]
+    }
+  }
+}

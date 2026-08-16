@@ -1,0 +1,493 @@
+{
+  "slug": "resume-collection-cn-006",
+  "name": "个人简历免费模板",
+  "category": "中文简历",
+  "description": "个人简历免费模板，已通过高保真模板验收",
+  "version": 1,
+  "status": "ready",
+  "engine": "docx-native",
+  "sourceUrl": "https://github.com/mmmlllnnn/ResumeCollection/blob/main/1.%E4%B8%AD%E6%96%87%E7%AE%80%E5%8E%86/006/%E4%B8%AA%E4%BA%BA%E7%AE%80%E5%8E%86%E5%85%8D%E8%B4%B9%E6%A8%A1%E6%9D%BF.docx",
+  "sourcePath": "resume-collection-cn-006/v1/native.docx",
+  "previewPath": "resume-collection-cn-006/v1/preview.png",
+  "sha256": "1450fff573ad0b310457fe0967481c7caa27b9c4cc19a1a8b3ab0d67415bb834",
+  "licenseStatus": "MIT",
+  "selectable": true,
+  "previewUrl": "/template-assets/resume-collection-cn-006/v1/preview.png",
+  "manifest": {
+    "pageSize": "A4",
+    "supportedFormats": [
+      "pdf",
+      "docx"
+    ],
+    "sourceRepository": "mmmlllnnn/ResumeCollection",
+    "sourceDirectory": "006",
+    "originalFileName": "个人简历免费模板.docx",
+    "adapter": {
+      "version": 2,
+      "layout": "blue-geometric",
+      "theme": "#438fc9"
+    },
+    "nativeSlots": {
+      "tags": [
+        "resume:item.content",
+        "resume:profile.birthday",
+        "resume:profile.city",
+        "resume:profile.gender",
+        "resume:profile.job",
+        "resume:profile.mobile",
+        "resume:profile.name",
+        "resume:profile.nativePlace",
+        "resume:profile.photo",
+        "resume:repeat:education",
+        "resume:repeat:experience",
+        "resume:section:campus.content",
+        "resume:section:campus.title",
+        "resume:section:certificates.content",
+        "resume:section:education.content",
+        "resume:section:education.title",
+        "resume:section:experience.content",
+        "resume:section:interests.content",
+        "resume:section:interests.title",
+        "resume:section:objective.content",
+        "resume:section:objective.title",
+        "resume:section:summary.content"
+      ],
+      "hasProfile": true,
+      "repeatSections": [
+        "education",
+        "experience"
+      ]
+    },
+    "qa": {
+      "approved": true,
+      "automaticApproved": true,
+      "manualApproved": true,
+      "minimumSsim": 0.9992321853128289,
+      "maximumChangedRatio": 0.0004561847462149577,
+      "pageCount": 2,
+      "samplePageCount": 2,
+      "sampleVersion": "native-qa-v1",
+      "templateSha256": "1450fff573ad0b310457fe0967481c7caa27b9c4cc19a1a8b3ab0d67415bb834",
+      "annotation": {
+        "resume:profile.birthday": true,
+        "resume:profile.gender": true,
+        "resume:profile.nativePlace": true,
+        "resume:profile.city": true,
+        "resume:profile.email": false,
+        "resume:profile.mobile": true,
+        "resume:profile.name": true,
+        "resume:profile.job": true,
+        "resume:profile.age": false,
+        "resume:profile.education": false,
+        "resume:profile.politicalStatus": false,
+        "resume:profile.school": false,
+        "resume:profile.major": false,
+        "resume:profile.ethnicity": false,
+        "resume:profile.height": false,
+        "resume:profile.photo": true,
+        "resume:section:objective.title": true,
+        "resume:section:education.title": true,
+        "resume:section:experience.title": false,
+        "resume:section:campus.title": true,
+        "resume:section:certificates.title": false,
+        "resume:section:interests.title": true,
+        "resume:repeat:education": true,
+        "resume:repeat:experience": true,
+        "resume:section:summary.content": true,
+        "resume:section:objective.content": true,
+        "resume:section:education.content": true,
+        "resume:section:experience.content": true,
+        "resume:section:certificates.content": true,
+        "resume:section:campus.content": true,
+        "resume:section:interests.content": true
+      },
+      "checkedAt": "2026-08-15T03:56:16.737872+00:00",
+      "manualChecks": [
+        "crop",
+        "overlap",
+        "alignment",
+        "pagination",
+        "font-substitution",
+        "image-distortion",
+        "decoration-loss"
+      ],
+      "reportPath": "output/native-template-qa/resume-collection-cn-006/qa-report.json"
+    },
+    "renderPipeline": "docx-libreoffice",
+    "editingCapabilities": {
+      "editableSlots": [
+        "resume:item.content",
+        "resume:profile.birthday",
+        "resume:profile.city",
+        "resume:profile.gender",
+        "resume:profile.job",
+        "resume:profile.mobile",
+        "resume:profile.name",
+        "resume:profile.nativePlace",
+        "resume:profile.photo",
+        "resume:repeat:education",
+        "resume:repeat:experience",
+        "resume:section:campus.content",
+        "resume:section:campus.title",
+        "resume:section:certificates.content",
+        "resume:section:education.content",
+        "resume:section:education.title",
+        "resume:section:experience.content",
+        "resume:section:interests.content",
+        "resume:section:interests.title",
+        "resume:section:objective.content",
+        "resume:section:objective.title",
+        "resume:section:summary.content"
+      ],
+      "repeatableSections": [
+        "education",
+        "experience"
+      ],
+      "sortableZones": [],
+      "hideableSections": [],
+      "fixedTemplateElementsLocked": true
+    },
+    "editorSchema": {
+      "schemaVersion": 3,
+      "slug": "resume-collection-cn-006",
+      "name": "蓝色几何",
+      "profileFields": [
+        "name",
+        "job",
+        "mobile",
+        "city",
+        "photo",
+        "birthday",
+        "gender",
+        "nativePlace"
+      ],
+      "profileDefinitions": {
+        "name": {
+          "label": "姓名",
+          "type": "text"
+        },
+        "job": {
+          "label": "求职岗位",
+          "type": "text"
+        },
+        "mobile": {
+          "label": "联系电话",
+          "type": "text"
+        },
+        "city": {
+          "label": "所在城市",
+          "type": "text"
+        },
+        "photo": {
+          "label": "个人照片",
+          "type": "image"
+        },
+        "birthday": {
+          "label": "出生年月",
+          "type": "text"
+        },
+        "gender": {
+          "label": "性别",
+          "type": "text"
+        },
+        "nativePlace": {
+          "label": "籍贯",
+          "type": "text"
+        }
+      },
+      "sections": [
+        {
+          "id": "summary",
+          "title": "个人简介",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": false
+          }
+        },
+        {
+          "id": "objective",
+          "title": "求职意向",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "education",
+          "title": "教育背景",
+          "type": "timeline",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": true,
+            "removeItems": true,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "experience",
+          "title": "工作经历",
+          "type": "timeline",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": true,
+            "removeItems": true,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": false
+          }
+        },
+        {
+          "id": "campus",
+          "title": "校园经历",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "certificates",
+          "title": "技能证书",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": false
+          }
+        },
+        {
+          "id": "interests",
+          "title": "兴趣爱好",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        }
+      ],
+      "zones": [
+        {
+          "id": "main",
+          "sortable": false
+        }
+      ],
+      "layoutSchema": {
+        "renderer": "docx-pages",
+        "layout": "single-geometric"
+      },
+      "styleControls": {
+        "fontFamily": false,
+        "fontSize": false,
+        "theme": false,
+        "lineHeight": false,
+        "pagePadding": false,
+        "sectionGap": false
+      },
+      "capabilities": {
+        "fixedTemplateElementsLocked": true
+      },
+      "renderers": {
+        "preview": "docx-native",
+        "pdf": "docx-native",
+        "docx": "docx-native"
+      }
+    },
+    "layoutSchema": {
+      "renderer": "docx-pages",
+      "layout": "single-geometric"
+    },
+    "defaultResume": {
+      "profile": {
+        "job": "管理",
+        "name": "简历模板资源网",
+        "birthday": "1999.12.12",
+        "gender": "女",
+        "nativePlace": "南京",
+        "city": "北京",
+        "mobile": "139 9999 9999"
+      },
+      "sections": [
+        {
+          "id": "summary",
+          "type": "richtext",
+          "title": "个人简介",
+          "visible": true,
+          "content": "性格阳光，乐于交友，热爱旅行，看书，视野开阔。"
+        },
+        {
+          "id": "objective",
+          "type": "richtext",
+          "title": "求职意向",
+          "visible": true,
+          "content": "求职意向：管理"
+        },
+        {
+          "id": "education",
+          "type": "timeline",
+          "title": "教育背景",
+          "visible": true,
+          "items": [
+            {
+              "content": "2013.03-2013.12     大学期间          班级团支书"
+            }
+          ]
+        },
+        {
+          "id": "experience",
+          "type": "timeline",
+          "title": "工作经历",
+          "visible": true,
+          "items": [
+            {
+              "content": "在职期间注重培养班级团结意识，认真负责为同学服务，每学期末考前组织“帮帮乐”互动活动， 大大提高了同学们的复习效率。 工作期间不但得到老师同学的充分认可，也得到了个人管理，交流，组织方面能力的积累，于2013年取得优秀班干，优秀团干荣誉。"
+            }
+          ]
+        },
+        {
+          "id": "campus",
+          "type": "richtext",
+          "title": "校园经历",
+          "visible": true,
+          "content": "在职期间注重培养班级团结意识，认真负责为同学服务，每学期末考前组织“帮帮乐”互动活动， 大大提高了同学们的复习效率。 工作期间不但得到老师同学的充分认可，也得到了个人管理，交流，组织方面能力的积累，于2013年取得优秀班干，优秀团干荣誉。"
+        },
+        {
+          "id": "certificates",
+          "type": "richtext",
+          "title": "技能证书",
+          "visible": true,
+          "content": "英语  ：英语雅思7分，CET-4, CET-6，"
+        },
+        {
+          "id": "interests",
+          "type": "richtext",
+          "title": "兴趣爱好",
+          "visible": true,
+          "content": "兴趣爱好"
+        }
+      ]
+    }
+  },
+  "analysis": {
+    "sha256": "1450fff573ad0b310457fe0967481c7caa27b9c4cc19a1a8b3ab0d67415bb834",
+    "packageParts": 28,
+    "page": {
+      "widthTwips": 11907,
+      "heightTwips": 16840,
+      "marginsTwips": {
+        "top": 1440,
+        "right": 1797,
+        "bottom": 1440,
+        "left": 1797
+      }
+    },
+    "counts": {
+      "p": 98,
+      "t": 127,
+      "tbl": 0,
+      "tr": 0,
+      "tc": 0,
+      "drawing": 33,
+      "pict": 32,
+      "txbxContent": 28,
+      "sdt": 33,
+      "sectPr": 1,
+      "anchor": 33,
+      "inline": 0
+    },
+    "media": [
+      "word/media/image1.png",
+      "word/media/image2.png"
+    ],
+    "macroParts": [],
+    "externalRelationships": [],
+    "sampleText": "���˼������˼����Ը����⣬���ڽ��ѣ��Ȱ����У����飬��Ұ���������渺�����ҵ����κ������׼���н�ǿ������������˼ά�����������Ŷ�Э�����������Ӷ�Ƕȷ������⡣�Ը����⣬���ڽ��ѣ��Ȱ����У����飬��Ұ���������渺�����ҵ����κ������׼���н�ǿ������������˼ά�����������Ŷ�Э�����������Ӷ�Ƕȷ������⡣��ְ���򣺹�����ְ���򣺹���������������������������������������֤�鼼��֤��У԰����У԰����2013.03-2013.12     ��ѧ�ڼ�          �༶��֧����ְ�ڼ�ע�������༶�Ž���ʶ�����渺��Ϊͬѧ����ÿѧ��ĩ��ǰ��֯������֡�������� ��������ͬѧ�ǵĸ�ϰЧ�ʡ� �����ڼ䲻���õ���ʦͬѧ�ĳ���Ͽɣ�Ҳ�õ��˸��˹�������������֯���������Ļ��ۣ���2013��ȡ�������ɣ������Ÿ�������2013.03-2013.12     ��ѧ�ڼ�          �༶��֧����ְ�ڼ�ע�������༶�Ž���ʶ�����渺��Ϊͬѧ����ÿѧ��ĩ��ǰ��֯������֡�������� ��������ͬѧ�ǵĸ�ϰЧ�ʡ� �����ڼ䲻���õ���ʦͬѧ�ĳ���Ͽɣ�Ҳ�õ��˸��˹�������������֯���������Ļ��ۣ���2013��ȡ�������ɣ������Ÿ�������Ӣ��  ��Ӣ����˼7�֣�CET-4, CET-6������  ����ƴ�ҵ�ʸ�֤�飬��Ƴ���֤�����������Ҽ��������֤�飬����Offices, ��Ӱ����Ƶ�������ܵ�    Ӣ��  ��Ӣ����˼7�֣�CET-4, CET-6������  ����ƴ�ҵ�ʸ�֤�飬��Ƴ���֤�����������Ҽ��������֤�飬����Offices, ��Ӱ����Ƶ�������ܵ�    2015.09-2016.09����ģ����Դ�����޹�˾         ����                  ��С���������ƶ�Kellogg���й���Ӫ�����Ի������ɼ���ͨ�������ŶӺ�����������Э�����ڹ�ϵ������ÿ���˵��س��������ô��º���������˼ά�Ż��������������Լ��Ĵ�����ҵ�����������������޼��˿����Ѳ�θ��죬 ���۽���һ��ƿ���ڣ� ����ͨ���о�����ѧ֪ʶ�����ݲ�ͬ������Ⱥ���ƶ���ͬ�����۲��ԣ���ֳ�ʵ���ţ����ڿͻ��ɿ�ʼ200������600�ˡ� 2015.09-2016.09����ģ����Դ�����޹�˾         ����                  ��С���������ƶ�Kellogg���й���Ӫ�����Ի������ɼ���ͨ�������ŶӺ�����������Э�����ڹ�ϵ������ÿ���˵��س��������ô��º���������˼ά�Ż��������������Լ��Ĵ�����ҵ�����������������޼��˿����Ѳ�θ��죬 ���۽���һ��ƿ���ڣ� ����ͨ���о�����ѧ֪ʶ�����ݲ�ͬ������Ⱥ���ƶ���ͬ�����۲��ԣ���ֳ�ʵ���ţ����ڿͻ��ɿ�ʼ200������600�ˡ� 2015-2016     ����ģ����Դ��ѧԺ     �������     ��ѧѧʿѧλ  2015-2016     ����ģ����Դ��ѧԺ     �������     ��ѧѧʿѧλ  ��Ȥ������Ȥ���ó�������1999.12.12�Ա�Ů�����Ͼ��־ӱ����绰139 9999 9999���䣺Xiaochen@qq.com��������1999.12.12�Ա�Ů�����Ͼ��־ӱ����绰139 9999 9999���䣺Xiaochen@qq.com������Ϣ������Ϣ",
+    "needsMapping": false,
+    "layoutRisk": "high"
+  },
+  "slotMap": {
+    "profile": [
+      "name",
+      "job",
+      "mobile",
+      "city",
+      "photo",
+      "birthday",
+      "gender",
+      "nativePlace"
+    ],
+    "sections": {
+      "summary": [
+        "content"
+      ],
+      "objective": [
+        "content"
+      ],
+      "education": [
+        "content"
+      ],
+      "experience": [
+        "content"
+      ],
+      "campus": [
+        "content"
+      ],
+      "certificates": [
+        "content"
+      ],
+      "interests": [
+        "content"
+      ]
+    }
+  }
+}

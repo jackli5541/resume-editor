@@ -1,5 +1,5 @@
 import { escapeHtml, formatRange } from "./core.mjs";
-import { getTemplateSchema } from "./template-schemas.mjs";
+import { getTemplateSchema, resolveSectionFields } from "./template-schemas.mjs";
 
 const FONT_MAP = {
   system: 'Inter, "PingFang SC", "Microsoft YaHei", sans-serif',
@@ -180,34 +180,109 @@ export function paginateResumeLayout(flow, pageHeight) {
   return Math.max(pageHeight, flow.scrollHeight);
 }
 
+function visibleFields(section) {
+  return resolveSectionFields(section).filter((field) => field.visible !== false);
+}
+
+function metaValueHtml(field, value, documentRef) {
+  if (field.type === "richtext") return sanitizeRichHtml(value, documentRef);
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  if (field.type === "url" && /^https?:\/\//i.test(text)) {
+    return `<a href="${escapeHtml(text)}" rel="noopener noreferrer">${escapeHtml(text)}</a>`;
+  }
+  return escapeHtml(text);
+}
+
+function renderMetaRows(fields, readValue, documentRef) {
+  const rows = fields.map((field) => {
+    const html = metaValueHtml(field, readValue(field), documentRef);
+    if (!html) return "";
+    return `<div class="field-meta"><span>${escapeHtml(field.label)}</span><strong>${html}</strong></div>`;
+  }).join("");
+  return rows ? `<div class="field-meta-list">${rows}</div>` : "";
+}
+
+function renderTimelineItem(item, fields, documentRef) {
+  const start = fields.find((field) => field.key === "start" && field.visible !== false);
+  const end = fields.find((field) => field.key === "end" && field.visible !== false);
+  const rangeFields = fields.filter((field) => field.role === "range" && field.visible !== false);
+  const rangeText = (start || end)
+    ? formatRange(item?.start, item?.end)
+    : rangeFields.map((field) => item?.[field.key]).filter(Boolean).join(" — ");
+
+  const primaryText = fields.filter((field) => field.role === "primary" && field.visible !== false)
+    .map((field) => item?.[field.key]).filter((value) => String(value ?? "").trim()).join(" · ");
+  const secondaryText = fields.filter((field) => field.role === "secondary" && field.visible !== false)
+    .map((field) => item?.[field.key]).filter((value) => String(value ?? "").trim()).join(" · ");
+  const bodyFields = fields.filter((field) => field.role === "body" && field.visible !== false);
+  const metaFields = fields.filter((field) => field.visible !== false && !["range", "primary", "secondary", "body"].includes(field.role));
+
+  return `<article class="timeline-item">
+    <div class="timeline-item__top">
+      ${rangeText ? `<time>${escapeHtml(rangeText)}</time>` : ""}
+      ${primaryText ? `<strong>${escapeHtml(primaryText)}</strong>` : ""}
+      ${secondaryText ? `<span>${escapeHtml(secondaryText)}</span>` : ""}
+    </div>
+    ${bodyFields.map((field) => `<div class="rich-preview">${sanitizeRichHtml(item?.[field.key], documentRef)}</div>`).join("")}
+    ${renderMetaRows(metaFields, (field) => item?.[field.key], documentRef)}
+  </article>`;
+}
+
+function renderListItem(item, fields, documentRef) {
+  const primary = fields.find((field) => field.role === "primary" && field.visible !== false);
+  const secondary = fields.filter((field) => field.role === "secondary" && field.visible !== false);
+  const metaFields = fields.filter((field) => field.visible !== false && field.role !== "primary" && field.role !== "secondary");
+  const primaryText = primary ? String(item?.[primary.key] ?? "").trim() : "";
+  const secondaryText = secondary.map((field) => item?.[field.key]).filter((value) => String(value ?? "").trim()).join(" · ");
+  return `<div>
+    ${primaryText ? `<strong>${escapeHtml(primaryText)}</strong>` : ""}
+    ${secondaryText ? `<span>${escapeHtml(secondaryText)}</span>` : ""}
+    ${renderMetaRows(metaFields, (field) => item?.[field.key], documentRef)}
+  </div>`;
+}
+
+function renderLevelItem(item, fields, documentRef) {
+  const primary = fields.find((field) => field.role === "primary" && field.visible !== false);
+  const level = fields.find((field) => field.role === "secondary" && field.visible !== false);
+  const metaFields = fields.filter((field) => field.visible !== false && field.role !== "primary" && field.role !== "secondary");
+  const primaryText = primary ? String(item?.[primary.key] ?? "").trim() : "";
+  const levelText = level ? String(item?.[level.key] ?? "").trim() : "";
+  return `<div>
+    <span>${escapeHtml(primaryText)}</span>
+    ${levelText ? `<strong>${escapeHtml(levelText)}</strong><i style="--level:${levelPercent(levelText)}%"></i>` : ""}
+    ${renderMetaRows(metaFields, (field) => item?.[field.key], documentRef)}
+  </div>`;
+}
+
 function renderResumeSection(section, definition, documentRef) {
+  const fields = visibleFields(section);
   let body = "";
   if (definition?.type === "keyValues") {
-    const values = [
-      ["意向岗位", section.data?.job],
-      ["意向城市", section.data?.city],
-      ["期望薪资", section.data?.salary],
-      ["到岗时间", section.data?.availability]
-    ].filter(([, value]) => value);
-    body = `<div class="objective-grid">${values.map(([label, value]) => `<div><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div>`;
+    const values = fields
+      .map((field) => [field.label, section.data?.[field.key]])
+      .filter(([, value]) => String(value ?? "").trim());
+    body = `<div class="objective-grid">${values.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div>`;
   } else if (definition?.type === "timeline") {
-    body = `<div class="timeline-list">${section.items.map((item) => `
-      <article class="timeline-item">
-        <div class="timeline-item__top">
-          <time>${escapeHtml(formatRange(item.start, item.end))}</time>
-          <strong>${escapeHtml(item.organization)}</strong>
-          <span>${escapeHtml(item.role)}</span>
-        </div>
-        <div class="rich-preview">${sanitizeRichHtml(item.content, documentRef)}</div>
-      </article>`).join("")}</div>`;
+    body = `<div class="timeline-list">${(section.items || []).map((item) => renderTimelineItem(item, fields, documentRef)).join("")}</div>`;
   } else if (definition?.type === "list") {
-    body = `<div class="compact-list">${(section.items || []).map((item) => `<div><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml([item.level, item.date].filter(Boolean).join(" · "))}</span></div>`).join("")}</div>`;
+    body = `<div class="compact-list">${(section.items || []).map((item) => renderListItem(item, fields, documentRef)).join("")}</div>`;
   } else if (definition?.type === "levels") {
-    body = `<div class="level-list">${(section.items || []).map((item) => `<div><span>${escapeHtml(item.name)}</span><strong>${escapeHtml(item.level)}</strong><i style="--level:${levelPercent(item.level)}%"></i></div>`).join("")}</div>`;
+    body = `<div class="level-list">${(section.items || []).map((item) => renderLevelItem(item, fields, documentRef)).join("")}</div>`;
   } else if (definition?.type === "tags") {
-    body = `<div class="tag-list">${(section.items || []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>`;
+    const itemsField = fields.find((field) => field.key === "items");
+    const metaFields = fields.filter((field) => field.key !== "items");
+    const tags = itemsField
+      ? `<div class="tag-list">${(section.items || []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>`
+      : "";
+    body = `${renderMetaRows(metaFields, (field) => section.data?.[field.key], documentRef)}${tags}`;
   } else {
-    body = `<div class="rich-preview rich-preview--standalone">${sanitizeRichHtml(section.content, documentRef)}</div>`;
+    const contentField = fields.find((field) => field.key === "content");
+    const content = contentField
+      ? `<div class="rich-preview rich-preview--standalone">${sanitizeRichHtml(section.content, documentRef)}</div>`
+      : "";
+    const metaFields = fields.filter((field) => field.key !== "content");
+    body = `${content}${renderMetaRows(metaFields, (field) => section.data?.[field.key], documentRef)}`;
   }
 
   const parsedLineHeight = Number(section.lineHeight);

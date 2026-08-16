@@ -320,7 +320,7 @@ test("种子账号 admin@example.com/admin123 与 user@example.com/user1234 角�
   const app = await startServer({ port: 0 });
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  await seedTestUsers(app.authService);
+  await seedTestUsers(app.authService, { adminPassword: "admin123", userPassword: "user1234" });
 
   const adminLogin = await login(app, { identifier: "admin@example.com", password: "admin123" });
   assert.equal(adminLogin.status, 200);

@@ -4,8 +4,14 @@ setlocal
 cd /d "%~dp0"
 
 if not defined PORT set "PORT=4173"
-if not defined DATABASE_URL set "DATABASE_URL=postgres://resume:resume@127.0.0.1:55432/resume_editor"
-if not defined REDIS_URL set "REDIS_URL=redis://127.0.0.1:6379"
+rem 本地开发专用口令（仅绑定 127.0.0.1）；compose 与宿主进程需保持一致
+if not defined POSTGRES_USER set "POSTGRES_USER=resume"
+if not defined POSTGRES_PASSWORD set "POSTGRES_PASSWORD=resume"
+if not defined REDIS_PASSWORD set "REDIS_PASSWORD=resume"
+if not defined SEED_ADMIN_PASSWORD set "SEED_ADMIN_PASSWORD=admin123"
+if not defined SEED_USER_PASSWORD set "SEED_USER_PASSWORD=user1234"
+if not defined DATABASE_URL set "DATABASE_URL=postgres://%POSTGRES_USER%:%POSTGRES_PASSWORD%@127.0.0.1:55432/resume_editor"
+if not defined REDIS_URL set "REDIS_URL=redis://:%REDIS_PASSWORD%@127.0.0.1:6379"
 
 where node >nul 2>nul
 if errorlevel 1 (

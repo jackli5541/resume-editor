@@ -1,0 +1,17 @@
+# 生产反代（阿里云 ECS）：Caddy 自动申请并续期 HTTPS 证书。
+# 后端容器已设置 TRUST_PROXY=true 与 COOKIE_SECURE=true（见 .env.example）。
+# 域名：qresume.xyz（已解析到本机公网 IP；80/443 需在安全组放行）。
+
+qresume.xyz {
+    encode gzip
+
+    # 健康检查不对外暴露
+    @health path /health
+    respond @health 404
+
+    reverse_proxy 127.0.0.1:4173
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    }
+}

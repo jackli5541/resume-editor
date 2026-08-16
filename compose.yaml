@@ -3,15 +3,17 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: resume_editor
-      POSTGRES_USER: resume
-      POSTGRES_PASSWORD: resume
+      POSTGRES_USER: ${POSTGRES_USER:-resume}
+      # 必填：强随机口令。本地开发由 start.bat 注入；生产在 .env 中设置（见 .env.example）。
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env 中设置 POSTGRES_PASSWORD（参考 .env.example）}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U resume -d resume_editor"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-resume} -d resume_editor"]
       interval: 5s
       timeout: 3s
       retries: 20
+    # 只绑定回环地址，避免数据库暴露到公网；生产可不发布端口（删除下面 ports 段）。
     ports:
-      - "${POSTGRES_PORT:-55432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-55432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -20,14 +22,15 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--maxmemory", "160mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
+    # 必填：Redis 访问口令（REDIS_PASSWORD）。
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?请在 .env 中设置 REDIS_PASSWORD（参考 .env.example）}", "--maxmemory", "160mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 5s
       timeout: 3s
       retries: 20
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
     restart: unless-stopped
@@ -41,15 +44,31 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 4173
-      DATABASE_URL: postgres://resume:resume@postgres:5432/resume_editor
+      DATABASE_URL: postgres://${POSTGRES_USER:-resume}:${POSTGRES_PASSWORD}@postgres:5432/resume_editor
       EXPORT_DIR: /app/var/exports
       PREVIEW_DIR: /app/var/previews
       TEMPLATE_STORAGE_DIR: /app/var/templates
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       S3_BUCKET: ${S3_BUCKET:-}
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ENDPOINT: ${S3_ENDPOINT:-}
       S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+      S3_SERVER_SIDE_ENCRYPTION: ${S3_SERVER_SIDE_ENCRYPTION:-AES256}
+      MAX_EXPORT_REQUEST_BYTES: ${MAX_EXPORT_REQUEST_BYTES:-2097152}
+      EXPORT_IMAGE_HOSTS: ${EXPORT_IMAGE_HOSTS:-}
+      BLOCKED_EMAIL_DOMAINS: ${BLOCKED_EMAIL_DOMAINS:-}
+      AI_CONFIG_ENC_KEY: ${AI_CONFIG_ENC_KEY:-}
+      AI_USER_DAILY_LIMIT: ${AI_USER_DAILY_LIMIT:-8}
+      AI_IP_DAILY_LIMIT: ${AI_IP_DAILY_LIMIT:-24}
+      AI_MAX_CONCURRENCY: ${AI_MAX_CONCURRENCY:-2}
+      AI_INPUT_MAX_CHARS: ${AI_INPUT_MAX_CHARS:-8000}
+      AI_OUTPUT_MAX_TOKENS: ${AI_OUTPUT_MAX_TOKENS:-1600}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-30000}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      ALERT_CHECK_INTERVAL_MS: ${ALERT_CHECK_INTERVAL_MS:-60000}
+      ALERT_AI_FAILURE_WINDOW_MIN: ${ALERT_AI_FAILURE_WINDOW_MIN:-30}
+      ALERT_AI_FAILURE_THRESHOLD: ${ALERT_AI_FAILURE_THRESHOLD:-5}
+      ALERT_QUEUE_FAILED_THRESHOLD: ${ALERT_QUEUE_FAILED_THRESHOLD:-10}
       SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
       DISABLE_REGISTRATION: ${DISABLE_REGISTRATION:-false}
       TRUST_PROXY: ${TRUST_PROXY:-false}
@@ -58,20 +77,25 @@ services:
       ADMIN_PHONES: ${ADMIN_PHONES:-}
       SEED_TEST_USERS: ${SEED_TEST_USERS:-false}
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@example.com}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin123}
+      # 测试账号口令不再提供弱默认值；启用 SEED_TEST_USERS 时必须显式设置。
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
       SEED_USER_EMAIL: ${SEED_USER_EMAIL:-user@example.com}
-      SEED_USER_PASSWORD: ${SEED_USER_PASSWORD:-user1234}
+      SEED_USER_PASSWORD: ${SEED_USER_PASSWORD:-}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     ports:
-      - "4173:4173"
+      # 只绑定回环地址，由宿主机上的 nginx/Caddy 反代对外；容器已以非 root 运行。
+      - "127.0.0.1:4173:4173"
+    # Linux 宿主首次部署：mkdir -p var/{exports,previews,templates} && sudo chown -R 10001:10001 var
     volumes:
       - ./var/templates:/app/var/templates
       - ./var/exports:/app/var/exports
       - ./var/previews:/app/var/previews
+    security_opt:
+      - "no-new-privileges:true"
     restart: unless-stopped
     mem_limit: 384m
 
@@ -82,7 +106,7 @@ services:
       args:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     environment:
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       EXPORT_DIR: /app/var/exports
       PREVIEW_DIR: /app/var/previews
       TEMPLATE_STORAGE_DIR: /app/var/templates
@@ -93,6 +117,7 @@ services:
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ENDPOINT: ${S3_ENDPOINT:-}
       S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+      S3_SERVER_SIDE_ENCRYPTION: ${S3_SERVER_SIDE_ENCRYPTION:-AES256}
     depends_on:
       redis:
         condition: service_healthy
@@ -100,6 +125,8 @@ services:
       - ./var/templates:/app/var/templates:ro
       - ./var/exports:/app/var/exports
       - ./var/previews:/app/var/previews
+    security_opt:
+      - "no-new-privileges:true"
     restart: unless-stopped
     mem_limit: 1g
 
@@ -111,7 +138,7 @@ services:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     profiles: ["tools"]
     environment:
-      DATABASE_URL: postgres://resume:resume@postgres:5432/resume_editor
+      DATABASE_URL: postgres://${POSTGRES_USER:-resume}:${POSTGRES_PASSWORD}@postgres:5432/resume_editor
       TEMPLATE_STORAGE_DIR: /app/var/templates
       PYTHON_BIN: python3
       SOFFICE_BIN: soffice

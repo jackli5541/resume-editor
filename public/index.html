@@ -226,6 +226,7 @@
         <div id="adminChart" class="admin-chart" hidden></div>
         <div class="admin-tabs" role="tablist" aria-label="管理功能">
           <button class="admin-tab is-active" type="button" data-admin-tab="users">用户管理</button>
+          <button class="admin-tab" type="button" data-admin-tab="duplicates">疑似多账号</button>
           <button class="admin-tab" type="button" data-admin-tab="resumes">草稿管理</button>
           <button class="admin-tab" type="button" data-admin-tab="announcements">公告</button>
           <button class="admin-tab" type="button" data-admin-tab="feedback">反馈</button>
@@ -260,6 +261,14 @@
           </div>
           <div id="adminUserList" class="admin-table-wrap" aria-live="polite"></div>
           <p id="adminUserStatus" class="library-status">正在加载用户…</p>
+        </section>
+        <section class="admin-panel" data-admin-panel="duplicates" hidden>
+          <div class="admin-toolbar">
+            <h2 class="admin-subhead">疑似同人多账号（只读复核）</h2>
+            <span id="adminDuplicatesTotal" class="section-count"></span>
+          </div>
+          <div id="adminDuplicatesList" class="admin-table-wrap" aria-live="polite"></div>
+          <p id="adminDuplicatesStatus" class="library-status">正在加载疑似多账号…</p>
         </section>
         <section class="admin-panel" data-admin-panel="resumes" hidden>
           <div class="admin-toolbar">
@@ -761,6 +770,18 @@
     </div>
 
     <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+
+    <div class="app-dialog-overlay" id="appDialog" hidden>
+      <div class="app-dialog" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle">
+        <h3 id="appDialogTitle">确认操作</h3>
+        <p id="appDialogMessage"></p>
+        <input class="app-dialog__input" id="appDialogInput" type="text" hidden />
+        <div class="app-dialog__actions">
+          <button class="ghost-button" type="button" id="appDialogCancel">取消</button>
+          <button class="app-dialog__submit" type="button" id="appDialogSubmit">确定</button>
+        </div>
+      </div>
+    </div>
 
     <section id="loginPage" class="login-page" hidden>
       <div class="login-card">

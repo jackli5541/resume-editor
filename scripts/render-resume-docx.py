@@ -62,6 +62,75 @@ def rich_lines(value):
     return parser.finish()
 
 
+# 字段 Schema 的 Python 侧回退表（老草稿 / 直接调用渲染器时可能没有 section.fields）。
+DEFAULT_FIELDS = {
+    "objective": [("job", "求职岗位", "text", "meta"), ("city", "意向城市", "text", "meta"),
+                  ("salary", "期望薪资", "text", "meta"), ("availability", "到岗时间", "text", "meta")],
+    "education": [("start", "开始时间", "month", "range"), ("end", "结束时间", "month", "range"),
+                  ("organization", "学校名称", "text", "primary"), ("role", "专业与学历", "text", "secondary"),
+                  ("content", "在校经历", "richtext", "body")],
+    "experience": [("start", "开始时间", "month", "range"), ("end", "结束时间", "month", "range"),
+                   ("organization", "公司名称", "text", "primary"), ("role", "职位名称", "text", "secondary"),
+                   ("content", "工作内容", "richtext", "body")],
+    "projects": [("start", "开始时间", "month", "range"), ("end", "结束时间", "month", "range"),
+                 ("organization", "项目名称", "text", "primary"), ("role", "项目角色", "text", "secondary"),
+                 ("content", "项目描述", "richtext", "body")],
+    "campus": [("start", "开始时间", "month", "range"), ("end", "结束时间", "month", "range"),
+               ("organization", "组织名称", "text", "primary"), ("role", "担任职务", "text", "secondary"),
+               ("content", "经历描述", "richtext", "body")],
+    "certificates": [("name", "名称", "text", "primary"), ("level", "级别", "text", "secondary"), ("date", "获得时间", "month", "secondary")],
+    "awards": [("name", "名称", "text", "primary"), ("level", "级别", "text", "secondary"), ("date", "获得时间", "month", "secondary")],
+    "skills": [("content", "技能描述", "richtext", "body")],
+    "languages": [("name", "名称", "text", "primary"), ("level", "熟练程度", "text", "secondary")],
+    "interests": [("items", "兴趣标签", "text", "meta")],
+    "summary": [("content", "自我评价", "richtext", "body")],
+}
+
+
+def _field(key, label, type_, role, builtin=True, visible=True):
+    return {"key": key, "label": label, "type": type_, "role": role, "builtin": builtin, "visible": visible}
+
+
+def default_fields(section):
+    rows = DEFAULT_FIELDS.get(section.get("id", ""))
+    if rows is None:
+        stype = section.get("type")
+        if stype in ("education", "experience", "projects", "campus", "timeline"):
+            rows = DEFAULT_FIELDS["experience"]
+        elif stype == "list":
+            rows = DEFAULT_FIELDS["certificates"]
+        elif stype == "levels":
+            rows = DEFAULT_FIELDS["languages"]
+        elif stype == "tags":
+            rows = DEFAULT_FIELDS["interests"]
+        elif stype == "objective":
+            rows = DEFAULT_FIELDS["objective"]
+        else:
+            rows = DEFAULT_FIELDS["summary"]
+    return [_field(key, label, type_, role) for key, label, type_, role in rows]
+
+
+def resolve_fields(section):
+    fields = section.get("fields")
+    if isinstance(fields, list) and fields:
+        return [f for f in fields if f.get("visible", True)]
+    return [f for f in default_fields(section) if f.get("visible", True)]
+
+
+def role_values(item, fields, role):
+    return [str(item.get(f["key"], "") or "").strip() for f in fields if f.get("role") == role]
+
+
+def meta_paragraph(label, value, field, size=18, after=40, color="64748B"):
+    text_value = str(value or "").strip()
+    if not text_value:
+        return ""
+    if field.get("type") == "richtext":
+        return "".join(paragraph(text, size=19, after=45, bullet=bullet) for text, bullet in rich_lines(value))
+    content = f"{label}：{text_value}" if label else text_value
+    return paragraph(content, size=size, color=color, after=after)
+
+
 def run(text, bold=False, size=21, color="334155"):
     size = max(16, round(size * FONT_SCALE))
     properties = [
@@ -106,62 +175,91 @@ def table_cell(content, width, shade=None):
     )
 
 
-def objective_table(data, theme):
-    values = [
-        ("意向岗位", data.get("job", "")),
-        ("意向城市", data.get("city", "")),
-        ("期望薪资", data.get("salary", "")),
-        ("到岗时间", data.get("availability", "")),
-    ]
+def objective_table(data, fields, theme):
+    data = data or {}
     cells = []
-    for label, value in values:
-        content = paragraph(label, size=18, color="64748B", after=20) + paragraph(value, bold=True, size=20, after=0)
+    for field in fields:
+        value = str(data.get(field["key"], "") or "")
+        content = paragraph(field["label"], size=18, color="64748B", after=20) + paragraph(value, bold=True, size=20, after=0)
         cells.append(table_cell(content, 2430, "F5F7FA"))
+    if not cells:
+        return ""
     return (
         '<w:tbl><w:tblPr><w:tblW w:w="9720" w:type="dxa"/><w:tblLayout w:type="fixed"/>'
         '<w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="40" w:type="dxa"/>'
         '<w:bottom w:w="0" w:type="dxa"/><w:right w:w="40" w:type="dxa"/></w:tblCellMar>'
-        '</w:tblPr><w:tblGrid>' + ''.join('<w:gridCol w:w="2430"/>' for _ in range(4)) + '</w:tblGrid>'
+        '</w:tblPr><w:tblGrid>' + ''.join('<w:gridCol w:w="2430"/>' for _ in cells) + '</w:tblGrid>'
         '<w:tr>' + ''.join(cells) + '</w:tr></w:tbl>'
     )
 
 
-def timeline_item(item):
-    date_range = " — ".join(value for value in (item.get("start", ""), item.get("end", "")) if value)
+def timeline_item(item, fields):
+    start = next((f for f in fields if f["key"] == "start"), None)
+    end = next((f for f in fields if f["key"] == "end"), None)
+    range_fields = [f for f in fields if f.get("role") == "range"]
+    if start or end:
+        left = str(item.get("start", "") or "").strip() or "—"
+        right = str(item.get("end", "") or "").strip() or "至今"
+        date_range = f"{left} — {right}"
+    else:
+        date_range = " — ".join(v for v in [str(item.get(f["key"], "") or "").strip() for f in range_fields] if v)
+
+    primary = " · ".join(v for v in role_values(item, fields, "primary") if v)
+    secondary = " · ".join(v for v in role_values(item, fields, "secondary") if v)
+    body_fields = [f for f in fields if f.get("role") == "body"]
+    meta_fields = [f for f in fields if f.get("role") not in ("range", "primary", "secondary", "body")]
+
     header = (
         '<w:tbl><w:tblPr><w:tblW w:w="9720" w:type="dxa"/><w:tblLayout w:type="fixed"/>'
         '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/>'
         '<w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders></w:tblPr>'
         '<w:tblGrid><w:gridCol w:w="2200"/><w:gridCol w:w="4700"/><w:gridCol w:w="2820"/></w:tblGrid><w:tr>'
         + table_cell(paragraph(date_range, size=19, color="64748B", after=0), 2200)
-        + table_cell(paragraph(item.get("organization", ""), bold=True, size=21, after=0), 4700)
-        + table_cell(paragraph(item.get("role", ""), bold=True, size=19, color="0F9F76", after=0, align="right"), 2820)
+        + table_cell(paragraph(primary, bold=True, size=21, after=0), 4700)
+        + table_cell(paragraph(secondary, bold=True, size=19, color="0F9F76", after=0, align="right"), 2820)
         + '</w:tr></w:tbl>'
     )
     details = "".join(
         paragraph(text, size=19, after=45, bullet=bullet)
-        for text, bullet in rich_lines(item.get("content", ""))
+        for field in body_fields
+        for text, bullet in rich_lines(item.get(field["key"], ""))
     )
-    return header + details + paragraph("", after=30)
+    meta = "".join(meta_paragraph(field["label"], item.get(field["key"], ""), field) for field in meta_fields)
+    return header + details + meta + paragraph("", after=30)
 
 
-def compact_item(item):
+def compact_item(item, fields):
     if isinstance(item, str):
         return paragraph(item, size=20, after=45, bullet=True)
-    primary = item.get("name", "")
-    secondary = " · ".join(value for value in (item.get("level", ""), item.get("date", "")) if value)
-    return paragraph(" · ".join(value for value in (primary, secondary) if value), size=20, after=45, bullet=True)
+    primary = " · ".join(v for v in role_values(item, fields, "primary") if v)
+    secondary = " · ".join(v for v in role_values(item, fields, "secondary") if v)
+    parts = [paragraph(" · ".join(v for v in (primary, secondary) if v), size=20, after=45, bullet=True)]
+    for field in fields:
+        if field.get("role") in ("primary", "secondary"):
+            continue
+        meta = meta_paragraph(field["label"], item.get(field["key"], ""), field, size=18, after=45)
+        if meta:
+            parts.append(meta)
+    return "".join(parts)
 
 
 def render_section(section, theme):
     content = [section_heading(section.get("title", ""), theme)]
-    if section.get("type") == "objective":
-        content.append(objective_table(section.get("data") or {}, theme))
+    fields = resolve_fields(section)
+    stype = section.get("type")
+    if stype == "objective":
+        content.append(objective_table(section.get("data") or {}, fields, theme))
+    elif stype == "tags":
+        data_fields = [f for f in fields if f["key"] != "items"]
+        content.extend(meta_paragraph(f["label"], (section.get("data") or {}).get(f["key"], ""), f) for f in data_fields)
+        content.extend(paragraph(item, size=20, after=45, bullet=True) for item in (section.get("items") or []))
     elif isinstance(section.get("items"), list):
-        timeline = section.get("type") in ("education", "experience", "projects", "timeline")
-        content.extend((timeline_item(item) if timeline and isinstance(item, dict) else compact_item(item)) for item in section["items"])
+        timeline = stype in ("education", "experience", "projects", "timeline", "campus") or any(f.get("role") == "body" for f in fields)
+        content.extend((timeline_item(item, fields) if timeline and isinstance(item, dict) else compact_item(item, fields)) for item in section["items"])
     else:
         content.extend(paragraph(text, size=20, after=60, bullet=bullet) for text, bullet in rich_lines(section.get("content", "")))
+        data_fields = [f for f in fields if f["key"] != "content"]
+        content.extend(meta_paragraph(f["label"], (section.get("data") or {}).get(f["key"], ""), f) for f in data_fields)
     return "".join(content)
 
 

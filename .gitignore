@@ -3,7 +3,11 @@ Thumbs.db
 node_modules/
 coverage/
 *.log
-var/
+
+# 运行时数据与本地密钥（模板目录除外，模板进 git 永久保存）
+var/exports/
+var/previews/
+var/.ai-enc-key
 tmp/
 
 # 本地环境与密钥（示例文件除外）

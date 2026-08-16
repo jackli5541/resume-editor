@@ -79,7 +79,7 @@ npm test            # 运行测试
 npm run verify:export
 ```
 
-配置项见 [.env.example](.env.example)。生产环境请通过密钥系统注入数据库、Redis 与 S3 凭据，并替换示例密码。
+配置项见 [.env.example](.env.example)。生产环境必须设置强口令（`POSTGRES_PASSWORD` / `REDIS_PASSWORD`），并通过密钥系统注入 S3 凭据；部署步骤见下文「生产部署」。
 
 ## 📂 项目结构
 
@@ -100,6 +100,14 @@ resume-editor/
 - [安全设计](docs/security.md)
 - [AI 生成设计](docs/ai-generation-design.md)
 - [原生模板规范](docs/native-template-authoring.md)
+
+## 🚀 生产部署（阿里云 ECS）
+
+1. 复制 `.env.example` 为 `.env`：`POSTGRES_PASSWORD`、`REDIS_PASSWORD` 用强随机口令；`TRUST_PROXY=true`、`COOKIE_SECURE=true`；`ADMIN_EMAILS` 设为自己的邮箱；`SEED_TEST_USERS=false`。
+2. 准备目录并授权非 root 容器写入：`mkdir -p var/{exports,previews,templates} && sudo chown -R 10001:10001 var`。
+3. `docker compose up -d postgres redis && docker compose run --rm template-ingest && docker compose up -d app document-worker`。
+4. 在宿主安装 nginx 或 Caddy，参考 `infra/nginx/nginx.conf` 或 `infra/caddy/Caddyfile` 终止 TLS；安全组只放行 22 / 80 / 443。
+5. 应用与文档 Worker 均以非 root 用户（uid 10001）运行；`/health` 由反代隐藏。
 
 ## ☕ 赞赏支持
 

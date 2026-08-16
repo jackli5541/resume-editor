@@ -1,9 +1,9 @@
-import { mkdir, mkdtemp, readFile, rename, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Worker } from "bullmq";
 import { createRedisConnection } from "./bull-services.mjs";
-import { convertWithLibreOffice, renderNativeDocument, renderPreviewPages } from "./document-renderer.mjs";
+import { convertWithLibreOffice, moveAcrossDevices, renderNativeDocument, renderPreviewPages } from "./document-renderer.mjs";
 import { renderDocx } from "./docx-renderer.mjs";
 import { objectStorageEnabled, uploadObject } from "./object-storage.mjs";
 
@@ -25,7 +25,7 @@ const exportWorker = new Worker("resume-exports", async (job) => {
       const docxPath = join(workDir, "resume.docx");
       await renderDocx({ outputPath: docxPath, resume: job.data.resume, template: job.data.template });
       const pdfPath = await convertWithLibreOffice(docxPath, workDir);
-      await rename(pdfPath, outputPath);
+      await moveAcrossDevices(pdfPath, outputPath);
       result = { pageCount: null };
     } finally {
       await rm(workDir, { recursive: true, force: true });

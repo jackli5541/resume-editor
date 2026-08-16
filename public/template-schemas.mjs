@@ -11,18 +11,40 @@ const PROFILE = {
   photo: { label: "个人照片", type: "image" }
 };
 
+// 字段元信息库：字段键 → 默认标签 / 控件类型 / 显示角色。
+// role 决定「怎么摆」，不决定「存什么」：range=时间区间、primary=主标题、
+// secondary=副标题、body=富文本正文、meta=标签:值补充行、link=链接。
+const FIELD_DEFS = {
+  start: { label: "开始时间", type: "month", role: "range" },
+  end: { label: "结束时间", type: "month", role: "range" },
+  organization: { label: "公司名称", type: "text", role: "primary" },
+  role: { label: "职位名称", type: "text", role: "secondary" },
+  content: { label: "内容", type: "richtext", role: "body" },
+  name: { label: "名称", type: "text", role: "primary" },
+  level: { label: "级别", type: "text", role: "secondary" },
+  date: { label: "获得时间", type: "month", role: "secondary" },
+  job: { label: "求职岗位", type: "text", role: "meta" },
+  city: { label: "意向城市", type: "text", role: "meta" },
+  salary: { label: "期望薪资", type: "text", role: "meta" },
+  availability: { label: "到岗时间", type: "text", role: "meta" },
+  items: { label: "兴趣标签", type: "text", role: "meta" }
+};
+
+const FIELD_TYPES = ["text", "month", "textarea", "richtext", "url"];
+const FIELD_ROLES = ["range", "primary", "secondary", "body", "meta", "link"];
+
 const SECTION_DEFINITIONS = {
   objective: { title: "求职意向", type: "keyValues", fields: ["job", "city", "salary", "availability"] },
-  education: { title: "教育背景", type: "timeline", fields: ["start", "end", "organization", "role", "content"] },
-  experience: { title: "工作经历", type: "timeline", fields: ["start", "end", "organization", "role", "content"], titleEditable: true },
-  projects: { title: "项目经验", type: "timeline", fields: ["start", "end", "organization", "role", "content"] },
-  campus: { title: "校园经历", type: "timeline", fields: ["start", "end", "organization", "role", "content"] },
+  education: { title: "教育背景", type: "timeline", fields: ["start", "end", "organization", "role", "content"], labels: { organization: "学校名称", role: "专业与学历", content: "在校经历" } },
+  experience: { title: "工作经历", type: "timeline", fields: ["start", "end", "organization", "role", "content"], titleEditable: true, labels: { organization: "公司名称", role: "职位名称", content: "工作内容" } },
+  projects: { title: "项目经验", type: "timeline", fields: ["start", "end", "organization", "role", "content"], labels: { organization: "项目名称", role: "项目角色", content: "项目描述" } },
+  campus: { title: "校园经历", type: "timeline", fields: ["start", "end", "organization", "role", "content"], labels: { organization: "组织名称", role: "担任职务", content: "经历描述" } },
   certificates: { title: "证书资质", type: "list", fields: ["name", "level", "date"] },
   awards: { title: "荣誉奖项", type: "list", fields: ["name", "level", "date"] },
-  skills: { title: "技能特长", type: "richtext", fields: ["content"] },
-  languages: { title: "语言能力", type: "levels", fields: ["name", "level"] },
+  skills: { title: "技能特长", type: "richtext", fields: ["content"], labels: { content: "技能描述" } },
+  languages: { title: "语言能力", type: "levels", fields: ["name", "level"], labels: { level: "熟练程度" } },
   interests: { title: "兴趣爱好", type: "tags", fields: ["items"] },
-  summary: { title: "自我评价", type: "richtext", fields: ["content"] }
+  summary: { title: "自我评价", type: "richtext", fields: ["content"], labels: { content: "自我评价" } }
 };
 
 const STYLE_CONTROLS = {
@@ -107,3 +129,33 @@ export function publicTemplateSchema(template) {
   const value = getTemplateSchema(template);
   return JSON.parse(JSON.stringify(value));
 }
+
+// 依据模块内置定义，生成完整的字段 Schema（含 label/type/role/builtin/visible）。
+export function defaultFieldsFor(sectionId) {
+  const definition = SECTION_DEFINITIONS[sectionId];
+  if (!definition) return [];
+  return definition.fields.map((key) => ({
+    key,
+    label: definition.labels?.[key] || FIELD_DEFS[key]?.label || key,
+    type: FIELD_DEFS[key]?.type || "text",
+    role: FIELD_DEFS[key]?.role || "meta",
+    builtin: true,
+    visible: true
+  }));
+}
+
+// 模块的「有效字段表」：草稿保存的自定义字段优先，否则回退内置默认（老草稿零迁移）。
+export function resolveSectionFields(section) {
+  if (Array.isArray(section?.fields)) return section.fields;
+  return defaultFieldsFor(section?.id || "");
+}
+
+export function isFieldType(value) {
+  return FIELD_TYPES.includes(value);
+}
+
+export function isFieldRole(value) {
+  return FIELD_ROLES.includes(value);
+}
+
+export { FIELD_TYPES, FIELD_ROLES };

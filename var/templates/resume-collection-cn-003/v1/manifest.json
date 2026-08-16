@@ -1,0 +1,494 @@
+{
+  "slug": "resume-collection-cn-003",
+  "name": "应届毕业生免费简历模板",
+  "category": "中文简历",
+  "description": "应届毕业生免费简历模板，已通过高保真模板验收",
+  "version": 1,
+  "status": "ready",
+  "engine": "docx-native",
+  "sourceUrl": "https://github.com/mmmlllnnn/ResumeCollection/blob/main/1.%E4%B8%AD%E6%96%87%E7%AE%80%E5%8E%86/003/%E5%BA%94%E5%B1%8A%E6%AF%95%E4%B8%9A%E7%94%9F%E5%85%8D%E8%B4%B9%E7%AE%80%E5%8E%86%E6%A8%A1%E6%9D%BF.docx",
+  "sourcePath": "resume-collection-cn-003/v1/native.docx",
+  "previewPath": "resume-collection-cn-003/v1/preview.png",
+  "sha256": "86e12cb1b6f6efe6a4b6bcc2899297ca0e89fa4d8ddd2b9cec9d4d171c6e4eb0",
+  "licenseStatus": "MIT",
+  "selectable": true,
+  "previewUrl": "/template-assets/resume-collection-cn-003/v1/preview.png",
+  "manifest": {
+    "pageSize": "A4",
+    "supportedFormats": [
+      "pdf",
+      "docx"
+    ],
+    "sourceRepository": "mmmlllnnn/ResumeCollection",
+    "sourceDirectory": "003",
+    "originalFileName": "应届毕业生免费简历模板.docx",
+    "adapter": {
+      "version": 2,
+      "layout": "navy-single",
+      "theme": "#173e5a"
+    },
+    "nativeSlots": {
+      "tags": [
+        "resume:item.content",
+        "resume:profile.birthday",
+        "resume:profile.city",
+        "resume:profile.education",
+        "resume:profile.email",
+        "resume:profile.ethnicity",
+        "resume:profile.gender",
+        "resume:profile.major",
+        "resume:profile.name",
+        "resume:profile.nativePlace",
+        "resume:profile.photo",
+        "resume:profile.politicalStatus",
+        "resume:profile.school",
+        "resume:repeat:education",
+        "resume:section:awards.content",
+        "resume:section:awards.title",
+        "resume:section:courses.content",
+        "resume:section:courses.title",
+        "resume:section:education.content",
+        "resume:section:education.title",
+        "resume:section:experience.content",
+        "resume:section:experience.title",
+        "resume:section:skills.content",
+        "resume:section:skills.title",
+        "resume:section:summary.content",
+        "resume:section:summary.title"
+      ],
+      "hasProfile": true,
+      "repeatSections": [
+        "education"
+      ]
+    },
+    "qa": {
+      "approved": true,
+      "automaticApproved": true,
+      "manualApproved": true,
+      "minimumSsim": 0.9974162776964773,
+      "maximumChangedRatio": 0.005454850621013763,
+      "pageCount": 1,
+      "samplePageCount": 1,
+      "sampleVersion": "native-qa-v1",
+      "templateSha256": "86e12cb1b6f6efe6a4b6bcc2899297ca0e89fa4d8ddd2b9cec9d4d171c6e4eb0",
+      "annotation": {
+        "resume:profile.email": true,
+        "resume:profile.mobile": false,
+        "resume:profile.name": true,
+        "resume:profile.job": false,
+        "resume:profile.city": true,
+        "resume:profile.age": false,
+        "resume:profile.birthday": true,
+        "resume:profile.gender": true,
+        "resume:profile.education": true,
+        "resume:profile.politicalStatus": true,
+        "resume:profile.school": true,
+        "resume:profile.major": true,
+        "resume:profile.nativePlace": true,
+        "resume:profile.ethnicity": true,
+        "resume:profile.height": false,
+        "resume:profile.photo": true,
+        "resume:section:education.title": true,
+        "resume:section:courses.title": true,
+        "resume:section:skills.title": true,
+        "resume:section:awards.title": true,
+        "resume:section:experience.title": true,
+        "resume:section:summary.title": true,
+        "resume:repeat:education": true,
+        "resume:repeat:experience": false,
+        "resume:section:summary.content": true,
+        "resume:section:experience.content": true,
+        "resume:section:awards.content": true,
+        "resume:section:skills.content": true,
+        "resume:section:courses.content": true,
+        "resume:section:education.content": true
+      },
+      "checkedAt": "2026-08-15T03:53:19.867902+00:00",
+      "manualChecks": [
+        "crop",
+        "overlap",
+        "alignment",
+        "pagination",
+        "font-substitution",
+        "image-distortion",
+        "decoration-loss"
+      ],
+      "reportPath": "output/native-template-qa/resume-collection-cn-003/qa-report.json"
+    },
+    "renderPipeline": "docx-libreoffice",
+    "editingCapabilities": {
+      "editableSlots": [
+        "resume:item.content",
+        "resume:profile.birthday",
+        "resume:profile.city",
+        "resume:profile.education",
+        "resume:profile.email",
+        "resume:profile.ethnicity",
+        "resume:profile.gender",
+        "resume:profile.major",
+        "resume:profile.name",
+        "resume:profile.nativePlace",
+        "resume:profile.photo",
+        "resume:profile.politicalStatus",
+        "resume:profile.school",
+        "resume:repeat:education",
+        "resume:section:awards.content",
+        "resume:section:awards.title",
+        "resume:section:courses.content",
+        "resume:section:courses.title",
+        "resume:section:education.content",
+        "resume:section:education.title",
+        "resume:section:experience.content",
+        "resume:section:experience.title",
+        "resume:section:skills.content",
+        "resume:section:skills.title",
+        "resume:section:summary.content",
+        "resume:section:summary.title"
+      ],
+      "repeatableSections": [
+        "education"
+      ],
+      "sortableZones": [],
+      "hideableSections": [],
+      "fixedTemplateElementsLocked": true
+    },
+    "editorSchema": {
+      "schemaVersion": 3,
+      "slug": "resume-collection-cn-003",
+      "name": "深蓝专业",
+      "profileFields": [
+        "name",
+        "email",
+        "city",
+        "photo",
+        "birthday",
+        "gender",
+        "education",
+        "politicalStatus",
+        "school",
+        "major",
+        "nativePlace",
+        "ethnicity"
+      ],
+      "profileDefinitions": {
+        "name": {
+          "label": "姓名",
+          "type": "text"
+        },
+        "email": {
+          "label": "联系邮箱",
+          "type": "email"
+        },
+        "city": {
+          "label": "所在城市",
+          "type": "text"
+        },
+        "photo": {
+          "label": "个人照片",
+          "type": "image"
+        },
+        "birthday": {
+          "label": "出生年月",
+          "type": "text"
+        },
+        "gender": {
+          "label": "性别",
+          "type": "text"
+        },
+        "education": {
+          "label": "学历",
+          "type": "text"
+        },
+        "politicalStatus": {
+          "label": "政治面貌",
+          "type": "text"
+        },
+        "school": {
+          "label": "毕业院校",
+          "type": "text"
+        },
+        "major": {
+          "label": "专业",
+          "type": "text"
+        },
+        "nativePlace": {
+          "label": "籍贯",
+          "type": "text"
+        },
+        "ethnicity": {
+          "label": "民族",
+          "type": "text"
+        }
+      },
+      "sections": [
+        {
+          "id": "education",
+          "title": "教育背景",
+          "type": "timeline",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": true,
+            "removeItems": true,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "courses",
+          "title": "主修课程",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "skills",
+          "title": "个人能力",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "awards",
+          "title": "获奖情况",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "experience",
+          "title": "工作经验",
+          "type": "timeline",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "summary",
+          "title": "自我评价",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        }
+      ],
+      "zones": [
+        {
+          "id": "main",
+          "sortable": false
+        }
+      ],
+      "layoutSchema": {
+        "renderer": "docx-pages",
+        "layout": "single-rule"
+      },
+      "styleControls": {
+        "fontFamily": false,
+        "fontSize": false,
+        "theme": false,
+        "lineHeight": false,
+        "pagePadding": false,
+        "sectionGap": false
+      },
+      "capabilities": {
+        "fixedTemplateElementsLocked": true
+      },
+      "renderers": {
+        "preview": "docx-native",
+        "pdf": "docx-native",
+        "docx": "docx-native"
+      }
+    },
+    "layoutSchema": {
+      "renderer": "docx-pages",
+      "layout": "single-rule"
+    },
+    "defaultResume": {
+      "profile": {
+        "gender": "女",
+        "nativePlace": "广州越秀",
+        "politicalStatus": "中共党员",
+        "city": "武汉市洪山区",
+        "email": "hela215@163.com",
+        "name": "林宇萧",
+        "ethnicity": "汉族",
+        "birthday": "1990.05.12",
+        "education": "硕士学位",
+        "major": "国际经济与贸易",
+        "school": "华中师范大学"
+      },
+      "sections": [
+        {
+          "id": "education",
+          "type": "timeline",
+          "title": "教育背景",
+          "visible": true,
+          "items": [
+            {
+              "content": "2009.09-2013.06  广州科技大学  对外汉语         学士"
+            }
+          ]
+        },
+        {
+          "id": "courses",
+          "type": "richtext",
+          "title": "主修课程",
+          "visible": true,
+          "content": "管理学、行政管理、企业运营管理，供应链管理，商务礼仪与谈判术、西方经济学会计学基础、税法、成本会计、财务会计、会计电算化、特殊事项会计、审计、经济学、税务学等。"
+        },
+        {
+          "id": "skills",
+          "type": "richtext",
+          "title": "个人能力",
+          "visible": true,
+          "content": "全国计算机等级二级证书"
+        },
+        {
+          "id": "awards",
+          "type": "richtext",
+          "title": "获奖情况",
+          "visible": true,
+          "content": "2011年 广州科技大学校级一等奖奖学金"
+        },
+        {
+          "id": "experience",
+          "type": "timeline",
+          "title": "工作经验",
+          "visible": true,
+          "items": []
+        },
+        {
+          "id": "summary",
+          "type": "richtext",
+          "title": "自我评价",
+          "visible": true,
+          "content": "本人具有良好的公共关系意识，善于沟通，具备活动策划和组织协调能力。良好的心态和责任感，吃苦耐劳，善于管理时间，勇于面对变化和挑战。良好的学习能力，习惯制定切实可行的学习计划，勤于学习能不断提高。通过几年的学习，掌握了三大力学，房屋建筑学，土木工程施工，建筑制图，建筑结构抗震等相关课程的基本知识，掌握了有关建筑机械，电工，工程测量与试验，施工技术与组织等方面的基本技术。"
+        }
+      ]
+    }
+  },
+  "analysis": {
+    "sha256": "86e12cb1b6f6efe6a4b6bcc2899297ca0e89fa4d8ddd2b9cec9d4d171c6e4eb0",
+    "packageParts": 23,
+    "page": {
+      "widthTwips": 11906,
+      "heightTwips": 16838,
+      "marginsTwips": {
+        "top": 1440,
+        "right": 1800,
+        "bottom": 1440,
+        "left": 1800
+      }
+    },
+    "counts": {
+      "p": 97,
+      "t": 108,
+      "tbl": 0,
+      "tr": 0,
+      "tc": 0,
+      "drawing": 36,
+      "pict": 35,
+      "txbxContent": 44,
+      "sdt": 38,
+      "sectPr": 1,
+      "anchor": 36,
+      "inline": 0
+    },
+    "media": [
+      "word/media/image1.jpeg"
+    ],
+    "macroParts": [],
+    "externalRelationships": [],
+    "sampleText": "��    ��Ů��    �᣺����Խ��������ò���й���ԱӢ��ˮƽ���ļ������ˮƽ�������־�ס�أ��人�к�ɽ����    �䣺hela215@163.com��    ��Ů��    �᣺����Խ��������ò���й���ԱӢ��ˮƽ���ļ������ˮƽ�������־�ס�أ��人�к�ɽ����    �䣺hela215@163.com��    ������������    �壺����������£�1990.05.12ѧ    ����˶ʿѧλר    ҵ�����ʾ�����ó�ױ�ҵԺУ������ʦ����ѧ��ϵ�绰��1589632000��    ������������    �壺����������£�1990.05.12ѧ    ����˶ʿѧλר    ҵ�����ʾ�����ó�ױ�ҵԺУ������ʦ����ѧ��ϵ�绰��15896320002013.09-2017.06  ����ʦ����ѧ  ���ʾ�����ó��   ˶ʿ2009.09-2013.06  ���ݿƼ���ѧ  ���⺺��         ѧʿ2013.09-2017.06  ����ʦ����ѧ  ���ʾ�����ó��   ˶ʿ2009.09-2013.06  ���ݿƼ���ѧ  ���⺺��         ѧʿ����ѧ��������������ҵ��Ӫ��������Ӧ������������������̸��������������ѧ���ѧ������˰�����ɱ���ơ������ơ���Ƶ��㻯�����������ơ���ơ�����ѧ��˰��ѧ�ȡ�����ѧ��������������ҵ��Ӫ��������Ӧ������������������̸��������������ѧ���ѧ������˰�����ɱ���ơ������ơ���Ƶ��㻯�����������ơ���ơ�����ѧ��˰��ѧ�ȡ�2011�� ���ݿƼ���ѧУ��һ�Ƚ���ѧ��2012�� ���ݿƼ���ѧ����һ�Ƚ�ѧ��2015�� ����ʦ����ѧУ԰ʮ�����һ�Ƚ�2016�� ����ʡ���ഺ��ҵ�ƻ��ƶ�ר��������2016�� �人˼������ѧУ������Ǹɽ�ʦ���ƺ�2016�� ��ѧ�����⼼�����»����ʤ����2011�� ���ݿƼ���ѧУ��һ�Ƚ���ѧ��2012�� ���ݿƼ���ѧ����һ�Ƚ�ѧ��2015�� ����ʦ����ѧУ԰ʮ�����һ�Ƚ�2016�� ����ʡ���ഺ��ҵ�ƻ��ƶ�ר��������2016�� �人˼������ѧУ������Ǹɽ�ʦ���ƺ�2016�� ��ѧ�����⼼�����»����ʤ����2015.03-2017.06   ����ʦ����ѧ���ù���ѧԺѧ���� ������2013.02-2014.06   �人˼��������ѵѧУ Ӣ������ʦ 2011.06-2012.12   ���ݿƼ���ѧ��֯�� ��������2009.09-2011.02   ���ݿƼ���ѧ���������� ����2015.03-2017.06   ����ʦ����ѧ���ù���ѧԺѧ���� ������2013.02-2014.06   �人˼��������ѵѧУ Ӣ������ʦ 2011.06-2012.12   ���ݿƼ���ѧ��֯�� ��������2009.09-2011.02   ���ݿƼ���ѧ���������� �������˾������õĹ�����ϵ��ʶ�����ڹ�ͨ���߱���߻�����֯Э�����������õ���̬�����θУ��Կ����ͣ����ڹ���ʱ�䣬������Ա仯����ս�����õ�ѧϰ������ϰ���ƶ���ʵ���е�ѧϰ�ƻ�������ѧϰ�ܲ�����ߡ�ͨ�������ѧϰ��������������ѧ�����ݽ���ѧ����ľ����ʩ����������ͼ�������ṹ�������ؿγ̵Ļ���֪ʶ���������йؽ�����е���繤�����̲��������飬ʩ����������֯�ȷ���Ļ������������˾������õĹ�����ϵ��ʶ�����ڹ�ͨ���߱���߻�����֯Э�����������õ���̬�����θУ��Կ����ͣ����ڹ���ʱ�䣬������Ա仯����ս�����õ�ѧϰ������ϰ���ƶ���ʵ���е�ѧϰ�ƻ�������ѧϰ�ܲ�����ߡ�ͨ�������ѧϰ��������������ѧ�����ݽ���ѧ����ľ����ʩ����������ͼ�������ṹ�������ؿγ̵Ļ���֪ʶ���������йؽ�����е���繤�����̲��������飬ʩ����������֯�ȷ���Ļ���������<<<<<<����������������<<<<<<�������鹤������<<<<<<����������ȫ��������ȼ�����֤��Ӣ���ļ�֤����ͨ��ˮƽ���Զ����׵�Adobe��֤���ʦ�ʸ�֤���������ʻ֤ȫ����Ϣ����Ӧ����ѵ��������ְҵ����֤�飨AutoCAD������ƣ�ȫ��������ȼ�����֤��Ӣ���ļ�֤����ͨ��ˮƽ���Զ����׵�Adobe��֤���ʦ�ʸ�֤���������ʻ֤ȫ����Ϣ����Ӧ����ѵ��������ְҵ����֤�飨AutoCAD������ƣ�<<<<<<����������������<<<<<<���޿γ����޿γ̽���������������<<<<<<������Ϣ������Ϣ<<<<<< ",
+    "needsMapping": false,
+    "layoutRisk": "high"
+  },
+  "slotMap": {
+    "profile": [
+      "name",
+      "email",
+      "city",
+      "photo",
+      "birthday",
+      "gender",
+      "education",
+      "politicalStatus",
+      "school",
+      "major",
+      "nativePlace",
+      "ethnicity"
+    ],
+    "sections": {
+      "education": [
+        "content"
+      ],
+      "courses": [
+        "content"
+      ],
+      "skills": [
+        "content"
+      ],
+      "awards": [
+        "content"
+      ],
+      "experience": [
+        "content"
+      ],
+      "summary": [
+        "content"
+      ]
+    }
+  }
+}

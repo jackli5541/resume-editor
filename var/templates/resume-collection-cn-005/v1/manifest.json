@@ -1,0 +1,442 @@
+{
+  "slug": "resume-collection-cn-005",
+  "name": "左右双栏风免费简历模板",
+  "category": "中文简历",
+  "description": "左右双栏风免费简历模板，已通过高保真模板验收",
+  "version": 1,
+  "status": "ready",
+  "engine": "docx-native",
+  "sourceUrl": "https://github.com/mmmlllnnn/ResumeCollection/blob/main/1.%E4%B8%AD%E6%96%87%E7%AE%80%E5%8E%86/005/%E5%B7%A6%E5%8F%B3%E5%8F%8C%E6%A0%8F%E9%A3%8E%E5%85%8D%E8%B4%B9%E7%AE%80%E5%8E%86%E6%A8%A1%E6%9D%BF.docx",
+  "sourcePath": "resume-collection-cn-005/v1/native.docx",
+  "previewPath": "resume-collection-cn-005/v1/preview.png",
+  "sha256": "1299818af34199d3602a4787dced2262e1cff84fb3bc49e69603b1cc5e557ae3",
+  "licenseStatus": "MIT",
+  "selectable": true,
+  "previewUrl": "/template-assets/resume-collection-cn-005/v1/preview.png",
+  "manifest": {
+    "pageSize": "A4",
+    "supportedFormats": [
+      "pdf",
+      "docx"
+    ],
+    "sourceRepository": "mmmlllnnn/ResumeCollection",
+    "sourceDirectory": "005",
+    "originalFileName": "左右双栏风免费简历模板.docx",
+    "adapter": {
+      "version": 2,
+      "layout": "navy-sidebar",
+      "theme": "#294d70"
+    },
+    "nativeSlots": {
+      "tags": [
+        "resume:item.content",
+        "resume:profile.age",
+        "resume:profile.city",
+        "resume:profile.email",
+        "resume:profile.mobile",
+        "resume:profile.name",
+        "resume:profile.photo",
+        "resume:repeat:education",
+        "resume:repeat:experience",
+        "resume:section:awards.content",
+        "resume:section:education.content",
+        "resume:section:experience.content",
+        "resume:section:interests.content",
+        "resume:section:interests.title",
+        "resume:section:objective.content",
+        "resume:section:objective.title",
+        "resume:section:summary.content",
+        "resume:section:summary.title"
+      ],
+      "hasProfile": true,
+      "repeatSections": [
+        "education",
+        "experience"
+      ]
+    },
+    "qa": {
+      "approved": true,
+      "automaticApproved": true,
+      "manualApproved": true,
+      "minimumSsim": 0.9950999204145431,
+      "maximumChangedRatio": 0.0026051305003973683,
+      "pageCount": 1,
+      "samplePageCount": 1,
+      "sampleVersion": "native-qa-v1",
+      "templateSha256": "1299818af34199d3602a4787dced2262e1cff84fb3bc49e69603b1cc5e557ae3",
+      "annotation": {
+        "resume:profile.age": true,
+        "resume:profile.city": true,
+        "resume:profile.email": true,
+        "resume:profile.mobile": true,
+        "resume:profile.name": true,
+        "resume:profile.job": false,
+        "resume:profile.birthday": false,
+        "resume:profile.gender": false,
+        "resume:profile.education": false,
+        "resume:profile.politicalStatus": false,
+        "resume:profile.school": false,
+        "resume:profile.major": false,
+        "resume:profile.nativePlace": false,
+        "resume:profile.ethnicity": false,
+        "resume:profile.height": false,
+        "resume:profile.photo": true,
+        "resume:section:objective.title": true,
+        "resume:section:education.title": false,
+        "resume:section:experience.title": false,
+        "resume:section:awards.title": false,
+        "resume:section:summary.title": true,
+        "resume:section:interests.title": true,
+        "resume:repeat:education": true,
+        "resume:repeat:experience": true,
+        "resume:section:interests.content": true,
+        "resume:section:objective.content": true,
+        "resume:section:education.content": true,
+        "resume:section:experience.content": true,
+        "resume:section:awards.content": true,
+        "resume:section:summary.content": true
+      },
+      "checkedAt": "2026-08-15T03:55:23.107608+00:00",
+      "manualChecks": [
+        "crop",
+        "overlap",
+        "alignment",
+        "pagination",
+        "font-substitution",
+        "image-distortion",
+        "decoration-loss"
+      ],
+      "reportPath": "output/native-template-qa/resume-collection-cn-005/qa-report.json"
+    },
+    "renderPipeline": "docx-libreoffice",
+    "editingCapabilities": {
+      "editableSlots": [
+        "resume:item.content",
+        "resume:profile.age",
+        "resume:profile.city",
+        "resume:profile.email",
+        "resume:profile.mobile",
+        "resume:profile.name",
+        "resume:profile.photo",
+        "resume:repeat:education",
+        "resume:repeat:experience",
+        "resume:section:awards.content",
+        "resume:section:education.content",
+        "resume:section:experience.content",
+        "resume:section:interests.content",
+        "resume:section:interests.title",
+        "resume:section:objective.content",
+        "resume:section:objective.title",
+        "resume:section:summary.content",
+        "resume:section:summary.title"
+      ],
+      "repeatableSections": [
+        "education",
+        "experience"
+      ],
+      "sortableZones": [],
+      "hideableSections": [],
+      "fixedTemplateElementsLocked": true
+    },
+    "editorSchema": {
+      "schemaVersion": 3,
+      "slug": "resume-collection-cn-005",
+      "name": "深蓝图标",
+      "profileFields": [
+        "name",
+        "mobile",
+        "email",
+        "city",
+        "photo",
+        "age"
+      ],
+      "profileDefinitions": {
+        "name": {
+          "label": "姓名",
+          "type": "text"
+        },
+        "mobile": {
+          "label": "联系电话",
+          "type": "text"
+        },
+        "email": {
+          "label": "联系邮箱",
+          "type": "email"
+        },
+        "city": {
+          "label": "所在城市",
+          "type": "text"
+        },
+        "photo": {
+          "label": "个人照片",
+          "type": "image"
+        },
+        "age": {
+          "label": "年龄",
+          "type": "text"
+        }
+      },
+      "sections": [
+        {
+          "id": "objective",
+          "title": "求职意向",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "education",
+          "title": "教育背景",
+          "type": "timeline",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": true,
+            "removeItems": true,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": false
+          }
+        },
+        {
+          "id": "experience",
+          "title": "工作经验",
+          "type": "timeline",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": true,
+            "removeItems": true,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": false
+          }
+        },
+        {
+          "id": "awards",
+          "title": "奖项荣誉",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": false
+          }
+        },
+        {
+          "id": "summary",
+          "title": "自我评价",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "interests",
+          "title": "兴趣爱好",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        }
+      ],
+      "zones": [
+        {
+          "id": "main",
+          "sortable": false
+        }
+      ],
+      "layoutSchema": {
+        "renderer": "docx-pages",
+        "layout": "sidebar-left"
+      },
+      "styleControls": {
+        "fontFamily": false,
+        "fontSize": false,
+        "theme": false,
+        "lineHeight": false,
+        "pagePadding": false,
+        "sectionGap": false
+      },
+      "capabilities": {
+        "fixedTemplateElementsLocked": true
+      },
+      "renderers": {
+        "preview": "docx-native",
+        "pdf": "docx-native",
+        "docx": "docx-native"
+      }
+    },
+    "layoutSchema": {
+      "renderer": "docx-pages",
+      "layout": "sidebar-left"
+    },
+    "defaultResume": {
+      "profile": {
+        "name": "简历模板资源网",
+        "age": "24岁",
+        "city": "北京市",
+        "mobile": "13500135000",
+        "email": "Jianlmoban-ziyuan"
+      },
+      "sections": [
+        {
+          "id": "objective",
+          "type": "richtext",
+          "title": "求职意向",
+          "visible": true,
+          "content": "求职意向：市场专员"
+        },
+        {
+          "id": "education",
+          "type": "timeline",
+          "title": "教育背景",
+          "visible": true,
+          "items": [
+            {
+              "content": "2008.09-2012.07         免费简历下载科技大学             市场营销（本科）"
+            }
+          ]
+        },
+        {
+          "id": "experience",
+          "type": "timeline",
+          "title": "工作经验",
+          "visible": true,
+          "items": [
+            {
+              "content": "2010.07-2010.09          免费简历下载科技集团             市场部实习生"
+            }
+          ]
+        },
+        {
+          "id": "awards",
+          "type": "richtext",
+          "title": "奖项荣誉",
+          "visible": true,
+          "content": "2009.10获国家奖学金"
+        },
+        {
+          "id": "summary",
+          "type": "richtext",
+          "title": "自我评价",
+          "visible": true,
+          "content": "本人是市场营销专业毕业生，有丰富的营销知识体系做基础；对于市场营销方面的前沿和动向有一定的了解，善于分析和吸取经验熟悉网络推广，尤其是社会化媒体方面，有独到的见解和经验，个性开朗，容易相处，团队荣誉感强。"
+        },
+        {
+          "id": "interests",
+          "type": "richtext",
+          "title": "兴趣爱好",
+          "visible": true,
+          "content": "篮球"
+        }
+      ]
+    }
+  },
+  "analysis": {
+    "sha256": "1299818af34199d3602a4787dced2262e1cff84fb3bc49e69603b1cc5e557ae3",
+    "packageParts": 27,
+    "page": {
+      "widthTwips": 11906,
+      "heightTwips": 16838,
+      "marginsTwips": {
+        "top": 454,
+        "right": 454,
+        "bottom": 454,
+        "left": 454
+      }
+    },
+    "counts": {
+      "p": 96,
+      "t": 154,
+      "tbl": 0,
+      "tr": 0,
+      "tc": 0,
+      "drawing": 34,
+      "pict": 33,
+      "txbxContent": 44,
+      "sdt": 28,
+      "sectPr": 1,
+      "anchor": 34,
+      "inline": 0
+    },
+    "media": [
+      "word/media/image1.jpeg"
+    ],
+    "macroParts": [],
+    "externalRelationships": [],
+    "sampleText": "��Ȥ������Ȥ��������������ӵ����Ķ��Ķ�Ӱ��Ӱ�����⻧�����ģ����Դ������ģ����Դ��24�걱����13500135000Jianlmoban-ziyuan24�걱����13500135000Jianlmoban-ziyuanPhotoshopPhotoshopAIAIWordWordExcelExcel��ְ�����г�רԱ��ְ�����г�רԱ2008.09-2012.07         ��Ѽ������ؿƼ���ѧ             �г�Ӫ�������ƣ�������ơ�ͳ��ѧ���г�Ӫ���������г�Ӫ�����г�������Ԥ�⡢��ҵ����ѧ�����ѧ��������ϵѧ����������ѧ�����÷�������ó�ס���ѧӢ������Ӧ�õȡ�2008.09-2012.07         ��Ѽ������ؿƼ���ѧ             �г�Ӫ������ר��������ơ�ͳ��ѧ���г�Ӫ���������г�Ӫ�����г�������Ԥ�⡢��ҵ����ѧ�����ѧ��������ϵѧ����������ѧ�����÷�������ó�ס���ѧӢ������Ӧ�õȡ���������2008.09-2012.07         ��Ѽ������ؿƼ���ѧ             �г�Ӫ�������ƣ�������ơ�ͳ��ѧ���г�Ӫ���������г�Ӫ�����г�������Ԥ�⡢��ҵ����ѧ�����ѧ��������ϵѧ����������ѧ�����÷�������ó�ס���ѧӢ������Ӧ�õȡ�2008.09-2012.07         ��Ѽ������ؿƼ���ѧ             �г�Ӫ������ר��������ơ�ͳ��ѧ���г�Ӫ���������г�Ӫ�����г�������Ԥ�⡢��ҵ����ѧ�����ѧ��������ϵѧ����������ѧ�����÷�������ó�ס���ѧӢ������Ӧ�õȡ���������2009.03-2011.06          ��Ѽ�������ְҵ��չ��            �糤����������֯���裬���Ż����Ĺ�����Э�������Ź�������֯�߻����ŵĳ�����ᡢ��ѡ�ᡢ�Ŷ���ѵ�����µ���ά���2010.07-2010.09          ��Ѽ������ؿƼ�����             �г���ʵϰ��Э���ﱸ������˼�顱�����г��ƹ����վϵ�л����ΪƷ�ƴ�ʹ����ڡ�������ý���ƹ㣬��Ѽ����������µ�Ʒ�ƣ��������ý�����Ϸ����������������ձ���G4Ƶ���Ա��λ���б�������������2009.03-2011.06          ��Ѽ�������ְҵ��չ��            �糤����������֯���裬���Ż����Ĺ�����Э�������Ź�������֯�߻����ŵĳ�����ᡢ��ѡ�ᡢ�Ŷ���ѵ�����µ���ά���2010.07-2010.09          ��Ѽ������ؿƼ�����             �г���ʵϰ��Э���ﱸ������˼�顱�����г��ƹ����վϵ�л����ΪƷ�ƴ�ʹ����ڡ�������ý���ƹ㣬��Ѽ����������µ�Ʒ�ƣ��������ý�����Ϸ����������������ձ���G4Ƶ���Ա��λ���б�������������2009.10����ҽ�ѧ��2010.11������ѧ���ƺš�2010.12���ϴ�ѧ������Ӫ������һ�Ƚ�2011.04��ս����ҵ�ƻ�����ʡ��ͭ��CET-6���������˵д�����������������Ϥ�������������߼�Ӫ��Ա�������ʸ�֤�ļ���������2009.10����ҽ�ѧ��2010.11������ѧ���ƺš�2010.12���ϴ�ѧ������Ӫ������һ�Ƚ�2011.04��ս����ҵ�ƻ�����ʡ��ͭ��CET-6���������˵д�����������������Ϥ�������������߼�Ӫ��Ա�������ʸ�֤�ļ����������������г�Ӫ��רҵ��ҵ�����зḻ��Ӫ��֪ʶ��ϵ�������������г�Ӫ�������ǰ�غͶ�����һ�����˽⣬���ڷ�������ȡ������Ϥ�����ƹ㣬��������ữý�巽�棬�ж����ļ���;��飬���Կ��ʣ������ദ���Ŷ�������ǿ���������۱������г�Ӫ��רҵ��ҵ�����зḻ��Ӫ��֪ʶ��ϵ�������������г�Ӫ�������ǰ�غͶ�����һ�����˽⣬���ڷ�������ȡ������Ϥ�����ƹ㣬��������ữý�巽�棬�ж����ļ���;��飬���Կ��ʣ������ദ���Ŷ�������ǿ������������������",
+    "needsMapping": false,
+    "layoutRisk": "high"
+  },
+  "slotMap": {
+    "profile": [
+      "name",
+      "mobile",
+      "email",
+      "city",
+      "photo",
+      "age"
+    ],
+    "sections": {
+      "objective": [
+        "content"
+      ],
+      "education": [
+        "content"
+      ],
+      "experience": [
+        "content"
+      ],
+      "awards": [
+        "content"
+      ],
+      "summary": [
+        "content"
+      ],
+      "interests": [
+        "content"
+      ]
+    }
+  }
+}

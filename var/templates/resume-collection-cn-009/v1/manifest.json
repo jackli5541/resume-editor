@@ -1,0 +1,375 @@
+{
+  "slug": "resume-collection-cn-009",
+  "name": "创意免费求职简历模板",
+  "category": "中文简历",
+  "description": "创意免费求职简历模板，已通过高保真模板验收",
+  "version": 1,
+  "status": "ready",
+  "engine": "docx-native",
+  "sourceUrl": "https://github.com/mmmlllnnn/ResumeCollection/blob/main/1.%E4%B8%AD%E6%96%87%E7%AE%80%E5%8E%86/009/%E5%88%9B%E6%84%8F%E5%85%8D%E8%B4%B9%E6%B1%82%E8%81%8C%E7%AE%80%E5%8E%86%E6%A8%A1%E6%9D%BF.docx",
+  "sourcePath": "resume-collection-cn-009/v1/native.docx",
+  "previewPath": "resume-collection-cn-009/v1/preview.png",
+  "sha256": "c7d48991effdd996768605ecedef487d63a2ca3f10ade2130917d76b909399f6",
+  "licenseStatus": "MIT",
+  "selectable": true,
+  "previewUrl": "/template-assets/resume-collection-cn-009/v1/preview.png",
+  "manifest": {
+    "pageSize": "A4",
+    "supportedFormats": [
+      "pdf",
+      "docx"
+    ],
+    "sourceRepository": "mmmlllnnn/ResumeCollection",
+    "sourceDirectory": "009",
+    "originalFileName": "创意免费求职简历模板.docx",
+    "adapter": {
+      "version": 2,
+      "layout": "creative-columns",
+      "theme": "#1599c7"
+    },
+    "nativeSlots": {
+      "tags": [
+        "resume:item.content",
+        "resume:profile.mobile",
+        "resume:profile.name",
+        "resume:profile.photo",
+        "resume:repeat:education",
+        "resume:section:awards.content",
+        "resume:section:awards.title",
+        "resume:section:campus.content",
+        "resume:section:education.content",
+        "resume:section:education.title",
+        "resume:section:experience.content",
+        "resume:section:summary.content",
+        "resume:section:summary.title"
+      ],
+      "hasProfile": true,
+      "repeatSections": [
+        "education"
+      ]
+    },
+    "qa": {
+      "approved": true,
+      "automaticApproved": false,
+      "manualApproved": true,
+      "minimumSsim": 0.8296277377887509,
+      "maximumChangedRatio": 0.07433372639817756,
+      "pageCount": 1,
+      "samplePageCount": 1,
+      "sampleVersion": "native-qa-v1",
+      "templateSha256": "c7d48991effdd996768605ecedef487d63a2ca3f10ade2130917d76b909399f6",
+      "annotation": {
+        "resume:profile.email": false,
+        "resume:profile.mobile": true,
+        "resume:profile.name": true,
+        "resume:profile.job": false,
+        "resume:profile.city": false,
+        "resume:profile.age": false,
+        "resume:profile.birthday": false,
+        "resume:profile.gender": false,
+        "resume:profile.education": false,
+        "resume:profile.politicalStatus": false,
+        "resume:profile.school": false,
+        "resume:profile.major": false,
+        "resume:profile.nativePlace": false,
+        "resume:profile.ethnicity": false,
+        "resume:profile.height": false,
+        "resume:profile.photo": true,
+        "resume:section:summary.title": true,
+        "resume:section:education.title": true,
+        "resume:section:awards.title": true,
+        "resume:repeat:education": true,
+        "resume:repeat:experience": false,
+        "resume:section:summary.content": true,
+        "resume:section:experience.content": true,
+        "resume:section:campus.content": true,
+        "resume:section:education.content": true,
+        "resume:section:awards.content": true
+      },
+      "checkedAt": "2026-08-15T04:08:31.995325+00:00",
+      "manualChecks": [
+        "crop",
+        "overlap",
+        "alignment",
+        "pagination",
+        "font-substitution",
+        "image-distortion",
+        "decoration-loss"
+      ],
+      "reportPath": "output/native-template-qa/resume-collection-cn-009/qa-report.json"
+    },
+    "renderPipeline": "docx-libreoffice",
+    "editingCapabilities": {
+      "editableSlots": [
+        "resume:item.content",
+        "resume:profile.mobile",
+        "resume:profile.name",
+        "resume:profile.photo",
+        "resume:repeat:education",
+        "resume:section:awards.content",
+        "resume:section:awards.title",
+        "resume:section:campus.content",
+        "resume:section:education.content",
+        "resume:section:education.title",
+        "resume:section:experience.content",
+        "resume:section:summary.content",
+        "resume:section:summary.title"
+      ],
+      "repeatableSections": [
+        "education"
+      ],
+      "sortableZones": [],
+      "hideableSections": [],
+      "fixedTemplateElementsLocked": true
+    },
+    "editorSchema": {
+      "schemaVersion": 3,
+      "slug": "resume-collection-cn-009",
+      "name": "清新双栏",
+      "profileFields": [
+        "name",
+        "mobile",
+        "photo"
+      ],
+      "profileDefinitions": {
+        "name": {
+          "label": "姓名",
+          "type": "text"
+        },
+        "mobile": {
+          "label": "联系电话",
+          "type": "text"
+        },
+        "photo": {
+          "label": "个人照片",
+          "type": "image"
+        }
+      },
+      "sections": [
+        {
+          "id": "summary",
+          "title": "自我评价",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "education",
+          "title": "教育背景",
+          "type": "timeline",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": true,
+            "removeItems": true,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "experience",
+          "title": "工作经历",
+          "type": "timeline",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": false
+          }
+        },
+        {
+          "id": "campus",
+          "title": "校园经历",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": false
+          }
+        },
+        {
+          "id": "awards",
+          "title": "获得荣誉",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        }
+      ],
+      "zones": [
+        {
+          "id": "main",
+          "sortable": false
+        }
+      ],
+      "layoutSchema": {
+        "renderer": "docx-pages",
+        "layout": "columns"
+      },
+      "styleControls": {
+        "fontFamily": false,
+        "fontSize": false,
+        "theme": false,
+        "lineHeight": false,
+        "pagePadding": false,
+        "sectionGap": false
+      },
+      "capabilities": {
+        "fixedTemplateElementsLocked": true
+      },
+      "renderers": {
+        "preview": "docx-native",
+        "pdf": "docx-native",
+        "docx": "docx-native"
+      }
+    },
+    "layoutSchema": {
+      "renderer": "docx-pages",
+      "layout": "columns"
+    },
+    "defaultResume": {
+      "profile": {
+        "name": "简历模板资源网",
+        "mobile": "135 8888 8888"
+      },
+      "sections": [
+        {
+          "id": "summary",
+          "type": "richtext",
+          "title": "自我评价",
+          "visible": true,
+          "content": "本人是市场营销专业毕业生，有丰富的营销知识体系做基础；对于市场营销方面的前沿和动向有一定的了解，善于分析和吸取经验熟悉网络推广，尤其是社会化媒体方面，有独到的见解和经验个性开朗，容易相处，团队荣誉感强。"
+        },
+        {
+          "id": "education",
+          "type": "timeline",
+          "title": "教育背景",
+          "visible": true,
+          "items": [
+            {
+              "content": "姓    名：简历模板资源网毕业院校：简历模板资源网科技大学 专    业：国际贸易政治面貌：中共党员                  出生年月：1990/12/12手    机：135 8888 8888邮    箱：jianlimoban-ziyuan.com地    址：广东广州"
+            }
+          ]
+        },
+        {
+          "id": "experience",
+          "type": "timeline",
+          "title": "工作经历",
+          "visible": true,
+          "items": []
+        },
+        {
+          "id": "campus",
+          "type": "richtext",
+          "title": "校园经历",
+          "visible": true,
+          "content": "深圳华为科技 负责社团组织建设，社团机构的管理，协调各部门工作;组织策划社团的成立大会、竞选会、团队培训、招新等运维活动;"
+        },
+        {
+          "id": "awards",
+          "type": "richtext",
+          "title": "获得荣誉",
+          "visible": true,
+          "content": "大学一直担任班长，荣获“优秀班干”"
+        }
+      ]
+    }
+  },
+  "analysis": {
+    "sha256": "c7d48991effdd996768605ecedef487d63a2ca3f10ade2130917d76b909399f6",
+    "packageParts": 25,
+    "page": {
+      "widthTwips": 11906,
+      "heightTwips": 16838,
+      "marginsTwips": {
+        "top": 454,
+        "right": 454,
+        "bottom": 454,
+        "left": 454
+      }
+    },
+    "counts": {
+      "p": 76,
+      "t": 109,
+      "tbl": 0,
+      "tr": 0,
+      "tc": 0,
+      "drawing": 33,
+      "pict": 32,
+      "txbxContent": 50,
+      "sdt": 23,
+      "sectPr": 1,
+      "anchor": 21,
+      "inline": 12
+    },
+    "media": [
+      "word/media/image1.jpeg",
+      "word/media/image2.png"
+    ],
+    "macroParts": [],
+    "externalRelationships": [],
+    "sampleText": "���˼������˼���PERSONAL RESUMEPERSONAL RESUMEBasic informationBasic information��������������������������������Self assessmentSelf assessment��    ��������ģ����Դ����ҵԺУ������ģ����Դ���Ƽ���ѧ ר    ҵ������ó��������ò���й���Ա                  �������£�1990/12/12��    ����135 8888 8888��    �䣺jianlimoban-ziyuan.com��    ַ���㶫������    ��������ģ����Դ����ҵԺУ������ģ����Դ���Ƽ���ѧ ר    ҵ������ó��������ò���й���Ա                  �������£�1990/12/12��    ����135 8888 8888��    �䣺jianlimoban-ziyuan.com��    ַ���㶫���ݱ������г�Ӫ��רҵ��ҵ�����зḻ��Ӫ��֪ʶ��ϵ�������������г�Ӫ�������ǰ�غͶ�����һ�����˽⣬���ڷ�������ȡ������Ϥ�����ƹ㣬��������ữý�巽�棬�ж����ļ���;�����Կ��ʣ������ദ���Ŷ�������ǿ���������г�Ӫ��רҵ��ҵ�����зḻ��Ӫ��֪ʶ��ϵ�������������г�Ӫ�������ǰ�غͶ�����һ�����˽⣬���ڷ�������ȡ������Ϥ�����ƹ㣬��������ữý�巽�棬�ж����ļ���;�����Կ��ʣ������ദ���Ŷ�������ǿ��2008.9-2011.7�Ͳ��Ʋ�Ʒ�߻�2008.9-2011.7�Ͳ��Ʋ�Ʒ�߻�2008.9-2011.7UI���2008.9-2011.7UI��ƹ��ݼ���ģ����Դ����Ϣ�Ƽ�    Э���ﱸ������˼�顱�����г��ƹ����վϵ�л����ΪƷ�ƴ�ʹ����ڡ�������ý���ƹ�һ�ٶ��������µ�Ʒ�ƣ����ݼ���ģ����Դ����Ϣ�Ƽ�    Э���ﱸ������˼�顱�����г��ƹ����վϵ�л����ΪƷ�ƴ�ʹ����ڡ�������ý���ƹ�һ�ٶ��������µ�Ʒ�ƣ��й��ƶ��Ϸ�����    Э���ﱸ������˼�顱�����г��ƹ����վϵ�л����ΪƷ�ƴ�ʹ����ڡ�������ý���ƹ�һ�ٶ��������µ�Ʒ�ƣ��й��ƶ��Ϸ�����    Э���ﱸ������˼�顱�����г��ƹ����վϵ�л����ΪƷ�ƴ�ʹ����ڡ�������ý���ƹ�һ�ٶ��������µ�Ʒ�ƣ����ڻ�Ϊ�Ƽ� ����������֯���裬���Ż����Ĺ�����Э�������Ź���;��֯�߻����ŵĳ�����ᡢ��ѡ�ᡢ�Ŷ���ѵ�����µ���ά�;���ڻ�Ϊ�Ƽ� ����������֯���裬���Ż����Ĺ�����Э�������Ź���;��֯�߻����ŵĳ�����ᡢ��ѡ�ᡢ�Ŷ���ѵ�����µ���ά�;2008.9-2011.7�г���������   2008.9-2011.7�г���������   ����������������Basic informationBasic information2008.9-2011.7�������2008.9-2011.7������ƽ���������������Education backgroundEducation background�й���ý��ѧ��������photoshop��Illustrator��Dreamweaver��CelDRAW��ͼ�Σ�ͼ���������.���ܶ������,�������ֹ��,�������.�й���ý��ѧ��������photoshop��Illustrator��Dreamweaver��CelDRAW��ͼ�Σ�ͼ���������.���ܶ������,�������ֹ��,�������.2008.9-2011.7��ά�������2008.9-2011.7��ά���������ɽ��ѧ    ��������photoshopIllustrator��Dreamweaver��CelDRAW��ͼ�Σ�ͼ���������.���ܶ������,�������ֹ��,�������.��ɽ��ѧ    ��������photoshopIllustrator��Dreamweaver��CelDRAW��ͼ�Σ�ͼ���������.���ܶ������,�������ֹ��,�������.��������������Get the honorGet the honor��ѧһֱ���ΰ೤���ٻ������ɡ�    ��У԰��ҵ��Э�ᵣ�Ρ����������� 2011���ٻ���Ľ�ȫ����ѧ�����������ƴ�����������ƽ����Ʒ�����Ƚ���У԰�Ļ��ڡ�΢�۽��󣬾۽����ʡ�΢����ѡ�����л�ʮ�����ѡ�����ѧһֱ���ΰ೤���ٻ������ɡ�    ��У԰��ҵ��Э�ᵣ�Ρ����������� 2011���ٻ���Ľ�ȫ����ѧ�����������ƴ�����������ƽ����Ʒ�����Ƚ���У԰�Ļ��ڡ�΢�۽��󣬾۽����ʡ�΢����ѡ�����л�ʮ�����ѡ���",
+    "needsMapping": false,
+    "layoutRisk": "high"
+  },
+  "slotMap": {
+    "profile": [
+      "name",
+      "mobile",
+      "photo"
+    ],
+    "sections": {
+      "summary": [
+        "content"
+      ],
+      "education": [
+        "content"
+      ],
+      "experience": [
+        "content"
+      ],
+      "campus": [
+        "content"
+      ],
+      "awards": [
+        "content"
+      ]
+    }
+  }
+}

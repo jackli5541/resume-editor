@@ -7,6 +7,7 @@ import {
 } from "node:crypto";
 import { promisify } from "node:util";
 import { ADMIN_ROLES, effectiveRole, listPermissions } from "./permissions.mjs";
+import { isDisposableEmail } from "./email-guard.mjs";
 
 const scryptAsync = promisify(scrypt);
 
@@ -161,6 +162,7 @@ export class AuthService {
       throw new AuthError("邮箱或手机号至少填写一个", 400);
     }
     if (normalizedEmail && !isValidEmail(normalizedEmail)) throw new AuthError("邮箱格式不正确", 400);
+    if (normalizedEmail && isDisposableEmail(normalizedEmail)) throw new AuthError("不支持使用一次性邮箱注册", 400);
     if (normalizedPhone && !isValidPhone(normalizedPhone)) throw new AuthError("手机号格式不正确", 400);
     validatePassword(password);
 

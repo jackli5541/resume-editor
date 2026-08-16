@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { dirname, extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
 import { checkDatabase, createDatabase } from "./server/database.mjs";
 import { ExportService } from "./server/export-service.mjs";
 import { renderPrintDocument } from "./server/print-document.mjs";
@@ -30,6 +31,7 @@ import { MetricsService } from "./server/metrics.mjs";
 import { sendCsv } from "./server/csv.mjs";
 import { AppConfigService, configSchema } from "./server/config.mjs";
 import { AlertService } from "./server/alerts.mjs";
+import { DeviceFingerprintService } from "./server/device-fingerprint.mjs";
 
 const publicRoot = fileURLToPath(new URL("./public/", import.meta.url));
 const projectRoot = dirname(fileURLToPath(import.meta.url));
@@ -221,7 +223,7 @@ export function createAppServer(options = {}) {
     auditLog: aiAuditLog,
     quota: options.aiQuota || new AiQuotaService({
       database,
-      dailyLimit: Number.parseInt(process.env.AI_USER_DAILY_LIMIT || "20", 10)
+      dailyLimit: Number.parseInt(process.env.AI_USER_DAILY_LIMIT || "8", 10)
     }),
     maxConcurrency: Number.parseInt(process.env.AI_MAX_CONCURRENCY || "2", 10)
   });
@@ -236,10 +238,19 @@ export function createAppServer(options = {}) {
   });
   const sessionTtlMs = authService.sessionTtlMs;
   const disableRegistration = options.disableRegistration ?? process.env.DISABLE_REGISTRATION === "true";
+  const disableDeviceFingerprint = options.disableDeviceFingerprint ?? process.env.DISABLE_DEVICE_FINGERPRINT === "true";
+  const deviceFingerprintService = options.deviceFingerprintService || new DeviceFingerprintService({ database });
   const redisConnection = redisEnabled ? service.connection : null;
   const loginLimiter = redisConnection ? new RedisRateLimiter(redisConnection) : new RateLimiter();
   const registerLimiter = redisConnection ? new RedisRateLimiter(redisConnection) : new RateLimiter();
   const apiLimiter = redisConnection ? new RedisRateLimiter(redisConnection) : new RateLimiter();
+
+  function appendSetCookie(response, cookie) {
+    const existing = response.getHeader("Set-Cookie");
+    if (!existing) response.setHeader("Set-Cookie", cookie);
+    else if (Array.isArray(existing)) existing.push(cookie);
+    else response.setHeader("Set-Cookie", [existing, cookie]);
+  }
 
   function setSessionCookie(response, token, maxAgeMs, secure) {
     const parts = [
@@ -250,7 +261,7 @@ export function createAppServer(options = {}) {
       `Max-Age=${Math.floor(maxAgeMs / 1000)}`
     ];
     if (secure) parts.push("Secure");
-    response.setHeader("Set-Cookie", parts.join("; "));
+    appendSetCookie(response, parts.join("; "));
   }
 
   function clearSessionCookie(response, secure) {
@@ -262,7 +273,25 @@ export function createAppServer(options = {}) {
       "Max-Age=0"
     ];
     if (secure) parts.push("Secure");
-    response.setHeader("Set-Cookie", parts.join("; "));
+    appendSetCookie(response, parts.join("; "));
+  }
+
+  // 设备指纹：用 HttpOnly Cookie 标识浏览器，用于注册去重限流（抑制同人多账号）。
+  function ensureDeviceId(request, response, secure) {
+    const cookies = parseCookies(request);
+    const existing = cookies["device"];
+    if (existing && /^[0-9a-f-]{36}$/i.test(existing)) return existing;
+    const deviceId = randomUUID();
+    const parts = [
+      `device=${encodeURIComponent(deviceId)}`,
+      "HttpOnly",
+      "SameSite=Lax",
+      "Path=/",
+      `Max-Age=${365 * 24 * 60 * 60}`
+    ];
+    if (secure) parts.push("Secure");
+    appendSetCookie(response, parts.join("; "));
+    return deviceId;
   }
 
   async function currentUser(request) {
@@ -299,6 +328,30 @@ export function createAppServer(options = {}) {
       ip: getClientIp(request),
       userAgent: request.headers["user-agent"] || null
     });
+  }
+
+  // 采集注册/登录时的设备信号（L1 软指纹 + L2 客户端指纹），并对新形成的疑似重复组告警。
+  // 只做标记与告警，不封禁；同 IP 分组噪声较大，不触发告警。
+  async function recordDeviceSignals(request, userId) {
+    if (disableDeviceFingerprint || !userId) return;
+    const result = await deviceFingerprintService.record({
+      userId,
+      ip: getClientIp(request),
+      userAgent: request.headers["user-agent"] || "",
+      acceptLanguage: request.headers["accept-language"] || "",
+      acceptEncoding: request.headers["accept-encoding"] || "",
+      clientDeviceId: request.headers["x-device-id"] || ""
+    }).catch(() => ({ newDuplicates: [] }));
+    for (const dup of result.newDuplicates || []) {
+      // 仅高置信度的「同设备指纹」触发告警；软指纹/IP 只进只读列表，避免共享网络/NAT 下的噪声刷屏。
+      if (dup.type !== "client") continue;
+      await alertService.emit({
+        level: "warn",
+        kind: "suspected_duplicate_accounts",
+        message: `疑似同人多账号：同设备指纹关联 ${dup.count} 个账号`,
+        meta: { fingerprintType: dup.type, count: dup.count, userId }
+      });
+    }
   }
 
   const server = createServer(async (request, response) => {
@@ -361,6 +414,9 @@ export function createAppServer(options = {}) {
         }
         const ip = getClientIp(request);
         if (await rejectIfLimited(response, registerLimiter, clientKey(ip, "register"), { limit: 10, windowMs: 60 * 60 * 1000 })) return;
+        // 设备指纹：同一浏览器每日最多注册 3 个账号（Cookie 由首页下发，注册时只读取）。
+        const deviceId = parseCookies(request)["device"];
+        if (deviceId && await rejectIfLimited(response, registerLimiter, clientKey(deviceId, "register-device"), { limit: 3, windowMs: 24 * 60 * 60 * 1000 })) return;
         const payload = await readJson(request);
         const identifier = String(payload?.identifier || "").trim();
         const isEmail = identifier.includes("@");
@@ -373,6 +429,7 @@ export function createAppServer(options = {}) {
         const session = await authService.createSession(user.id);
         setSessionCookie(response, session.token, sessionTtlMs, secure);
         await eventLog.record({ userId: user.id, event: "register" });
+        await recordDeviceSignals(request, user.id);
         sendJson(response, 201, { user });
       } catch (error) {
         sendJson(response, errorStatusOf(error), { error: error?.message || "注册失败" });
@@ -394,6 +451,7 @@ export function createAppServer(options = {}) {
         const session = await authService.createSession(user.id);
         setSessionCookie(response, session.token, sessionTtlMs, secure);
         await eventLog.record({ userId: user.id, event: "login" });
+        await recordDeviceSignals(request, user.id);
         sendJson(response, 200, { user });
       } catch (error) {
         sendJson(response, errorStatusOf(error), { error: error?.message || "登录失败" });
@@ -468,6 +526,30 @@ export function createAppServer(options = {}) {
         sendJson(response, 200, result);
       } catch (error) {
         sendJson(response, errorStatusOf(error), { error: error?.message || "读取用户失败" });
+      }
+      return;
+    }
+
+    if (request.method === "GET" && pathname === "/api/admin/suspected-duplicates") {
+      try {
+        await requirePermission(request, "users.read");
+        const limit = Number.parseInt(requestUrl.searchParams.get("limit") || "50", 10);
+        const offset = Number.parseInt(requestUrl.searchParams.get("offset") || "0", 10);
+        const result = await deviceFingerprintService.listSuspected({ limit, offset });
+        const groups = [];
+        for (const group of result.groups) {
+          const users = [];
+          for (const userId of group.userIds) {
+            const user = await authService.getUserById(userId);
+            if (!user || user.deletedAt) continue;
+            users.push(authService.toPublicUser(user));
+          }
+          if (users.length < 2) continue;
+          groups.push({ ...group, users });
+        }
+        sendJson(response, 200, { total: groups.length, groups });
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "读取疑似多账号失败" });
       }
       return;
     }
@@ -1382,6 +1464,8 @@ export function createAppServer(options = {}) {
         const user = await authorize(request);
         if (!user?.id) throw new AuthError("请先登录", 401);
         if (await rejectIfLimited(response, apiLimiter, clientKey(user.id, "ai"), { limit: 30, windowMs: 60 * 60 * 1000 })) return;
+        // 按来源 IP 的每日上限：抑制同人多账号放大 AI 配额（AI_IP_DAILY_LIMIT）。
+        if (await rejectIfLimited(response, apiLimiter, clientKey(getClientIp(request), "ai-daily"), { limit: Number.parseInt(process.env.AI_IP_DAILY_LIMIT || "24", 10), windowMs: 24 * 60 * 60 * 1000 })) return;
         if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
           throw new RequestValidationError("Content-Type 必须是 application/json", 415);
         }
@@ -1566,6 +1650,9 @@ export function createAppServer(options = {}) {
       return;
     }
 
+    // 页面加载时下发设备指纹 Cookie（HttpOnly），用于注册去重限流。
+    ensureDeviceId(request, response, secure);
+
     let path = resolveStaticPath(pathname);
     if (!path) {
       response.writeHead(403);
@@ -1613,7 +1700,7 @@ export function createAppServer(options = {}) {
     apiLimiter.dispose();
     database?.end().catch(() => {});
   });
-  return { server, service, previewService, database, templateRepository, authService, aiService, aiConfigRepository, aiAuditLog, adminAuditLog, eventLog, announcements, messages, feedbacks, metrics, configService, alertService };
+  return { server, service, previewService, database, templateRepository, authService, aiService, aiConfigRepository, aiAuditLog, adminAuditLog, eventLog, announcements, messages, feedbacks, metrics, configService, alertService, deviceFingerprintService };
 }
 
 export async function startServer(options = {}) {

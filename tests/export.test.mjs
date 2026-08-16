@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { createInitialResume } from "../public/core.mjs";
+import { createInitialResume, normalizeResume } from "../public/core.mjs";
 import { A4_SCALE } from "../server/pdf-renderer.mjs";
 import { renderDocx } from "../server/docx-renderer.mjs";
 import { renderPrintDocument } from "../server/print-document.mjs";
@@ -237,6 +237,25 @@ test("真实 Word 渲染器生成可解压且包含可编辑正文的 DOCX", asy
   ], { maxBuffer: 5 * 1024 * 1024 });
   assert.match(stdout, /林知夏/);
   assert.match(stdout, /<w:t/);
+});
+
+test("极简轻 Word 导出渲染自定义字段（字段驱动）", async (context) => {
+  const testDir = await mkdtemp(join(tmpdir(), "resume-editor-custom-field-docx-"));
+  const outputPath = join(testDir, "resume.docx");
+  context.after(() => rm(testDir, { recursive: true, force: true }));
+  const resume = normalizeResume(createInitialResume());
+  const experience = resume.sections.find((section) => section.id === "experience");
+  experience.fields.push({ key: "custom_0", label: "公司规模", type: "text", role: "meta", builtin: false, visible: true });
+  experience.items[0].custom_0 = "2000人规模";
+
+  await renderDocx({ outputPath, resume, template: { slug: "clean-single", version: 1 } });
+  const python = process.env.PYTHON_BIN || (process.platform === "win32" ? "python" : "python3");
+  const { stdout } = await execFileAsync(python, ["-X", "utf8", "-c",
+    "import sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); print(z.read('word/document.xml').decode('utf-8'))",
+    outputPath
+  ], { maxBuffer: 5 * 1024 * 1024 });
+  assert.match(stdout, /公司规模/);
+  assert.match(stdout, /2000人规模/);
 });
 
 test("外部模板 Word 导出使用 schema 布局且不携带原稿示例个人信息", async (context) => {

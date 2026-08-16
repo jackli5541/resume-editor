@@ -10,10 +10,11 @@ import {
   formatRange,
   makeId,
   moveItem,
+  nextCustomFieldKey,
   normalizeResume,
   pageCountForHeight
 } from "./core.mjs";
-import { getTemplateSchema } from "./template-schemas.mjs";
+import { defaultFieldsFor, FIELD_TYPES, getTemplateSchema, resolveSectionFields } from "./template-schemas.mjs";
 import {
   applyResumeSettings,
   applyResumeTemplate,
@@ -22,6 +23,7 @@ import {
   sanitizeRichHtml
 } from "./resume-renderer.mjs";
 import { isAppPath, parseAppRoute, routePath } from "./router.mjs";
+import { getDeviceId } from "./fingerprint.mjs";
 
 const elements = {
   app: document.querySelector("#app"),
@@ -174,6 +176,9 @@ const elements = {
   adminSystemDetail: document.querySelector("#adminSystemDetail"),
   adminSystemStatus: document.querySelector("#adminSystemStatus"),
   adminAlertList: document.querySelector("#adminAlertList"),
+  adminDuplicatesTotal: document.querySelector("#adminDuplicatesTotal"),
+  adminDuplicatesList: document.querySelector("#adminDuplicatesList"),
+  adminDuplicatesStatus: document.querySelector("#adminDuplicatesStatus"),
   aiPage: document.querySelector("#aiPage"),
   aiInputCard: document.querySelector("#aiInputCard"),
   aiDescription: document.querySelector("#aiDescription"),
@@ -187,7 +192,13 @@ const elements = {
   aiImportStatus: document.querySelector("#aiImportStatus"),
   aiCharCount: document.querySelector("#aiCharCount"),
   addModuleButton: document.querySelector("#addModuleButton"),
-  addModuleMenu: document.querySelector("#addModuleMenu")
+  addModuleMenu: document.querySelector("#addModuleMenu"),
+  appDialog: document.querySelector("#appDialog"),
+  appDialogTitle: document.querySelector("#appDialogTitle"),
+  appDialogMessage: document.querySelector("#appDialogMessage"),
+  appDialogInput: document.querySelector("#appDialogInput"),
+  appDialogCancel: document.querySelector("#appDialogCancel"),
+  appDialogSubmit: document.querySelector("#appDialogSubmit")
 };
 
 let resume = loadResume();
@@ -195,6 +206,7 @@ let activeModuleId = "profile";
 let drawerOpen = true;
 let saveTimer = null;
 let paginationFrame = null;
+let previewFrame = null;
 let currentPages = 1;
 let draggedModuleId = "";
 let exportInProgress = false;
@@ -209,6 +221,14 @@ let fidelityResumeId = "";
 let fidelityRequestKey = "";
 let previewMode = resume.template?.engine === "docx-native" ? "final" : "instant";
 const activeItemBySection = new Map();
+
+const FIELD_TYPE_LABELS = {
+  text: "单行文本",
+  month: "年月",
+  textarea: "多行文本",
+  richtext: "富文本",
+  url: "链接"
+};
 
 let currentUser = null;
 let loginMode = "login";
@@ -398,7 +418,8 @@ function blankSection(definition) {
     id: definition.id,
     type: definition.type || "richtext",
     title: definition.title || definition.id,
-    visible: true
+    visible: true,
+    fields: defaultFieldsFor(definition.id)
   };
   if (["timeline", "list", "levels", "tags"].includes(definition.type)) {
     return { ...base, items: [] };
@@ -447,6 +468,7 @@ function renderEditor() {
   const section = sectionById(activeModuleId) || activeSections()[0];
   if (!section) return;
   activeModuleId = section.id;
+  section.fields = resolveSectionFields(section);
   const definition = renderableSectionSchemas().find((value) => value.id === section.id);
   if (definition?.type === "keyValues") elements.editor.innerHTML = renderObjectiveEditor(section, definition);
   else if (definition?.type === "timeline") elements.editor.innerHTML = renderTimelineEditor(section, definition);
@@ -458,11 +480,23 @@ function renderEditor() {
 function field(label, value, scope, key, options = {}) {
   const type = options.type || "text";
   const placeholder = options.placeholder || "";
+  const data = `data-scope="${scope}" data-field="${key}" ${options.sectionId ? `data-section-id="${options.sectionId}"` : ""} ${options.itemId ? `data-item-id="${options.itemId}"` : ""}`;
+  const control = type === "textarea"
+    ? `<textarea placeholder="${escapeHtml(placeholder)}" ${data}>${escapeHtml(value)}</textarea>`
+    : `<input type="${type}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" ${data} />`;
   return `
     <label class="form-field ${options.wide ? "form-field--wide" : ""}">
       <span>${label}</span>
-      <input type="${type}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" data-scope="${scope}" data-field="${key}" ${options.sectionId ? `data-section-id="${options.sectionId}"` : ""} ${options.itemId ? `data-item-id="${options.itemId}"` : ""} />
+      ${control}
     </label>`;
+}
+
+// 字段 Schema 的控件类型 → 实际 input 类型。
+function fieldInputType(type) {
+  if (type === "textarea") return "textarea";
+  if (type === "month") return "month";
+  if (type === "url") return "url";
+  return "text";
 }
 
 function renderProfileEditor() {
@@ -495,12 +529,13 @@ function renderProfileEditor() {
 
 function renderObjectiveEditor(section, definition) {
   const data = section.data || {};
-  const labels = { job: "求职岗位", city: "意向城市", salary: "期望薪资", availability: "到岗时间" };
+  const fields = (section.fields || []).filter((item) => item.visible !== false);
   return `
     ${renderSectionHeading(section, "CAREER OBJECTIVE")}
     <div class="editor-grid">
-      ${definition.fields.map((key) => field(labels[key] || key, data[key], "section-data", key, { sectionId: section.id })).join("")}
-    </div>`;
+      ${fields.map((item) => field(item.label, data[item.key], "section-data", item.key, { sectionId: section.id, type: fieldInputType(item.type) })).join("")}
+    </div>
+    ${renderFieldManager(section, definition)}`;
 }
 
 function renderLineHeightSelect(section) {
@@ -533,28 +568,25 @@ function renderSectionHeading(section, eyebrow, definition = {}) {
 
 function renderTimelineEditor(section, definition) {
   if (!section.items) section.items = [];
-  const labels = {
-    start: "开始时间", end: "结束时间", content: "内容",
-    organization: section.id === "education" ? "学校名称" : section.id === "projects" ? "项目名称" : "公司名称",
-    role: section.id === "education" ? "专业与学历" : section.id === "projects" ? "项目角色" : "职位名称",
-    name: "名称", level: "级别", date: "时间"
-  };
-  const inputFields = definition.fields.filter((key) => key !== "content");
+  const fields = (section.fields || []).filter((item) => item.visible !== false);
   const canAdd = definition.capabilities?.addItems ?? definition.repeatable === true;
   const canRemove = definition.capabilities?.removeItems ?? definition.repeatable === true;
+  const fieldManager = renderFieldManager(section, definition);
 
   if (!section.items.length) {
     return `${renderSectionHeading(section, section.id.toUpperCase(), definition)}
       <div class="entry-empty">
         <p>暂无条目。</p>
         ${canAdd ? `<button class="add-entry-button" type="button" data-action="add-entry" data-section-id="${section.id}">＋ 添加条目</button>` : ""}
-      </div>`;
+      </div>
+      ${fieldManager}`;
   }
 
   let activeItemId = activeItemBySection.get(section.id);
   if (!itemById(section, activeItemId)) activeItemId = section.items[0].id;
   activeItemBySection.set(section.id, activeItemId);
   const item = itemById(section, activeItemId);
+  const entryFields = renderEntryFields(section, item);
 
   return `
     ${renderSectionHeading(section, section.id.toUpperCase(), definition)}
@@ -574,28 +606,29 @@ function renderTimelineEditor(section, definition) {
         ${canAdd ? `<button class="add-entry-button" type="button" data-action="add-entry" data-section-id="${section.id}">＋ 添加条目</button>` : ""}
       </aside>
       <div class="entry-editor">
-        <div class="editor-grid editor-grid--entry">
-          ${inputFields.map((key) => field(labels[key] || key, item[key], "entry", key, { sectionId: section.id, itemId: item.id, type: key === "start" ? "month" : "text" })).join("")}
-        </div>
-        ${definition.fields.includes("content") ? richTextBox(item.content, section.id, item.id) : ""}
+        <div class="editor-grid editor-grid--entry">${entryFields.grid}</div>
+        ${entryFields.rich}
         <div class="entry-editor__footer">
           <span>停止输入后自动更新 DOCX 预览</span>
         </div>
       </div>
-    </div>`;
+    </div>
+    ${fieldManager}`;
 }
 
 function renderListEditor(section, definition) {
   if (!section.items) section.items = [];
-  const labels = { name: "名称", level: section.id === "languages" ? "熟练程度" : "级别", date: "获得时间" };
+  const fieldManager = renderFieldManager(section, definition);
   if (!section.items.length) {
     return `${renderSectionHeading(section, definition.id.toUpperCase())}
-      <div class="entry-empty"><p>暂无条目。</p><button class="add-entry-button" type="button" data-action="add-entry" data-section-id="${section.id}">＋ 添加条目</button></div>`;
+      <div class="entry-empty"><p>暂无条目。</p><button class="add-entry-button" type="button" data-action="add-entry" data-section-id="${section.id}">＋ 添加条目</button></div>
+      ${fieldManager}`;
   }
   let activeItemId = activeItemBySection.get(section.id);
   if (!itemById(section, activeItemId)) activeItemId = section.items[0].id;
   activeItemBySection.set(section.id, activeItemId);
   const item = itemById(section, activeItemId);
+  const entryFields = renderEntryFields(section, item);
   return `${renderSectionHeading(section, definition.id.toUpperCase())}
     <div class="timeline-editor"><aside class="entry-nav"><div class="entry-nav__heading"><span>条目</span><small>${section.items.length} 条</small></div>
     <div class="entry-nav__list">${section.items.map((entry, index) => `
@@ -604,13 +637,23 @@ function renderListEditor(section, definition) {
         <button class="entry-nav__delete" type="button" data-action="delete-entry" data-section-id="${section.id}" data-item-id="${entry.id}" aria-label="删除此条" title="删除此条">×</button>
       </div>`).join("")}</div>
     <button class="add-entry-button" type="button" data-action="add-entry" data-section-id="${section.id}">＋ 添加条目</button></aside>
-    <div class="entry-editor"><div class="editor-grid">${definition.fields.map((key) => field(labels[key] || key, item[key], "entry", key, { sectionId: section.id, itemId: item.id })).join("")}</div>
-    <div class="entry-editor__footer"><span>修改会自动保存</span></div></div></div>`;
+    <div class="entry-editor"><div class="editor-grid">${entryFields.grid}</div>${entryFields.rich}
+    <div class="entry-editor__footer"><span>修改会自动保存</span></div></div></div>
+    ${fieldManager}`;
 }
 
 function renderTagsEditor(section) {
   const value = (section.items || []).join("、");
-  return `${renderSectionHeading(section, "INTERESTS")}<div class="editor-grid">${field("兴趣标签", value, "section-tags", "items", { sectionId: section.id, wide: true, placeholder: "使用逗号或顿号分隔" })}</div>`;
+  const definition = renderableSectionSchemas().find((item) => item.id === section.id) || {};
+  const itemsField = (section.fields || []).find((item) => item.key === "items");
+  const itemsVisible = !itemsField || itemsField.visible !== false;
+  const metaFields = (section.fields || []).filter((item) => item.visible !== false && item.key !== "items");
+  return `${renderSectionHeading(section, "INTERESTS")}
+    <div class="editor-grid">
+      ${itemsVisible ? field("兴趣标签", value, "section-tags", "items", { sectionId: section.id, wide: true, placeholder: "使用逗号或顿号分隔" }) : ""}
+      ${metaFields.map((item) => field(item.label, section.data?.[item.key], "section-data", item.key, { sectionId: section.id, type: fieldInputType(item.type) })).join("")}
+    </div>
+    ${renderFieldManager(section, definition)}`;
 }
 
 function emptyStructuredItem(type, fields = []) {
@@ -618,15 +661,20 @@ function emptyStructuredItem(type, fields = []) {
 }
 
 function renderRichEditor(section, definition) {
+  const contentField = (section.fields || []).find((item) => item.key === "content");
+  const contentVisible = !contentField || contentField.visible !== false;
+  const metaFields = (section.fields || []).filter((item) => item.visible !== false && item.key !== "content");
   return `
     ${renderSectionHeading(section, "RICH TEXT", definition)}
     <div class="standalone-rich-editor">
-      ${richTextBox(section.content, section.id)}
+      ${contentVisible ? richTextBox(section.content, section.id, "", "content") : ""}
+      ${metaFields.length ? `<div class="editor-grid editor-grid--meta">${metaFields.map((item) => field(item.label, section.data?.[item.key], "section-data", item.key, { sectionId: section.id, type: fieldInputType(item.type) })).join("")}</div>` : ""}
       <p class="editor-tip">提示：使用简短段落和列表，突出与目标岗位最相关的能力。</p>
-    </div>`;
+    </div>
+    ${renderFieldManager(section, definition)}`;
 }
 
-function richTextBox(content, sectionId, itemId = "") {
+function richTextBox(content, sectionId, itemId = "", fieldKey = "content") {
   return `
     <section class="rich-editor-box">
       <div class="rich-toolbar" role="toolbar" aria-label="富文本格式">
@@ -639,7 +687,7 @@ function richTextBox(content, sectionId, itemId = "") {
         <button type="button" data-command="createLink" title="添加链接">链接</button>
         <button type="button" data-command="removeFormat" title="清除格式">清除格式</button>
       </div>
-      <div class="rich-editor" contenteditable="true" spellcheck="false" data-rich-section-id="${sectionId}" ${itemId ? `data-rich-item-id="${itemId}"` : ""}>${sanitizeRichHtml(content)}</div>
+      <div class="rich-editor" contenteditable="true" spellcheck="false" data-rich-section-id="${sectionId}" ${itemId ? `data-rich-item-id="${itemId}"` : ""} data-rich-field="${fieldKey}">${sanitizeRichHtml(content)}</div>
     </section>`;
 }
 
@@ -654,17 +702,80 @@ function emptyTimelineItem(type) {
   };
 }
 
+// 通用条目字段编辑：非富文本字段进入网格，富文本字段单独渲染。
+function renderEntryFields(section, item) {
+  const fields = (section.fields || []).filter((fieldItem) => fieldItem.visible !== false);
+  const grid = fields.filter((fieldItem) => fieldItem.type !== "richtext")
+    .map((fieldItem) => field(fieldItem.label, item[fieldItem.key], "entry", fieldItem.key, {
+      sectionId: section.id,
+      itemId: item.id,
+      type: fieldInputType(fieldItem.type),
+      wide: fieldItem.type === "url" || fieldItem.type === "textarea"
+    })).join("");
+  const rich = fields.filter((fieldItem) => fieldItem.type === "richtext")
+    .map((fieldItem) => richTextBox(item[fieldItem.key], section.id, item.id, fieldItem.key)).join("");
+  return { grid, rich };
+}
+
+function fieldHasData(section, field) {
+  const key = field.key;
+  if (Array.isArray(section.items) && section.items.some((item) => item && typeof item === "object" && String(item[key] ?? "").trim())) return true;
+  if (section.data && String(section.data[key] ?? "").trim()) return true;
+  if (section.type === "richtext" && key === "content" && String(section.content ?? "").replace(/<[^>]+>/g, "").trim()) return true;
+  if (section.type === "tags" && key === "items" && (section.items || []).length) return true;
+  return false;
+}
+
+function renderFieldManager(section, definition) {
+  const fields = section.fields || [];
+  const typeOptions = FIELD_TYPES.map((type) => `<option value="${type}">${FIELD_TYPE_LABELS[type] || type}</option>`).join("");
+  const rows = fields.map((fieldItem, index) => {
+    const canDelete = !fieldItem.builtin || (fieldItem.role !== "primary" && fieldItem.role !== "body");
+    return `
+      <div class="field-row ${fieldItem.visible === false ? "is-hidden" : ""}" data-field-key="${escapeHtml(fieldItem.key)}">
+        <span class="field-row__grip" aria-hidden="true">⠿</span>
+        <button class="field-row__toggle ${fieldItem.visible !== false ? "is-on" : ""}" type="button" data-action="toggle-field" data-section-id="${section.id}" data-field-key="${escapeHtml(fieldItem.key)}" title="${fieldItem.visible !== false ? "隐藏字段" : "显示字段"}">${fieldItem.visible !== false ? "●" : "○"}</button>
+        <input class="field-row__label" value="${escapeHtml(fieldItem.label)}" data-scope="field-label" data-section-id="${section.id}" data-field-key="${escapeHtml(fieldItem.key)}" aria-label="字段名称" />
+        <select class="field-row__type" data-scope="field-type" data-section-id="${section.id}" data-field-key="${escapeHtml(fieldItem.key)}" aria-label="字段类型">
+          ${FIELD_TYPES.map((type) => `<option value="${type}" ${fieldItem.type === type ? "selected" : ""}>${FIELD_TYPE_LABELS[type] || type}</option>`).join("")}
+        </select>
+        <span class="field-row__ops">
+          <button type="button" data-action="move-field" data-section-id="${section.id}" data-field-key="${escapeHtml(fieldItem.key)}" data-direction="-1" ${index === 0 ? "disabled" : ""} title="前移">↑</button>
+          <button type="button" data-action="move-field" data-section-id="${section.id}" data-field-key="${escapeHtml(fieldItem.key)}" data-direction="1" ${index === fields.length - 1 ? "disabled" : ""} title="后移">↓</button>
+          <button class="field-row__delete" type="button" data-action="delete-field" data-section-id="${section.id}" data-field-key="${escapeHtml(fieldItem.key)}" ${canDelete ? "" : "disabled"} title="${canDelete ? "删除字段" : "关键字段不可删除"}">×</button>
+        </span>
+      </div>`;
+  }).join("");
+
+  return `
+    <details class="field-manager" ${fields.some((fieldItem) => !fieldItem.builtin) ? "open" : ""}>
+      <summary>字段设置 <small>${fields.length} 个字段 · 可改名 / 改类型 / 隐藏 / 排序</small></summary>
+      <div class="field-manager__list">${rows}</div>
+      <div class="field-manager__footer">
+        <button class="add-entry-button" type="button" data-action="show-add-field" data-section-id="${section.id}">＋ 新增字段</button>
+        <button class="ghost-button" type="button" data-action="reset-fields" data-section-id="${section.id}">恢复默认字段</button>
+      </div>
+      <div class="field-manager__add" data-add-field-form data-section-id="${section.id}" hidden>
+        <input class="field-manager__add-label" placeholder="字段名称，如：公司规模" data-add-field-label />
+        <select data-add-field-type>${typeOptions}</select>
+        <button type="button" data-action="add-field" data-section-id="${section.id}">添加</button>
+        <button class="ghost-button" type="button" data-action="cancel-add-field" data-section-id="${section.id}">取消</button>
+      </div>
+    </details>`;
+}
+
 function renderPreview() {
-  if (resume.template?.engine === "docx-native") {
-    elements.title.textContent = resume.title;
-    updateStatusCards();
-    return;
-  }
-  elements.flow.innerHTML = renderResumeMarkup(resume);
-  elements.flow.style.fontSize = `${resume.settings.fontSize}px`;
   elements.title.textContent = resume.title;
-  schedulePagination();
   updateStatusCards();
+  if (resume.template?.engine === "docx-native") return;
+
+  // 合帧渲染：同一帧内的多次输入/编辑只重建一次预览，避免大 DOM 重建抖动。
+  cancelAnimationFrame(previewFrame);
+  previewFrame = requestAnimationFrame(() => {
+    elements.flow.innerHTML = renderResumeMarkup(resume);
+    elements.flow.style.fontSize = `${resume.settings.fontSize}px`;
+    schedulePagination();
+  });
 }
 
 function schedulePagination() {
@@ -736,7 +847,9 @@ async function saveDraft() {
 
 async function autoSaveChanges() {
   saveNow();
-  if (!resume.remoteId || resume.template?.engine !== "docx-native") return;
+  // DOCX 原生模板（推荐模板之外的 10 套）依赖云端快照生成成品预览，
+  // 因此首次修改也应自动建云草稿并触发成品渲染，而不是等用户手动点「成品」。
+  if (resume.template?.engine !== "docx-native") return;
   await persistDraftChanges({ notify: false });
 }
 
@@ -848,7 +961,10 @@ function updateStandardField(target) {
     else section.lineHeight = Number(target.value);
   }
   else if (scope === "section") sectionById(sectionId)[field] = target.value;
-  else if (scope === "section-data") sectionById(sectionId).data[field] = target.value;
+  else if (scope === "section-data") {
+    const section = sectionById(sectionId);
+    (section.data ||= {})[field] = target.value;
+  }
   else if (scope === "entry") itemById(sectionById(sectionId), itemId)[field] = target.value;
   else if (scope === "section-tags") sectionById(sectionId).items = target.value.split(/[、,，]/).map((value) => value.trim()).filter(Boolean);
   else return false;
@@ -862,12 +978,33 @@ function updateStandardField(target) {
   return true;
 }
 
+function updateFieldLabel(target) {
+  const section = sectionById(target.dataset.sectionId);
+  const fieldItem = (section?.fields || []).find((item) => item.key === target.dataset.fieldKey);
+  if (!fieldItem) return;
+  fieldItem.label = target.value;
+  renderPreview();
+  scheduleSave();
+}
+
+function updateFieldType(target) {
+  const section = sectionById(target.dataset.sectionId);
+  const fieldItem = (section?.fields || []).find((item) => item.key === target.dataset.fieldKey);
+  if (!fieldItem) return;
+  fieldItem.type = target.value;
+  renderEditor();
+  renderPreview();
+  scheduleSave();
+}
+
 function updateRichEditor(target) {
   const section = sectionById(target.dataset.richSectionId);
   if (!section) return;
+  const fieldKey = target.dataset.richField || "content";
   const item = target.dataset.richItemId ? itemById(section, target.dataset.richItemId) : null;
-  if (item) item.content = target.innerHTML;
-  else section.content = target.innerHTML;
+  if (item) item[fieldKey] = target.innerHTML;
+  else if (section.type === "richtext" && fieldKey === "content") section.content = target.innerHTML;
+  else (section.data ||= {})[fieldKey] = target.innerHTML;
   renderPreview();
   scheduleSave(800);
 }
@@ -882,6 +1019,49 @@ function showToast(message, type = "success") {
     toast.classList.remove("is-visible");
     setTimeout(() => toast.remove(), 250);
   }, 2600);
+}
+
+// 应用内确认/输入弹窗（替代浏览器 window.confirm / window.prompt）。
+const dialogState = { mode: "confirm", resolve: null };
+
+function openDialog({ title = "确认操作", message = "", confirmLabel = "确定", danger = false, input = null }) {
+  return new Promise((resolve) => {
+    dialogState.resolve = resolve;
+    dialogState.mode = input === null ? "confirm" : "prompt";
+    elements.appDialogTitle.textContent = title;
+    elements.appDialogMessage.textContent = message || "";
+    elements.appDialogMessage.hidden = !message;
+    elements.appDialogInput.hidden = input === null;
+    elements.appDialogInput.value = input?.value ?? "";
+    elements.appDialogInput.placeholder = input?.placeholder ?? "";
+    elements.appDialogSubmit.textContent = confirmLabel;
+    elements.appDialogSubmit.classList.toggle("is-danger", danger);
+    elements.appDialog.hidden = false;
+    requestAnimationFrame(() => elements.appDialog.classList.add("is-visible"));
+    if (input === null) elements.appDialogSubmit.focus();
+    else {
+      elements.appDialogInput.focus();
+      elements.appDialogInput.select();
+    }
+  });
+}
+
+function closeDialog(result) {
+  if (dialogState.resolve) {
+    const resolve = dialogState.resolve;
+    dialogState.resolve = null;
+    resolve(result);
+  }
+  elements.appDialog.classList.remove("is-visible");
+  setTimeout(() => { elements.appDialog.hidden = true; }, 180);
+}
+
+function confirmAction({ title = "确认操作", message = "", confirmLabel = "确定", danger = false }) {
+  return openDialog({ title, message, confirmLabel, danger, input: null });
+}
+
+function promptValue({ title = "请输入", message = "", confirmLabel = "确定", value = "", placeholder = "" }) {
+  return openDialog({ title, message, confirmLabel, danger: false, input: { value, placeholder } });
 }
 
 function closePopovers(exceptId = "") {
@@ -972,6 +1152,14 @@ function setLoginMode(mode) {
   elements.loginError.hidden = true;
 }
 
+// 页面切换淡入：用 Web Animations API 显式播放，避免依赖浏览器对
+// hidden(display:none) 切换是否重启 CSS 动画的行为差异。
+function revealView(element) {
+  element.hidden = false;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
+  element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: "ease" });
+}
+
 function showLoginPage() {
   document.documentElement.classList.remove("home-page-mode");
   document.documentElement.classList.remove("template-library-mode");
@@ -981,7 +1169,7 @@ function showLoginPage() {
   elements.app.hidden = true;
   elements.adminPage.hidden = true;
   elements.aiPage.hidden = true;
-  elements.loginPage.hidden = false;
+  revealView(elements.loginPage);
   setLoginMode("login");
   elements.loginIdentifier.value = "";
   elements.loginPassword.value = "";
@@ -1046,9 +1234,12 @@ async function handleLoginSubmit(event) {
   elements.loginSubmit.disabled = true;
   elements.loginError.hidden = true;
   try {
+    const deviceId = await getDeviceId().catch(() => "");
+    const headers = { "Content-Type": "application/json" };
+    if (deviceId) headers["X-Device-Id"] = deviceId;
     const payload = await readApiResponse(await fetch(path, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(body)
     }));
     currentUser = payload.user || null;
@@ -1140,6 +1331,7 @@ function adminRoleBadge(user) {
 
 const ADMIN_TAB_PERMISSIONS = [
   ["users", "users.read"],
+  ["duplicates", "users.read"],
   ["resumes", "resumes.read"],
   ["announcements", "announcements.read"],
   ["feedback", "feedback.read"],
@@ -1168,7 +1360,7 @@ function showAdminPage() {
   elements.app.hidden = true;
   elements.loginPage.hidden = true;
   elements.aiPage.hidden = true;
-  elements.adminPage.hidden = false;
+  revealView(elements.adminPage);
 
   const visibleTabs = adminTabsForUser();
   document.querySelectorAll("[data-admin-tab]").forEach((button) => {
@@ -1177,7 +1369,10 @@ function showAdminPage() {
   setAdminTab(visibleTabs[0] || "users");
 
   loadAdminOverview();
-  if (hasAdminPermission("users.read")) loadAdminUsers();
+  if (hasAdminPermission("users.read")) {
+    loadAdminUsers();
+    loadAdminDuplicates();
+  }
   if (hasAdminPermission("resumes.read")) loadAdminDrafts();
   if (hasAdminPermission("announcements.read")) loadAdminAnnouncements();
   if (hasAdminPermission("feedback.read")) loadAdminFeedbacks();
@@ -1278,6 +1473,55 @@ function renderAdminUsers() {
         </tr>`;
       }).join("")}</tbody>
     </table>`;
+}
+
+// —— 疑似同人多账号（只读复核，不提供封禁操作） ——
+
+async function loadAdminDuplicates() {
+  elements.adminDuplicatesStatus.hidden = false;
+  elements.adminDuplicatesStatus.textContent = "正在加载疑似多账号…";
+  try {
+    const limit = 100;
+    const payload = await readApiResponse(await fetch(`/api/admin/suspected-duplicates?limit=${limit}`, { cache: "no-store" }));
+    const groups = payload.groups || [];
+    elements.adminDuplicatesTotal.textContent = groups.length ? `${groups.length} 组疑似关联` : "";
+    renderAdminDuplicates(groups);
+    elements.adminDuplicatesStatus.hidden = true;
+  } catch (error) {
+    elements.adminDuplicatesStatus.textContent = error?.message || "加载疑似多账号失败";
+  }
+}
+
+function renderAdminDuplicates(groups) {
+  if (!groups.length) {
+    elements.adminDuplicatesList.innerHTML = '<p class="admin-empty">未发现疑似同人多账号。</p>';
+    return;
+  }
+  const confidenceBadge = {
+    "高": '<span class="badge badge--disabled">高</span>',
+    "中": '<span class="badge badge--admin">中</span>',
+    "低": '<span class="badge">低</span>'
+  };
+  elements.adminDuplicatesList.innerHTML = `
+    <table class="admin-table">
+      <thead><tr><th>置信度</th><th>指纹类型</th><th>关联账号</th><th>最近出现</th><th>来源 IP</th></tr></thead>
+      <tbody>${groups.map((group) => {
+        const users = (group.users || []).map((user) =>
+          escapeHtml(user.displayName || user.email || user.phone || "未命名") + " (" + escapeHtml(user.email || user.phone || "—") + ")"
+        ).join("<br>");
+        const lastSeen = new Date(group.lastSeenAt);
+        const lastSeenLabel = Number.isNaN(lastSeen.getTime()) ? "—" : lastSeen.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+        const confidence = group.confidence || {};
+        return `<tr>
+          <td>${confidenceBadge[confidence.label] || escapeHtml(confidence.label || "—")}</td>
+          <td>${escapeHtml(confidence.title || group.type || "—")}</td>
+          <td><div class="admin-user">${users}</div></td>
+          <td>${escapeHtml(lastSeenLabel)}</td>
+          <td>${escapeHtml(group.ip || "—")}</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>
+    <p class="admin-empty">以上为疑似关联，请人工复核后再决定是否处理；系统不会自动封禁账号。</p>`;
 }
 
 async function loadAdminDrafts() {
@@ -1448,7 +1692,7 @@ function renderAdminAiLogs() {
 async function adminToggleAdmin(target) {
   const userId = target.dataset.userId;
   const next = target.dataset.isAdmin !== "true";
-  if (!window.confirm(`确定${next ? "将该用户设为管理员" : "取消该用户的管理员权限"}吗？`)) return;
+  if (!(await confirmAction({ title: "变更管理员权限", message: next ? "确定将该用户设为管理员？" : "确定取消该用户的管理员权限？" }))) return;
   try {
     await readApiResponse(await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
       method: "PATCH",
@@ -1465,7 +1709,7 @@ async function adminToggleAdmin(target) {
 async function adminToggleDisabled(target) {
   const userId = target.dataset.userId;
   const next = target.dataset.disabled !== "true";
-  if (!window.confirm(`确定${next ? "禁用" : "启用"}该用户吗？${next ? "禁用后其会话将立即失效。" : ""}`)) return;
+  if (!(await confirmAction({ title: next ? "禁用用户" : "启用用户", message: next ? "禁用后其会话将立即失效。" : "确定启用该用户？", danger: next }))) return;
   try {
     await readApiResponse(await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
       method: "PATCH",
@@ -1482,7 +1726,7 @@ async function adminToggleDisabled(target) {
 async function adminDeleteUser(target) {
   const userId = target.dataset.userId;
   const account = target.dataset.account;
-  if (!window.confirm(`确定删除用户“${account}”吗？该用户的草稿也会一并删除，且无法恢复。`)) return;
+  if (!(await confirmAction({ title: "删除用户", message: `确定删除用户「${account}」？该用户的草稿也会一并删除，且无法恢复。`, confirmLabel: "删除", danger: true }))) return;
   try {
     await readApiResponse(await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, { method: "DELETE" }));
     showToast("用户已删除", "success");
@@ -1495,7 +1739,7 @@ async function adminDeleteUser(target) {
 async function adminDeleteDraft(target) {
   const id = target.dataset.resumeId;
   const name = target.dataset.name;
-  if (!window.confirm(`确定删除草稿“${name}”吗？删除后无法恢复。`)) return;
+  if (!(await confirmAction({ title: "删除草稿", message: `确定删除草稿「${name}」？删除后无法恢复。`, confirmLabel: "删除", danger: true }))) return;
   try {
     const response = await fetch(`/api/admin/resumes/${encodeURIComponent(id)}`, { method: "DELETE" });
     if (!response.ok) await readApiResponse(response);
@@ -1527,7 +1771,7 @@ async function adminSetRole(select) {
   const userId = select.dataset.userId;
   const role = select.value;
   const label = { super_admin: "超级管理员", operator: "运营", auditor: "审计" }[role] || role;
-  if (!window.confirm(`确定将该用户角色设为「${label}」吗？`)) {
+  if (!(await confirmAction({ title: "变更用户角色", message: `确定将该用户角色设为「${label}」？` }))) {
     select.value = ["super_admin", "operator", "auditor"].includes(select.dataset.currentRole) ? select.dataset.currentRole : "operator";
     return;
   }
@@ -1547,7 +1791,7 @@ async function adminSetRole(select) {
 
 async function adminRevokeSessions(target) {
   const userId = target.dataset.userId;
-  if (!window.confirm("确定踢下线该用户吗？其所有会话将立即失效。")) return;
+  if (!(await confirmAction({ title: "踢下线用户", message: "确定踢下线该用户？其所有会话将立即失效。", confirmLabel: "踢下线", danger: true }))) return;
   try {
     await readApiResponse(await fetch(`/api/admin/users/${encodeURIComponent(userId)}/revoke-sessions`, { method: "POST" }));
     showToast("已踢下线", "success");
@@ -1684,7 +1928,7 @@ async function adminRestoreUser(target) {
 async function adminPurgeUser(target) {
   const userId = target.dataset.userId;
   const account = target.dataset.account;
-  if (!window.confirm(`确定彻底删除用户“${account}”吗？该用户及其全部草稿将永久删除，无法恢复。`)) return;
+  if (!(await confirmAction({ title: "彻底删除用户", message: `确定彻底删除用户「${account}」？该用户及其全部草稿将永久删除，无法恢复。`, confirmLabel: "彻底删除", danger: true }))) return;
   try {
     const response = await fetch(`/api/admin/recycle/users/${encodeURIComponent(userId)}`, { method: "DELETE" });
     if (!response.ok) await readApiResponse(response);
@@ -1709,7 +1953,7 @@ async function adminRestoreResume(target) {
 async function adminPurgeResume(target) {
   const id = target.dataset.resumeId;
   const name = target.dataset.name;
-  if (!window.confirm(`确定彻底删除草稿“${name}”吗？删除后无法恢复。`)) return;
+  if (!(await confirmAction({ title: "彻底删除草稿", message: `确定彻底删除草稿「${name}」？删除后无法恢复。`, confirmLabel: "彻底删除", danger: true }))) return;
   try {
     const response = await fetch(`/api/admin/recycle/resumes/${encodeURIComponent(id)}`, { method: "DELETE" });
     if (!response.ok) await readApiResponse(response);
@@ -1833,7 +2077,7 @@ async function adminToggleAnnouncement(target) {
 
 async function adminDeleteAnnouncement(target) {
   const id = target.dataset.announcementId;
-  if (!window.confirm("确定删除该公告吗？")) return;
+  if (!(await confirmAction({ title: "删除公告", message: "确定删除该公告？", confirmLabel: "删除", danger: true }))) return;
   try {
     const response = await fetch(`/api/admin/announcements/${encodeURIComponent(id)}`, { method: "DELETE" });
     if (!response.ok) await readApiResponse(response);
@@ -2393,7 +2637,7 @@ function renderAdminAlerts(alerts) {
 }
 
 async function adminRetryFailed() {
-  if (!window.confirm("确定重试所有失败任务吗？")) return;
+  if (!(await confirmAction({ title: "重试失败任务", message: "确定重试所有失败任务？" }))) return;
   try {
     const result = await readApiResponse(await fetch("/api/admin/system/retry-failed", { method: "POST" }));
     showToast(`已重试：导出 ${result.exportRetried} 个，预览 ${result.previewRetried} 个`, "success");
@@ -2406,7 +2650,7 @@ async function adminRetryFailed() {
 async function adminCleanQueue(target) {
   const type = target.dataset.type || "completed";
   const label = type === "failed" ? "失败" : "已完成";
-  if (!window.confirm(`确定清理${label}任务吗？相关导出/预览文件将一并删除。`)) return;
+  if (!(await confirmAction({ title: "清理任务", message: `确定清理${label}任务？相关导出/预览文件将一并删除。`, confirmLabel: "清理", danger: true }))) return;
   try {
     const result = await readApiResponse(await fetch("/api/admin/system/clean", {
       method: "POST",
@@ -2493,7 +2737,7 @@ async function saveAdminAiConfig(event) {
 }
 
 async function clearAdminAiKey() {
-  if (!window.confirm("确定清除已保存的 API Key 吗？清除后 AI 生成将不可用，直到重新配置。")) return;
+  if (!(await confirmAction({ title: "清除 API Key", message: "确定清除已保存的 API Key？清除后 AI 生成将不可用，直到重新配置。", confirmLabel: "清除", danger: true }))) return;
   try {
     const result = await readApiResponse(await fetch("/api/admin/ai-config", {
       method: "PATCH",
@@ -2527,7 +2771,7 @@ function showAiPage() {
   elements.app.hidden = true;
   elements.adminPage.hidden = true;
   elements.loginPage.hidden = true;
-  elements.aiPage.hidden = false;
+  revealView(elements.aiPage);
   updateAiCharCount();
   loadAiLimits().catch(() => {});
   window.scrollTo({ top: 0, behavior: "auto" });
@@ -2603,7 +2847,7 @@ async function extractWordText(file) {
 async function handleAiWordImport(file) {
   if (aiWordImporting) return;
   if (elements.aiDescription.value.trim()) {
-    if (!window.confirm("当前描述内容将被导入的 Word 文本覆盖，继续吗？")) return;
+    if (!(await confirmAction({ title: "覆盖描述内容", message: "当前描述内容将被导入的 Word 文本覆盖，继续吗？", confirmLabel: "继续覆盖" }))) return;
   }
   aiWordImporting = true;
   elements.aiImportStatus.textContent = "正在解析 Word 简历…";
@@ -2837,7 +3081,7 @@ function showTemplateLibrary({ historyMode = "none" } = {}) {
   elements.adminPage.hidden = true;
   elements.loginPage.hidden = true;
   elements.aiPage.hidden = true;
-  elements.templateLibrary.hidden = false;
+  revealView(elements.templateLibrary);
   loadDrafts();
   window.scrollTo({ top: 0, behavior: "auto" });
 }
@@ -2898,7 +3142,7 @@ async function loadDrafts() {
 function hideTemplateLibrary() {
   document.documentElement.classList.remove("template-library-mode");
   elements.templateLibrary.hidden = true;
-  elements.app.hidden = false;
+  revealView(elements.app);
 }
 
 function showDraftPage() {
@@ -2910,7 +3154,7 @@ function showDraftPage() {
   elements.adminPage.hidden = true;
   elements.loginPage.hidden = true;
   elements.aiPage.hidden = true;
-  elements.draftPage.hidden = false;
+  revealView(elements.draftPage);
   loadDrafts();
   window.scrollTo({ top: 0, behavior: "auto" });
 }
@@ -2928,7 +3172,7 @@ function showHomePage() {
   elements.adminPage.hidden = true;
   elements.loginPage.hidden = true;
   elements.aiPage.hidden = true;
-  elements.homePage.hidden = false;
+  revealView(elements.homePage);
   loadDrafts();
   window.scrollTo({ top: 0, behavior: "auto" });
 }
@@ -3151,7 +3395,8 @@ async function continueDraft(id) {
 
 async function deleteDraft(id) {
   const draft = availableDrafts.find((item) => item.id === id);
-  if (!draft || !window.confirm(`确定删除“${draft.candidateName} - ${draft.title}”吗？删除后无法恢复。`)) return;
+  if (!draft) return;
+  if (!(await confirmAction({ title: "删除草稿", message: `确定删除「${draft.candidateName} - ${draft.title}」？删除后无法恢复。`, confirmLabel: "删除", danger: true }))) return;
   try {
     const response = await fetch(`/api/resumes/${encodeURIComponent(id)}`, { method: "DELETE" });
     if (!response.ok) await readApiResponse(response);
@@ -3220,7 +3465,7 @@ function fitOnePage() {
   tryFit();
 }
 
-document.addEventListener("click", (event) => {
+document.addEventListener("click", async (event) => {
   const commandButton = event.target.closest("[data-command]");
   if (commandButton) {
     event.preventDefault();
@@ -3228,7 +3473,7 @@ document.addEventListener("click", (event) => {
     const editor = commandButton.closest(".rich-editor-box")?.querySelector(".rich-editor");
     editor?.focus();
     if (command === "createLink") {
-      const url = window.prompt("请输入链接地址", "https://");
+      const url = await promptValue({ title: "添加链接", message: "请输入以 http:// 或 https:// 开头的链接地址。", value: "https://", confirmLabel: "插入链接" });
       if (url && /^https?:\/\//i.test(url)) document.execCommand(command, false, url);
     } else document.execCommand(command, false, null);
     if (editor) updateRichEditor(editor);
@@ -3345,9 +3590,87 @@ document.addEventListener("click", (event) => {
   } else if (action === "add-entry") {
     const section = sectionById(actionTarget.dataset.sectionId);
     const definition = renderableSectionSchemas().find((value) => value.id === section.id);
-    const item = definition?.type === "timeline" ? emptyTimelineItem(section.id) : emptyStructuredItem(section.id, definition?.fields);
+    const item = definition?.type === "timeline"
+      ? emptyTimelineItem(section.id)
+      : emptyStructuredItem(section.id, (section.fields || []).map((fieldItem) => fieldItem.key));
+    for (const fieldItem of (section.fields || [])) {
+      if (item[fieldItem.key] === undefined) item[fieldItem.key] = "";
+    }
     section.items.push(item);
     activeItemBySection.set(section.id, item.id);
+    renderEditor();
+    renderPreview();
+    scheduleSave();
+  } else if (action === "toggle-field") {
+    const section = sectionById(actionTarget.dataset.sectionId);
+    const fieldItem = (section?.fields || []).find((item) => item.key === actionTarget.dataset.fieldKey);
+    if (!fieldItem) return;
+    fieldItem.visible = fieldItem.visible === false;
+    renderEditor();
+    renderPreview();
+    scheduleSave();
+  } else if (action === "move-field") {
+    const section = sectionById(actionTarget.dataset.sectionId);
+    if (!Array.isArray(section?.fields)) return;
+    const index = section.fields.findIndex((item) => item.key === actionTarget.dataset.fieldKey);
+    const targetIndex = index + Number(actionTarget.dataset.direction);
+    if (index < 0 || targetIndex < 0 || targetIndex >= section.fields.length) return;
+    section.fields = moveItem(section.fields, index, targetIndex);
+    renderEditor();
+    renderPreview();
+    scheduleSave();
+  } else if (action === "delete-field") {
+    const section = sectionById(actionTarget.dataset.sectionId);
+    const fieldItem = (section?.fields || []).find((item) => item.key === actionTarget.dataset.fieldKey);
+    if (!fieldItem) return;
+    if (fieldHasData(section, fieldItem) && !(await confirmAction({ title: "删除字段", message: `字段「${fieldItem.label}」已有内容，删除后其内容将不再显示（数据保留，可通过「恢复默认字段」找回）。`, confirmLabel: "删除", danger: true }))) return;
+    section.fields = section.fields.filter((item) => item.key !== fieldItem.key);
+    renderEditor();
+    renderPreview();
+    scheduleSave();
+  } else if (action === "show-add-field") {
+    const form = document.querySelector(`[data-add-field-form][data-section-id="${CSS.escape(actionTarget.dataset.sectionId)}"]`);
+    if (form) {
+      form.hidden = false;
+      form.querySelector("[data-add-field-label]")?.focus();
+    }
+  } else if (action === "cancel-add-field") {
+    const form = document.querySelector(`[data-add-field-form][data-section-id="${CSS.escape(actionTarget.dataset.sectionId)}"]`);
+    if (form) {
+      form.hidden = true;
+      const input = form.querySelector("[data-add-field-label]");
+      if (input) input.value = "";
+    }
+  } else if (action === "add-field") {
+    const section = sectionById(actionTarget.dataset.sectionId);
+    if (!section) return;
+    const form = document.querySelector(`[data-add-field-form][data-section-id="${CSS.escape(section.id)}"]`);
+    const label = (form?.querySelector("[data-add-field-label]")?.value || "").trim();
+    const type = form?.querySelector("[data-add-field-type]")?.value || "text";
+    if (!label) {
+      showToast("请填写字段名称", "warning");
+      return;
+    }
+    (section.fields ||= []).push({
+      key: nextCustomFieldKey(section.fields),
+      label,
+      type,
+      role: type === "richtext" ? "body" : "meta",
+      builtin: false,
+      visible: true
+    });
+    if (form) {
+      form.hidden = true;
+      form.querySelector("[data-add-field-label]").value = "";
+    }
+    renderEditor();
+    renderPreview();
+    scheduleSave();
+  } else if (action === "reset-fields") {
+    const section = sectionById(actionTarget.dataset.sectionId);
+    if (!section) return;
+    if (!(await confirmAction({ title: "恢复默认字段", message: "恢复该模块的默认字段？自定义字段声明将被移除（已填内容仍保留在数据中）。", confirmLabel: "恢复" }))) return;
+    section.fields = defaultFieldsFor(section.id);
     renderEditor();
     renderPreview();
     scheduleSave();
@@ -3378,7 +3701,7 @@ document.addEventListener("click", (event) => {
     URL.revokeObjectURL(url);
     showToast("简历 JSON 备份已下载");
   } else if (action === "reset") {
-    if (!window.confirm("确定恢复演示内容吗？当前本地草稿将被覆盖。")) return;
+    if (!(await confirmAction({ title: "恢复演示内容", message: "确定恢复演示内容？当前本地草稿将被覆盖。", confirmLabel: "恢复", danger: true }))) return;
     resume = createInitialResume();
     activeModuleId = "profile";
     localStorage.removeItem(STORAGE_KEY);
@@ -3402,7 +3725,8 @@ document.addEventListener("input", (event) => {
     applySettings();
     renderPreview();
     scheduleSave();
-  } else if (target.matches("[data-rich-section-id]")) updateRichEditor(target);
+  } else if (target.matches('[data-scope="field-label"]')) updateFieldLabel(target);
+  else if (target.matches("[data-rich-section-id]")) updateRichEditor(target);
   else updateStandardField(target);
 });
 
@@ -3446,6 +3770,8 @@ document.addEventListener("change", (event) => {
     reader.readAsDataURL(file);
   } else if (event.target.matches('[data-action="admin-set-role"]')) {
     adminSetRole(event.target);
+  } else if (event.target.matches('[data-scope="field-type"]')) {
+    updateFieldType(event.target);
   }
 });
 
@@ -3476,6 +3802,20 @@ elements.importFile.addEventListener("change", () => {
 elements.exportFormat.addEventListener("change", () => {
   const label = elements.exportFormat.value === "docx" ? "导出 Word" : "导出 PDF";
   document.querySelector('.topbar__actions [data-export-label]').textContent = label;
+});
+
+elements.appDialogCancel.addEventListener("click", () => closeDialog(dialogState.mode === "prompt" ? null : false));
+elements.appDialogSubmit.addEventListener("click", () => {
+  closeDialog(dialogState.mode === "prompt" ? elements.appDialogInput.value : true);
+});
+elements.appDialog.addEventListener("click", (event) => {
+  if (event.target === elements.appDialog) closeDialog(dialogState.mode === "prompt" ? null : false);
+});
+elements.appDialogInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") closeDialog(elements.appDialogInput.value);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !elements.appDialog.hidden) closeDialog(dialogState.mode === "prompt" ? null : false);
 });
 
 document.querySelectorAll("[data-preview-mode]").forEach((button) => {

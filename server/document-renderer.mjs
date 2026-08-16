@@ -9,7 +9,7 @@ const execFileAsync = promisify(execFile);
 const projectRoot = fileURLToPath(new URL("../", import.meta.url));
 const fillScript = join(projectRoot, "scripts", "fill-docx-template.py");
 
-async function moveAcrossDevices(sourcePath, targetPath) {
+export async function moveAcrossDevices(sourcePath, targetPath) {
   try {
     await rename(sourcePath, targetPath);
   } catch (error) {

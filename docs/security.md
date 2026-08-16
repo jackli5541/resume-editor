@@ -59,6 +59,16 @@
 | 请求体炸弹 | `MAX_EXPORT_REQUEST_BYTES`（默认 2 MB）+ 流式长度校验 |
 | 路径穿越 | 静态资源与模板资产均做 `normalize` + 前缀校验 |
 
+## 6.1 同人多账号检测（L1 + L2）
+
+- 目标：把「同一人注册多个账号」的疑似关联标记出来，供管理员人工复核；**只标记、不自动封禁**。
+- L1 服务端软指纹：由 `IP + User-Agent + Accept-Language + Accept-Encoding` 计算 SHA-256 签名（`server/device-fingerprint.mjs`）。
+- L2 客户端设备指纹：前端 `public/fingerprint.mjs` 采集 canvas/WebGL/字体/屏幕/语言，生成 deviceId（缓存于 localStorage），注册/登录时经 `X-Device-Id` 头回传。
+- 三种关联键分别落库 `user_device_fingerprints`（`client` / `soft` / `ip`），置信度从高到低；同一键关联 ≥2 个不同账号即进入「疑似多账号」列表。
+- 管理端只读面板 `/api/admin/suspected-duplicates`（权限 `users.read`），按置信度、账号数、最近出现排序；`client`（高置信度）形成新关联时写入 `alert_log` 告警（`suspected_duplicate_accounts`）。
+- `soft` 与 `ip` 分组只进只读列表、不触发告警，避免共享网络/NAT/同浏览器环境下的噪声刷屏。
+- 可用 `DISABLE_DEVICE_FINGERPRINT=true` 整体关闭（如接第三方风控后）。指纹哈希不可逆，落库不存浏览器原始指纹明细。
+
 ## 7. 上线检查清单
 
 1. 通过密钥系统注入 `DATABASE_URL`、`REDIS_URL`、`S3_*`，替换示例密码（`compose.yaml` 中的 `resume:resume`）。

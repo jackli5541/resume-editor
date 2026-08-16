@@ -2834,6 +2834,8 @@ select:focus-visible,
 
 .drawer__inner {
   position: relative;
+  display: flex;
+  flex-direction: column;
   width: 1200px;
   height: 100%;
   margin: 0 auto;
@@ -2859,6 +2861,7 @@ select:focus-visible,
 
 .module-tabs {
   display: flex;
+  flex: 0 0 58px;
   width: 100%;
   height: 58px;
   overflow-x: auto;
@@ -2920,6 +2923,7 @@ select:focus-visible,
 
 .module-add {
   position: relative;
+  flex: 0 0 auto;
   padding: 8px 10px;
   border-bottom: 1px solid #e8ecf1;
 }
@@ -3049,7 +3053,8 @@ select:focus-visible,
 }
 
 .drawer-content {
-  height: 412px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   padding: 23px 28px 32px;
   background: #fbfcfd;
@@ -3485,10 +3490,6 @@ select:focus-visible,
 @media screen and (max-height: 820px) {
   .editor-drawer {
     height: 420px;
-  }
-
-  .drawer-content {
-    height: 362px;
   }
 }
 
@@ -5096,4 +5097,325 @@ select:focus-visible,
 .admin-check-row small {
   color: #8b96a6;
   font-size: 12px;
+}
+
+/* ---- 字段管理器（编辑器抽屉） ---- */
+.field-manager {
+  margin-top: 18px;
+  border: 1px solid #e0e5eb;
+  border-radius: 11px;
+  background: #fbfcfd;
+  overflow: hidden;
+}
+
+.field-manager summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 11px 13px;
+  color: #4c596c;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.field-manager summary::-webkit-details-marker {
+  display: none;
+}
+
+.field-manager summary small {
+  color: #8b96a6;
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.field-manager__list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 18px 26px 1fr 112px auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.field-row.is-hidden {
+  opacity: 0.55;
+}
+
+.field-row__grip {
+  color: #c0c8d2;
+  text-align: center;
+  cursor: default;
+  font-size: 14px;
+}
+
+.field-row__toggle {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #9aa4b2;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+.field-row__toggle.is-on {
+  color: var(--brand);
+}
+
+.field-row__label {
+  width: 100%;
+  height: 32px;
+  padding: 0 9px;
+  border: 1px solid #dce2e9;
+  border-radius: 7px;
+  color: #273548;
+  background: #fff;
+  font-size: 12px;
+}
+
+.field-row__type {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #dce2e9;
+  border-radius: 7px;
+  color: #4c596c;
+  background: #fff;
+  font-size: 12px;
+}
+
+.field-row__ops {
+  display: flex;
+  gap: 4px;
+}
+
+.field-row__ops button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e0e5eb;
+  border-radius: 6px;
+  background: #fff;
+  color: #647084;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.field-row__ops button:hover:not(:disabled) {
+  border-color: #69ccb0;
+  color: var(--brand);
+}
+
+.field-row__ops button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.field-row__delete {
+  color: #c0392b !important;
+}
+
+.field-manager__footer {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid #eef1f5;
+}
+
+.field-manager__add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-top: 1px solid #eef1f5;
+}
+
+.field-manager__add-label {
+  flex: 1;
+  height: 32px;
+  padding: 0 9px;
+  border: 1px solid #dce2e9;
+  border-radius: 7px;
+  font-size: 12px;
+  color: #273548;
+}
+
+.field-manager__add select {
+  height: 32px;
+  border: 1px solid #dce2e9;
+  border-radius: 7px;
+  font-size: 12px;
+  color: #4c596c;
+}
+
+.field-manager__add button {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #b8ded3;
+  border-radius: 7px;
+  background: #f4fcfa;
+  color: var(--brand-dark);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.form-field textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid #dce2e9;
+  color: #273548;
+  background: #fff;
+  border-radius: 9px;
+  resize: vertical;
+  font: inherit;
+  transition: 0.15s ease;
+}
+
+.form-field textarea:hover,
+.form-field textarea:focus {
+  border-color: #69ccb0;
+}
+
+/* ---- 预览里的补充字段（标签:值） ---- */
+.field-meta-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+}
+
+.field-meta {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 0.94em;
+}
+
+.field-meta span {
+  color: #94a3b8;
+  min-width: 76px;
+}
+
+.field-meta strong {
+  color: #334155;
+  font-weight: 600;
+}
+
+.field-meta a {
+  color: var(--theme);
+  text-decoration: none;
+}
+
+.compact-list .field-meta-list,
+.level-list .field-meta-list {
+  grid-column: 1 / -1;
+}
+
+/* ---- 应用内确认 / 输入弹窗（替代 window.confirm / prompt） ---- */
+.app-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(20, 30, 42, 0.42);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.app-dialog-overlay.is-visible {
+  opacity: 1;
+}
+
+.app-dialog {
+  width: min(420px, 100%);
+  padding: 22px 24px;
+  background: #fff;
+  border: 1px solid #e5e9ef;
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  transform: translateY(10px) scale(0.98);
+  transition: transform 0.18s ease;
+}
+
+.app-dialog-overlay.is-visible .app-dialog {
+  transform: none;
+}
+
+.app-dialog h3 {
+  margin: 0 0 10px;
+  color: var(--ink);
+  font-size: 17px;
+}
+
+.app-dialog p {
+  margin: 0 0 18px;
+  color: #4c596c;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.app-dialog__input {
+  width: 100%;
+  height: 39px;
+  margin-bottom: 18px;
+  padding: 0 12px;
+  border: 1px solid #dce2e9;
+  border-radius: 9px;
+  color: #273548;
+  background: #fff;
+  font-size: 13px;
+}
+
+.app-dialog__input:focus {
+  border-color: #69ccb0;
+}
+
+.app-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.app-dialog__submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid var(--brand);
+  border-radius: 8px;
+  color: #fff;
+  background: var(--brand);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.app-dialog__submit:hover {
+  background: var(--brand-dark);
+  border-color: var(--brand-dark);
+}
+
+.app-dialog__submit.is-danger {
+  background: #d64545;
+  border-color: #d64545;
+}
+
+.app-dialog__submit.is-danger:hover {
+  background: #b93a3a;
+  border-color: #b93a3a;
 }

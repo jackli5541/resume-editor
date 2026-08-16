@@ -4,3 +4,8 @@ tmp
 output
 .git
 *.log
+
+# 本地密钥与配置（示例文件除外）
+.env
+.env.*
+!.env.example

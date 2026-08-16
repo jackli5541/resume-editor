@@ -1,0 +1,505 @@
+{
+  "slug": "resume-collection-cn-008",
+  "name": "护士免费求职简历模板",
+  "category": "中文简历",
+  "description": "护士免费求职简历模板，已通过高保真模板验收",
+  "version": 1,
+  "status": "ready",
+  "engine": "docx-native",
+  "sourceUrl": "https://github.com/mmmlllnnn/ResumeCollection/blob/main/1.%E4%B8%AD%E6%96%87%E7%AE%80%E5%8E%86/008/%E6%8A%A4%E5%A3%AB%E5%85%8D%E8%B4%B9%E6%B1%82%E8%81%8C%E7%AE%80%E5%8E%86%E6%A8%A1%E6%9D%BF.docx",
+  "sourcePath": "resume-collection-cn-008/v1/native.docx",
+  "previewPath": "resume-collection-cn-008/v1/preview.png",
+  "sha256": "de852fdd9c310ac7969590477129e2af8d8810e067bc66df7b35c5da39e8afcb",
+  "licenseStatus": "MIT",
+  "selectable": true,
+  "previewUrl": "/template-assets/resume-collection-cn-008/v1/preview.png",
+  "manifest": {
+    "pageSize": "A4",
+    "supportedFormats": [
+      "pdf",
+      "docx"
+    ],
+    "sourceRepository": "mmmlllnnn/ResumeCollection",
+    "sourceDirectory": "008",
+    "originalFileName": "护士免费求职简历模板.docx",
+    "adapter": {
+      "version": 2,
+      "layout": "nurse-sidebar",
+      "theme": "#3498db"
+    },
+    "nativeSlots": {
+      "tags": [
+        "resume:profile.birthday",
+        "resume:profile.gender",
+        "resume:profile.height",
+        "resume:profile.job",
+        "resume:profile.mobile",
+        "resume:profile.name",
+        "resume:profile.photo",
+        "resume:section:awards.content",
+        "resume:section:awards.title",
+        "resume:section:certificates.content",
+        "resume:section:certificates.title",
+        "resume:section:competencies.content",
+        "resume:section:competencies.title",
+        "resume:section:courses.content",
+        "resume:section:courses.title",
+        "resume:section:education.content",
+        "resume:section:education.title",
+        "resume:section:experience.content",
+        "resume:section:experience.title",
+        "resume:section:objective.content",
+        "resume:section:objective.title",
+        "resume:section:summary.content",
+        "resume:section:summary.title"
+      ],
+      "hasProfile": true,
+      "repeatSections": []
+    },
+    "qa": {
+      "approved": true,
+      "automaticApproved": true,
+      "manualApproved": true,
+      "minimumSsim": 0.996821666653036,
+      "maximumChangedRatio": 0.0017085409834654548,
+      "pageCount": 1,
+      "samplePageCount": 1,
+      "sampleVersion": "native-qa-v1",
+      "templateSha256": "de852fdd9c310ac7969590477129e2af8d8810e067bc66df7b35c5da39e8afcb",
+      "annotation": {
+        "resume:profile.birthday": true,
+        "resume:profile.gender": true,
+        "resume:profile.ethnicity": false,
+        "resume:profile.politicalStatus": false,
+        "resume:profile.height": true,
+        "resume:profile.email": false,
+        "resume:profile.mobile": true,
+        "resume:profile.name": true,
+        "resume:profile.job": true,
+        "resume:profile.city": false,
+        "resume:profile.age": false,
+        "resume:profile.education": false,
+        "resume:profile.school": false,
+        "resume:profile.major": false,
+        "resume:profile.nativePlace": false,
+        "resume:profile.photo": true,
+        "resume:section:summary.title": true,
+        "resume:section:experience.title": true,
+        "resume:section:objective.title": true,
+        "resume:section:education.title": true,
+        "resume:section:courses.title": true,
+        "resume:section:awards.title": true,
+        "resume:section:competencies.title": true,
+        "resume:section:certificates.title": true,
+        "resume:repeat:education": false,
+        "resume:repeat:experience": false,
+        "resume:section:summary.content": true,
+        "resume:section:experience.content": true,
+        "resume:section:objective.content": true,
+        "resume:section:awards.content": true,
+        "resume:section:courses.content": true,
+        "resume:section:education.content": true,
+        "resume:section:competencies.content": true,
+        "resume:section:certificates.content": true
+      },
+      "checkedAt": "2026-08-15T03:57:59.605533+00:00",
+      "manualChecks": [
+        "crop",
+        "overlap",
+        "alignment",
+        "pagination",
+        "font-substitution",
+        "image-distortion",
+        "decoration-loss"
+      ],
+      "reportPath": "output/native-template-qa/resume-collection-cn-008/qa-report.json"
+    },
+    "renderPipeline": "docx-libreoffice",
+    "editingCapabilities": {
+      "editableSlots": [
+        "resume:profile.birthday",
+        "resume:profile.gender",
+        "resume:profile.height",
+        "resume:profile.job",
+        "resume:profile.mobile",
+        "resume:profile.name",
+        "resume:profile.photo",
+        "resume:section:awards.content",
+        "resume:section:awards.title",
+        "resume:section:certificates.content",
+        "resume:section:certificates.title",
+        "resume:section:competencies.content",
+        "resume:section:competencies.title",
+        "resume:section:courses.content",
+        "resume:section:courses.title",
+        "resume:section:education.content",
+        "resume:section:education.title",
+        "resume:section:experience.content",
+        "resume:section:experience.title",
+        "resume:section:objective.content",
+        "resume:section:objective.title",
+        "resume:section:summary.content",
+        "resume:section:summary.title"
+      ],
+      "repeatableSections": [],
+      "sortableZones": [],
+      "hideableSections": [],
+      "fixedTemplateElementsLocked": true
+    },
+    "editorSchema": {
+      "schemaVersion": 3,
+      "slug": "resume-collection-cn-008",
+      "name": "插画侧栏",
+      "profileFields": [
+        "name",
+        "job",
+        "mobile",
+        "photo",
+        "birthday",
+        "gender",
+        "height"
+      ],
+      "profileDefinitions": {
+        "name": {
+          "label": "姓名",
+          "type": "text"
+        },
+        "job": {
+          "label": "求职岗位",
+          "type": "text"
+        },
+        "mobile": {
+          "label": "联系电话",
+          "type": "text"
+        },
+        "photo": {
+          "label": "个人照片",
+          "type": "image"
+        },
+        "birthday": {
+          "label": "出生年月",
+          "type": "text"
+        },
+        "gender": {
+          "label": "性别",
+          "type": "text"
+        },
+        "height": {
+          "label": "身高",
+          "type": "text"
+        }
+      },
+      "sections": [
+        {
+          "id": "summary",
+          "title": "个人简介",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "experience",
+          "title": "工作实践",
+          "type": "timeline",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "objective",
+          "title": "求职目标",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "education",
+          "title": "教育培训",
+          "type": "timeline",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "courses",
+          "title": "主修课程",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "awards",
+          "title": "奖项荣誉",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "competencies",
+          "title": "我所具备的",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        },
+        {
+          "id": "certificates",
+          "title": "我的证书",
+          "type": "richtext",
+          "zone": "main",
+          "fields": [
+            "content"
+          ],
+          "capabilities": {
+            "addItems": false,
+            "removeItems": false,
+            "hide": false,
+            "sort": false,
+            "editTitle": true,
+            "titleSlot": true
+          }
+        }
+      ],
+      "zones": [
+        {
+          "id": "main",
+          "sortable": false
+        }
+      ],
+      "layoutSchema": {
+        "renderer": "docx-pages",
+        "layout": "sidebar-left"
+      },
+      "styleControls": {
+        "fontFamily": false,
+        "fontSize": false,
+        "theme": false,
+        "lineHeight": false,
+        "pagePadding": false,
+        "sectionGap": false
+      },
+      "capabilities": {
+        "fixedTemplateElementsLocked": true
+      },
+      "renderers": {
+        "preview": "docx-native",
+        "pdf": "docx-native",
+        "docx": "docx-native"
+      }
+    },
+    "layoutSchema": {
+      "renderer": "docx-pages",
+      "layout": "sidebar-left"
+    },
+    "defaultResume": {
+      "profile": {
+        "name": "简历模板资源网",
+        "job": "护士岗位",
+        "birthday": "1981.04",
+        "gender": "女",
+        "height": "167",
+        "mobile": "13800138000"
+      },
+      "sections": [
+        {
+          "id": "summary",
+          "type": "richtext",
+          "title": "个人简介",
+          "visible": true,
+          "content": "本人接受过全方位的大学基础教育，收到良好的专业训练和能力的培养，有扎实的理论基础和实践经验，并且在06年通过了浙江省高校计算机一级考试，07年通过CET－4，具备一定的听，说，读，写能力，希望能有一次机会，展现自我，实现自我价值和人生价值，我一定会全力以赴不负所望！"
+        },
+        {
+          "id": "experience",
+          "type": "timeline",
+          "title": "工作实践",
+          "visible": true,
+          "items": []
+        },
+        {
+          "id": "objective",
+          "type": "richtext",
+          "title": "求职目标",
+          "visible": true,
+          "content": "求职目标：护士岗位"
+        },
+        {
+          "id": "education",
+          "type": "timeline",
+          "title": "教育培训",
+          "visible": true,
+          "items": []
+        },
+        {
+          "id": "courses",
+          "type": "richtext",
+          "title": "主修课程",
+          "visible": true,
+          "content": "人体解剖学、生理学、医学伦理学、心理学、诊断学基础、药物治疗学、护理学基础、急重症护理学、内科护理学、外科护理学、妇儿科护理学、精神护理学、预防医学、护理管理学"
+        },
+        {
+          "id": "awards",
+          "type": "richtext",
+          "title": "奖项荣誉",
+          "visible": true,
+          "content": "2013年获得我校心理剧大赛三等奖"
+        },
+        {
+          "id": "competencies",
+          "type": "richtext",
+          "title": "我所具备的",
+          "visible": true,
+          "content": "安全意识"
+        },
+        {
+          "id": "certificates",
+          "type": "richtext",
+          "title": "我的证书",
+          "visible": true,
+          "content": "护士资格证"
+        }
+      ]
+    }
+  },
+  "analysis": {
+    "sha256": "de852fdd9c310ac7969590477129e2af8d8810e067bc66df7b35c5da39e8afcb",
+    "packageParts": 26,
+    "page": {
+      "widthTwips": 11906,
+      "heightTwips": 16838,
+      "marginsTwips": {
+        "top": 454,
+        "right": 454,
+        "bottom": 454,
+        "left": 454
+      }
+    },
+    "counts": {
+      "p": 123,
+      "t": 134,
+      "tbl": 0,
+      "tr": 0,
+      "tc": 0,
+      "drawing": 16,
+      "pict": 15,
+      "txbxContent": 52,
+      "sdt": 39,
+      "sectPr": 1,
+      "anchor": 16,
+      "inline": 0
+    },
+    "media": [
+      "word/media/image1.jpeg",
+      "word/media/image2.png",
+      "word/media/image3.png"
+    ],
+    "macroParts": [],
+    "externalRelationships": [],
+    "sampleText": "���˼�鱾�˽��ܹ�ȫ��λ�Ĵ�ѧ�����������յ����õ�רҵѵ��������������������ʵ�����ۻ�����ʵ�����飬������06��ͨ�����㽭ʡ��У�����һ�����ԣ�07��ͨ��CET��4���߱�һ��������˵������д������ϣ������һ�λ��ᣬչ�����ң�ʵ�����Ҽ�ֵ��������ֵ����һ����ȫ���Ը��������������˼�鱾�˽��ܹ�ȫ��λ�Ĵ�ѧ�����������յ����õ�רҵѵ��������������������ʵ�����ۻ�����ʵ�����飬������06��ͨ�����㽭ʡ��У�����һ�����ԣ�07��ͨ��CET��4���߱�һ��������˵������д������ϣ������һ�λ��ᣬչ�����ң�ʵ�����Ҽ�ֵ��������ֵ����һ����ȫ���Ը�����������2012-����ʿ�㽭ʡ̨���л�����ǰ����Ժ        ��Ժ�ڼ���¸��������ҵ���ϴ��������΢�׹⡢����̲�����ǻ�����ǵȹ������������ҵĹ������õ��쵼��һ�º���������ʵ��2010-2012��ʿ���ݼ���ģ����Դ����һҽԺ       ������Ｐ����ҽ����е��Ʒ���������������ҽ���������ˣ�����������ȹ�������Ժǰͻ���¼���Ӧ��������������Һ����Һ��Ӧ�Ĵ������������ɵĽ��С�2009-2010ʵϰ��ʿ���ݼ���ģ����Դ��ǰ����Ժ        �������Ļ�ʿ��ʦѧϰ��ϸ�����ĵ�Ϊ���˻�������ΪѧУ��ҽԺ�Ĵ��鳤�ܰ�ͬѧ������������⣬��ʱ��ѧУ��ҽԺ����ʦ��ӳʵϰͬѧ�������2012-����ʿ�㽭ʡ̨���л�����ǰ����Ժ        ��Ժ�ڼ���¸��������ҵ���ϴ��������΢�׹⡢����̲�����ǻ�����ǵȹ������������ҵĹ������õ��쵼��һ�º���������ʵ��2010-2012��ʿ���ݼ���ģ����Դ����һҽԺ       ������Ｐ����ҽ����е��Ʒ���������������ҽ���������ˣ�����������ȹ�������Ժǰͻ���¼���Ӧ��������������Һ����Һ��Ӧ�Ĵ������������ɵĽ��С�2009-2010ʵϰ��ʿ���ݼ���ģ����Դ��ǰ����Ժ        �������Ļ�ʿ��ʦѧϰ��ϸ�����ĵ�Ϊ���˻�������ΪѧУ��ҽԺ�Ĵ��鳤�ܰ�ͬѧ������������⣬��ʱ��ѧУ��ҽԺ����ʦ��ӳʵϰͬѧ�����������ģ����Դ����ְĿ�꣺��ʿ��λ����ģ����Դ����ְĿ�꣺��ʿ��λ���գ�1981.04�Ա�Ů���壺����Ⱥ�棺�й���Ա���ߣ�167cm���أ�45kg�绰��13800138000���䣺jianlimoban-ziyuan.com���գ�1981.04�Ա�Ů���壺����Ⱥ�棺�й���Ա���ߣ�167cm���أ�45kg�绰��13800138000���䣺jianlimoban-ziyuan.com2013������У������������Ƚ� 2012-2013��Ȼ���ѧϵѧ���ᡱ������¡� 2012��������ʵ������ٻ񡱸����Ƚ����� 2013�ꡱ5.12���ʻ�ʿ�ڡ��б���ͻ�����ٻ��ر���׽�����������2013������У������������Ƚ� 2012-2013��Ȼ���ѧϵѧ���ᡱ������¡� 2012��������ʵ������ٻ񡱸����Ƚ����� 2013�ꡱ5.12���ʻ�ʿ�ڡ��б���ͻ�����ٻ��ر���׽������������������ѧ������ѧ��ҽѧ����ѧ������ѧ�����ѧ������ҩ������ѧ������ѧ����������֢����ѧ���ڿƻ���ѧ����ƻ���ѧ�������ƻ���ѧ��������ѧ��Ԥ��ҽѧ����������ѧ���޿γ��������ѧ������ѧ��ҽѧ����ѧ������ѧ�����ѧ������ҩ������ѧ������ѧ����������֢����ѧ���ڿƻ���ѧ����ƻ���ѧ�������ƻ���ѧ��������ѧ��Ԥ��ҽѧ����������ѧ���޿γ�2006-2007�Ϻ��и���ҽԺ��ѵ         ����רҵ������ѵ2010-2012�Ϻ��и���ҽԺ��ѵ         ����רҵ2006-2007�Ϻ��и���ҽԺ��ѵ         ����רҵ������ѵ2010-2012�Ϻ��и���ҽԺ��ѵ         ����רҵ�����߱��ģ������߱��ģ��ҵ�֤�飺��ʿ�ʸ�֤�����ʸ�֤Ӥ�׶������ʸ�֤��ʦ�ʸ�֤�ҵ�֤�飺��ʿ�ʸ�֤�����ʸ�֤Ӥ�׶������ʸ�֤��ʦ�ʸ�֤��ȫ��ʶ��ȫ��ʶ���������������ʼ���֪ʶ����֪ʶ����������������",
+    "needsMapping": false,
+    "layoutRisk": "high"
+  },
+  "slotMap": {
+    "profile": [
+      "name",
+      "job",
+      "mobile",
+      "photo",
+      "birthday",
+      "gender",
+      "height"
+    ],
+    "sections": {
+      "summary": [
+        "content"
+      ],
+      "experience": [
+        "content"
+      ],
+      "objective": [
+        "content"
+      ],
+      "education": [
+        "content"
+      ],
+      "courses": [
+        "content"
+      ],
+      "awards": [
+        "content"
+      ],
+      "competencies": [
+        "content"
+      ],
+      "certificates": [
+        "content"
+      ]
+    }
+  }
+}

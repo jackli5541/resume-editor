@@ -1,3 +1,5 @@
+import { defaultFieldsFor } from "./template-schemas.mjs";
+
 export const PAGE_WIDTH = 820;
 export const PAGE_HEIGHT = 1160;
 export const STORAGE_KEY = "resume-editor-mvp:v2";
@@ -171,8 +173,29 @@ export function createResumeForTemplate(template) {
   return resume;
 }
 
+// 为没有字段表的模块补齐内置默认字段（老草稿零迁移）。
+function ensureSectionFields(section) {
+  if (!Array.isArray(section.fields)) section.fields = defaultFieldsFor(section.id);
+  return section;
+}
+
+export function nextCustomFieldKey(fields = []) {
+  let max = -1;
+  for (const field of fields || []) {
+    const match = /^custom_(\d+)$/.exec(field?.key || "");
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+  return `custom_${max + 1}`;
+}
+
 function emptySectionForSchema(definition) {
-  const base = { id: definition.id, type: definition.type || "richtext", title: definition.title || definition.id, visible: true };
+  const base = {
+    id: definition.id,
+    type: definition.type || "richtext",
+    title: definition.title || definition.id,
+    visible: true,
+    fields: defaultFieldsFor(definition.id)
+  };
   if (definition.type === "timeline") {
     return { ...base, items: [{ id: makeId(definition.id), start: "", end: "", organization: "", role: "", content: "" }] };
   }
@@ -182,7 +205,10 @@ function emptySectionForSchema(definition) {
 export function applyTemplateEditorSchema(resume, editorSchema) {
   if (!editorSchema?.sections?.length) return resume;
   const existing = new Map((resume.sections || []).map((section) => [section.id, section]));
-  const declared = editorSchema.sections.map((definition) => existing.get(definition.id) || emptySectionForSchema(definition));
+  const declared = editorSchema.sections.map((definition) => {
+    const section = existing.get(definition.id) || emptySectionForSchema(definition);
+    return ensureSectionFields(section);
+  });
   const declaredIds = new Set(editorSchema.sections.map((definition) => definition.id));
   // Keep data from other templates in the draft, but place it outside the active schema.
   resume.sections = [...declared, ...(resume.sections || []).filter((section) => !declaredIds.has(section.id))];
@@ -224,6 +250,7 @@ export function normalizeResume(input) {
   for (const section of fallback.sections) {
     if (!known.has(section.id)) resume.sections.push(clone(section));
   }
+  resume.sections = resume.sections.map(ensureSectionFields);
 
   resume.settings.fontSize = clamp(Number(resume.settings.fontSize), 12, 18);
   resume.settings.lineHeight = clamp(Number(resume.settings.lineHeight), 1.3, 2.1);

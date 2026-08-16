@@ -1,9 +1,9 @@
 // 用户级日配额：DB 模式以 ai_generation_log 中当日成功(status='ok')记录为准，
 // 无 DB 模式退化为进程内计数。失败请求不占用配额（但受 IP/用户限流约束）。
 export class AiQuotaService {
-  constructor({ database, dailyLimit = 20 } = {}) {
+  constructor({ database, dailyLimit = 8 } = {}) {
     this.database = database;
-    this.dailyLimit = Number.isSafeInteger(dailyLimit) && dailyLimit > 0 ? dailyLimit : 20;
+    this.dailyLimit = Number.isSafeInteger(dailyLimit) && dailyLimit > 0 ? dailyLimit : 8;
     this.memory = new Map();
   }
 

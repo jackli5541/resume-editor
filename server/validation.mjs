@@ -1,5 +1,5 @@
 import { normalizeResume } from "../public/core.mjs";
-import { getTemplateSchema } from "../public/template-schemas.mjs";
+import { getTemplateSchema, resolveSectionFields } from "../public/template-schemas.mjs";
 
 export class RequestValidationError extends Error {
   constructor(message, statusCode = 400) {
@@ -16,8 +16,15 @@ const LIMITS = {
   sections: 30,
   itemsPerSection: 50,
   totalItems: 120,
-  photoBytes: 1_500_000
+  photoBytes: 1_500_000,
+  fieldsPerSection: 20,
+  customFieldsPerSection: 10,
+  fieldKey: 40,
+  fieldLabel: 40
 };
+
+const ALLOWED_FIELD_TYPES = new Set(["text", "month", "textarea", "richtext", "url"]);
+const ALLOWED_FIELD_ROLES = new Set(["range", "primary", "secondary", "body", "meta", "link"]);
 
 function text(value, label, limit = LIMITS.field) {
   const result = String(value ?? "");
@@ -25,13 +32,39 @@ function text(value, label, limit = LIMITS.field) {
   return result;
 }
 
-function canonicalItem(item, sectionTitle, index) {
+function canonicalField(field, sectionTitle, index) {
+  const key = text(field?.key, `${sectionTitle}第 ${index + 1} 个字段键`, LIMITS.fieldKey);
+  return {
+    key,
+    label: text(field?.label, `${sectionTitle}第 ${index + 1} 个字段名`, LIMITS.fieldLabel),
+    type: ALLOWED_FIELD_TYPES.has(field?.type) ? field.type : "text",
+    role: ALLOWED_FIELD_ROLES.has(field?.role) ? field.role : "meta",
+    builtin: field?.builtin === true,
+    visible: field?.visible !== false
+  };
+}
+
+function canonicalFieldValue(value, field, label) {
+  if (field?.type === "richtext") return text(value, label, LIMITS.richText);
+  if (field?.type === "month") return text(value, label, 40);
+  return text(value, label, LIMITS.field);
+}
+
+function canonicalItem(item, sectionTitle, index, fields) {
   if (!item || typeof item !== "object") return text(item, `${sectionTitle}第 ${index + 1} 项`);
   const result = { id: text(item.id, `${sectionTitle}第 ${index + 1} 条 ID`, 160) };
-  for (const key of ["start", "end", "organization", "role", "name", "level", "date", "content"]) {
-    result[key] = text(item[key], `${sectionTitle}第 ${index + 1} 条${key}`, key === "content" ? LIMITS.richText : LIMITS.field);
+  for (const field of fields) {
+    result[field.key] = canonicalFieldValue(item[field.key], field, `${sectionTitle}第 ${index + 1} 条${field.label}`);
   }
   return result;
+}
+
+function canonicalData(section, fields, sectionTitle) {
+  const data = {};
+  for (const field of fields) {
+    data[field.key] = canonicalFieldValue(section.data?.[field.key], field, `${sectionTitle}的${field.label}`);
+  }
+  return data;
 }
 
 function validatePhoto(value, allowedImageHosts) {
@@ -73,13 +106,22 @@ export function validateExportPayload(payload, options = {}) {
   let totalItems = 0;
   const sections = normalized.sections.map((section, sectionIndex) => {
     const title = text(section.title, `第 ${sectionIndex + 1} 个模块标题`, LIMITS.title);
+    const fields = resolveSectionFields(section).map((field, index) => canonicalField(field, title, index));
+    if (fields.length > LIMITS.fieldsPerSection) {
+      throw new RequestValidationError(`${title}的字段数量超过限制`);
+    }
+    if (fields.filter((field) => !field.builtin).length > LIMITS.customFieldsPerSection) {
+      throw new RequestValidationError(`${title}的自定义字段数量超过限制`);
+    }
+
     const canonical = {
       id: text(section.id, `第 ${sectionIndex + 1} 个模块 ID`, 160),
       type: ["objective", "education", "experience", "projects", "timeline", "list", "levels", "tags", "richtext"].includes(section.type)
         ? section.type
         : "richtext",
       title,
-      visible: section.visible !== false
+      visible: section.visible !== false,
+      fields
     };
 
     const parsedLineHeight = Number(section.lineHeight);
@@ -88,20 +130,25 @@ export function validateExportPayload(payload, options = {}) {
     }
 
     if (section.type === "objective") {
-      canonical.data = {
-        job: text(section.data?.job, "意向岗位"),
-        city: text(section.data?.city, "意向城市"),
-        salary: text(section.data?.salary, "期望薪资"),
-        availability: text(section.data?.availability, "到岗时间")
-      };
+      canonical.data = canonicalData(section, fields, title);
+    } else if (section.type === "tags") {
+      if (section.items.length > LIMITS.itemsPerSection) {
+        throw new RequestValidationError(`${title}的条目数量超过限制`);
+      }
+      totalItems += section.items.length;
+      canonical.items = section.items.map((item, index) => text(item, `${title}第 ${index + 1} 项`, LIMITS.field));
+      const dataFields = fields.filter((field) => field.key !== "items");
+      if (dataFields.length) canonical.data = canonicalData(section, dataFields, title);
     } else if (Array.isArray(section.items)) {
       if (section.items.length > LIMITS.itemsPerSection) {
         throw new RequestValidationError(`${title}的条目数量超过限制`);
       }
       totalItems += section.items.length;
-      canonical.items = section.items.map((item, index) => canonicalItem(item, title, index));
+      canonical.items = section.items.map((item, index) => canonicalItem(item, title, index, fields));
     } else {
       canonical.content = text(section.content, `${title}内容`, LIMITS.richText);
+      const dataFields = fields.filter((field) => field.key !== "content");
+      if (dataFields.length) canonical.data = canonicalData(section, dataFields, title);
     }
     return canonical;
   });
