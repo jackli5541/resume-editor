@@ -3796,6 +3796,40 @@ select:focus-visible,
   color: var(--subtle);
 }
 
+/* 年月字段：年输入 + 月下拉并排 */
+.month-range {
+  display: flex;
+  gap: 8px;
+}
+.form-field .month-range__year,
+.form-field .month-range__month {
+  min-width: 0;
+  height: 39px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  background: var(--surface);
+  border-radius: 9px;
+  font: inherit;
+  font-size: 13px;
+  transition: 0.15s ease;
+}
+.form-field .month-range__year {
+  flex: 1.4;
+  width: auto;
+  padding: 0 12px;
+}
+.form-field .month-range__month {
+  flex: 1;
+  padding: 0 8px;
+  cursor: pointer;
+}
+.form-field .month-range__year:hover,
+.form-field .month-range__year:focus,
+.form-field .month-range__month:hover,
+.form-field .month-range__month:focus {
+  border-color: var(--brand-300);
+}
+
 .editor-footer-actions {
   display: flex;
   gap: 10px;

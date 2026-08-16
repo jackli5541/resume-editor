@@ -554,6 +554,7 @@ function field(label, value, scope, key, options = {}) {
   const type = options.type || "text";
   const placeholder = options.placeholder || "";
   const data = `data-scope="${scope}" data-field="${key}" ${options.sectionId ? `data-section-id="${options.sectionId}"` : ""} ${options.itemId ? `data-item-id="${options.itemId}"` : ""}`;
+  if (type === "month") return monthField(label, value, data, options);
   const control = type === "textarea"
     ? `<textarea placeholder="${escapeHtml(placeholder)}" ${data}>${escapeHtml(value)}</textarea>`
     : `<input type="${type}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" ${data} />`;
@@ -561,6 +562,32 @@ function field(label, value, scope, key, options = {}) {
     <label class="form-field ${options.wide ? "form-field--wide" : ""}">
       <span>${label}</span>
       ${control}
+    </label>`;
+}
+
+// 年月字段：拆成「年」数字输入 + 「月」下拉，年份可像月份一样方便调整。
+function parseMonthValue(value) {
+  const match = /^(\d{4})-(\d{1,2})$/.exec(String(value || "").trim());
+  if (!match) return { year: "", month: "" };
+  return { year: match[1], month: String(Number(match[2])).padStart(2, "0") };
+}
+
+function monthField(label, value, data, options) {
+  const parsed = parseMonthValue(value);
+  const months = Array.from({ length: 12 }, (_, index) => {
+    const month = String(index + 1).padStart(2, "0");
+    return `<option value="${month}" ${month === parsed.month ? "selected" : ""}>${index + 1} 月</option>`;
+  }).join("");
+  return `
+    <label class="form-field ${options.wide ? "form-field--wide" : ""}">
+      <span>${label}</span>
+      <span class="month-range" data-month-range ${data}>
+        <input class="month-range__year" type="number" min="1900" max="2100" step="1" inputmode="numeric" placeholder="年" value="${escapeHtml(parsed.year)}" aria-label="${escapeHtml(label)} · 年份" />
+        <select class="month-range__month" aria-label="${escapeHtml(label)} · 月份">
+          <option value="">月</option>
+          ${months}
+        </select>
+      </span>
     </label>`;
 }
 
@@ -1047,6 +1074,21 @@ function updateStandardField(target) {
     const heading = elements.editor.querySelector(".editor-heading--section h2");
     if (heading) heading.textContent = sectionById(sectionId)?.title || "";
   }
+  scheduleSave();
+  return true;
+}
+
+function updateMonthRange(target) {
+  const wrap = target.closest("[data-month-range]");
+  if (!wrap) return false;
+  const year = (wrap.querySelector(".month-range__year")?.value || "").trim();
+  const month = wrap.querySelector(".month-range__month")?.value || "";
+  const value = year && month ? `${year}-${String(month).padStart(2, "0")}` : "";
+  const { scope, field, sectionId, itemId } = wrap.dataset;
+  if (scope === "profile") resume.profile[field] = value;
+  else if (scope === "entry") itemById(sectionById(sectionId), itemId)[field] = value;
+  else return false;
+  renderPreview();
   scheduleSave();
   return true;
 }
@@ -4869,6 +4911,7 @@ document.addEventListener("input", (event) => {
     scheduleSave();
   } else if (target.matches('[data-scope="field-label"]')) updateFieldLabel(target);
   else if (target.matches("[data-rich-section-id]")) updateRichEditor(target);
+  else if (target.matches(".month-range__year")) updateMonthRange(target);
   else updateStandardField(target);
 });
 
@@ -4914,6 +4957,8 @@ document.addEventListener("change", (event) => {
     adminSetRole(event.target);
   } else if (event.target.matches('[data-action="admin-set-ai-limit"]')) {
     adminSetAiLimit(event.target);
+  } else if (event.target.matches(".month-range__month")) {
+    updateMonthRange(event.target);
   } else if (event.target.matches('[data-scope="field-type"]')) {
     updateFieldType(event.target);
   }
