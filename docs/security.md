@@ -2,14 +2,15 @@
 
 本文描述「轻简历编辑器」上线所需的安全边界。目标是在保持 MVP 简单的前提下，满足基本安全要求，并为后续接入大模型简历优化预留扩展点。
 
-## 1. 认证：邮箱 / 手机号 + 密码
+## 1. 认证：邮箱 / 手机号 + 密码，或手机号验证码登录（免密）
 
 - 唯一登录标识为 `email` 或 `phone`（二者均唯一、均可为空，但注册时至少提供一个）；登录输入一个字段，后端按是否含 `@` 自动识别是邮箱还是手机号。
 - 邮箱做小写规范化；手机号归一化为 `+` 加数字（`^\+?[0-9]{6,15}$`）。
 - 密码使用 Node 内置 `crypto.scrypt`（N=16384、r=8、p=1、64 字节派生）加盐哈希，存储格式为 `scrypt$N$r$p$salt$hash`，永不落明文。
 - 比较使用 `timingSafeEqual` 恒时比较；账号不存在时也对固定哑哈希执行一次比较，弱化账号枚举时序侧信道。
 - 登录/注册统一返回「账号或密码不正确」，不区分「账号不存在」与「密码错误」。
-- 密码长度 8–200，昵称剥离控制字符与 `<>`。
+- 密码 8–200 位，须同时包含字母与数字，并拦截常见弱口令（黑名单，见 `server/password-policy.mjs`）；昵称剥离控制字符与 `<>`。
+- 手机号验证码登录（免密）：`send-code` 发码 + `login/code` 校验，新号自动注册（无密码，`users.password_hash` 可空）。验证码只存哈希、恒时比较、5 分钟过期、最多 5 次、用后即焚。
 - 公开注册可由 `DISABLE_REGISTRATION=true` 关闭（邀请制上线）；测试账号由 `SEED_TEST_USERS` + 种子脚本创建，生产须关闭并改密。
 
 ## 2. 会话
@@ -49,6 +50,7 @@
 | 威胁 | 防护 |
 | --- | --- |
 | 暴力破解 / 撞库 | 登录按「IP + 标识（邮箱/手机号）」限流（5 次/15 分钟），按 IP 限流（30 次/15 分钟）；注册按 IP 限流（10 次/小时） |
+| 机器人批量注册/登录 | Cloudflare Turnstile 人机验证：配置 `TURNSTILE_SECRET_KEY` 即启用，`TURNSTILE_SITE_KEY` 下发前端；未配置时自动关闭 |
 | 资源耗尽 | 导出 30 次/小时、高保真预览 60 次/小时（按用户，未登录按 IP） |
 | CSRF | 状态变更请求校验 `Sec-Fetch-Site` 与 `Origin`，跨站直接 403；配合 `SameSite=Lax` Cookie |
 | XSS | 富文本白名单清洗、模板渲染 `escapeHtml`、`Content-Security-Policy`（`script-src 'self'`） |
@@ -88,35 +90,17 @@
 - **PII 与审计**：简历含姓名、电话、邮箱等个人信息，外发到第三方模型前明确告知并遵守数据合规；建议记录调用日志（用户、目标模型、时长、是否命中限制）并做调用配额限流。
 - **输出回写**：模型输出在写回草稿前经过与现有 `validation.mjs` 同级的规范化/长度限制，防止注入超长字段或富文本脚本。
 
-## 9. 验证码登录（后续实现方案）
+## 9. 邮箱/手机号验证码登录（免密、新号自动注册）
 
-当前为「密码登录」；后续可叠加「邮箱验证码 / 短信验证码」登录，二者共用 `identifier`（邮箱或手机号）模型，改动集中在认证层。
+已实现。与密码登录共用 `identifier` 模型（按是否含 `@` 自动识别邮箱/手机号），新号首次验证码登录时自动注册（无密码，`users.password_hash` 可空），登录方式不影响草稿 `ownerId` 隔离、管理端与前端路由结构。
 
-1. **建表**（幂等迁移）：
-   ```sql
-   CREATE TABLE IF NOT EXISTS verification_codes (
-     id uuid PRIMARY KEY,
-     identifier text NOT NULL,          -- 归一化后的邮箱或手机号
-     code_hash text NOT NULL,           -- 6 位数字验证码的哈希
-     purpose text NOT NULL,             -- 'login' | 'register' | 'reset_password'
-     expires_at timestamptz NOT NULL,
-     attempts integer NOT NULL DEFAULT 0,
-     consumed boolean NOT NULL DEFAULT false,
-     created_at timestamptz NOT NULL DEFAULT now()
-   );
-   CREATE INDEX IF NOT EXISTS verification_codes_lookup_idx
-     ON verification_codes (identifier, purpose, created_at);
-   ```
-
+1. **建表**：`verification_codes`（`identifier` / `code_hash` / `purpose` / `expires_at` / `attempts` / `consumed`），见 `infra/postgres/init/016_verification_codes.sql`。
 2. **接口**：
-   - `POST /api/auth/send-code`：`{ identifier }` → 识别邮箱/手机，生成 6 位随机码，**只存哈希**，通过邮件/SMS 渠道发送明文；按 identifier（1 次/分钟）与 IP（10 次/小时）限流，防短信轰炸。
-   - `POST /api/auth/login/code`：`{ identifier, code }` → 校验哈希（`timingSafeEqual`）、5–10 分钟有效期、最多 5 次尝试、一次性（`consumed`）；成功后签发会话。可配置「未注册自动注册」或「仅限已注册」。
-
-3. **安全要点**：
-   - 验证码 6 位数字、5 分钟过期、最多 5 次、用后即焚；只存哈希、恒时比较。
-   - 发送与校验双重限流，防止枚举与短信费用滥用。
-   - 邮件/SMS 供应商凭据只放服务端密钥系统，绝不下发前端。
-   - `password_hash` 改为可空：OTP-only 账号允许无密码；或「验证码登录后引导设置密码」。
-   - 复用现有会话 Cookie 与 `ownerId` 隔离，登录方式不影响授权模型。
-
-> 因为登录标识已经统一为「邮箱或手机号」，验证码登录只需在上述 `send-code`/`login/code` 两个端点里复用 `normalizeIdentifier` / `findUserByIdentifier`，无需改动草稿、管理端与前端路由结构。
+   - `POST /api/auth/send-code`：`{ identifier }`（邮箱或手机号）→ 生成 6 位随机码，**只存哈希**，明文经邮件/短信通道发送；按「identifier 1 次/分钟 + IP 10 次/小时」双重限流，防轰炸。
+   - `POST /api/auth/login/code`：`{ identifier, code }` → 校验哈希（`timingSafeEqual`）、5 分钟过期、最多 5 次尝试、用后即焚；成功后签发会话；新号自动注册。
+3. **发送通道**：`server/mailer.mjs`（SMTP）与 `server/sms.mjs`（阿里云短信）抽象。各自环境变量齐备即启用真实发信；未配置时降级为「验证码打到服务端日志」，供本地跑通全流程。
+   - 邮箱：`SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM`（个人推荐，QQ/163 邮箱均提供 SMTP 授权码）。
+   - 手机：`ALIYUN_SMS_ACCESS_KEY_ID` / `ALIYUN_SMS_ACCESS_KEY_SECRET` / `ALIYUN_SMS_SIGN_NAME` / `ALIYUN_SMS_TEMPLATE_CODE`（模板需含 `${code}` 变量）。
+   - 这些密钥亦可在管理端「系统与安全 → 认证配置」中填写（`server/app-secrets.mjs`，AES-256-GCM 加密落库，`infra/postgres/init/017_app_secrets.sql`），且**优先于环境变量**；Turnstile 的 site/secret key 同样支持管理端配置。
+4. **开关**：`phone_code_login_enabled` / `email_code_login_enabled` 为管理端可热改的 Feature Flag（见 `server/config.mjs`），关闭后对应验证码登录/发码接口返回 403。
+5. **安全要点**：验证码只存哈希、恒时比较、用后即焚；发送与校验双重限流；免密账号 `password_hash` 为空，对其使用密码登录一律返回「账号或密码不正确」，不泄露账号是否仅支持验证码登录。

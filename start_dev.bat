@@ -3,6 +3,9 @@ setlocal
 
 cd /d "%~dp0"
 
+rem 加载 .env（若存在）：让容器、应用与迁移脚本使用同一份配置（强口令）。
+if exist ".env" for /f "usebackq eol=# tokens=1,* delims==" %%a in (".env") do set "%%a=%%b"
+
 if not defined PORT set "PORT=4173"
 set "NODE_ENV=development"
 set "REDIS_URL="

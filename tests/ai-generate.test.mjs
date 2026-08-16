@@ -45,7 +45,7 @@ async function registerAndLogin(app, identifier = "ai@example.com") {
   const response = await fetch(`${app.origin}/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ identifier, password: "password123" })
+    body: JSON.stringify({ identifier, password: "Test1234!" })
   });
   return response.headers.get("set-cookie")?.split(";")[0] || "";
 }

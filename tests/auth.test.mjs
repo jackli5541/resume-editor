@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { startServer } from "../server.mjs";
-import { hashPassword, verifyPassword, isValidEmail, isValidPhone, mapUserRow } from "../server/auth.mjs";
+import { hashPassword, verifyPassword, isValidEmail, isValidPhone, mapUserRow, validatePassword } from "../server/auth.mjs";
 import { seedTestUsers } from "../server/seed-users.mjs";
 
 function cookieFrom(response) {
@@ -53,11 +53,20 @@ test("邮箱与手机号格式校验", () => {
   assert.equal(isValidPhone("abc"), false);
 });
 
+test("密码策略拒绝弱密码（过短/纯数字/纯字母/常见弱口令）", () => {
+  assert.throws(() => validatePassword("short1"), /长度/);
+  assert.throws(() => validatePassword("12345678"), /字母和数字/);
+  assert.throws(() => validatePassword("password"), /字母和数字/);
+  assert.throws(() => validatePassword("password123"), /常见/);
+  assert.throws(() => validatePassword("qwerty123"), /常见/);
+  assert.doesNotThrow(() => validatePassword("Test1234!"));
+});
+
 test("邮箱注册、会话、退出闭环", async (context) => {
   const app = await startAuthServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const created = await register(app, { identifier: "alice@example.com", password: "password123" });
+  const created = await register(app, { identifier: "alice@example.com", password: "Test1234!" });
   assert.equal(created.status, 201);
   assert.equal(created.body.user.email, "alice@example.com");
   assert.ok(created.cookie);
@@ -80,11 +89,11 @@ test("手机号注册并登录", async (context) => {
   const app = await startAuthServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const created = await register(app, { identifier: "13800000000", password: "password123" });
+  const created = await register(app, { identifier: "13800000000", password: "Test1234!" });
   assert.equal(created.status, 201);
   assert.equal(created.body.user.phone, "13800000000");
 
-  const ok = await login(app, { identifier: "13800000000", password: "password123" });
+  const ok = await login(app, { identifier: "13800000000", password: "Test1234!" });
   assert.equal(ok.status, 200);
   assert.equal(ok.body.user.phone, "13800000000");
 });
@@ -93,8 +102,8 @@ test("登录拒绝错误密码并给出统一提示", async (context) => {
   const app = await startAuthServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  await register(app, { identifier: "bob@example.com", password: "password123" });
-  const ok = await login(app, { identifier: "bob@example.com", password: "password123" });
+  await register(app, { identifier: "bob@example.com", password: "Test1234!" });
+  const ok = await login(app, { identifier: "bob@example.com", password: "Test1234!" });
   assert.equal(ok.status, 200);
 
   const bad = await login(app, { identifier: "bob@example.com", password: "wrong-password" });
@@ -120,8 +129,8 @@ test("草稿按 ownerId 隔离：其他用户读取/修改/删除均 404", async
   const app = await startAuthServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const alice = await register(app, { identifier: "alice@example.com", password: "password123" });
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const alice = await register(app, { identifier: "alice@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
 
   const createdResponse = await fetch(`${app.origin}/api/resumes`, {
     method: "POST",
@@ -157,7 +166,7 @@ test("用户设置只保留白名单字段", async (context) => {
   const app = await startAuthServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const user = await register(app, { identifier: "carol@example.com", password: "password123" });
+  const user = await register(app, { identifier: "carol@example.com", password: "Test1234!" });
   const updated = await fetch(`${app.origin}/api/me`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", Cookie: user.cookie },
@@ -184,7 +193,7 @@ test("跨站状态变更请求被 CSRF 校验拒绝", async (context) => {
   const app = await startAuthServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const user = await register(app, { identifier: "dave@example.com", password: "password123" });
+  const user = await register(app, { identifier: "dave@example.com", password: "Test1234!" });
   const response = await fetch(`${app.origin}/api/resumes`, {
     method: "POST",
     headers: {
@@ -201,12 +210,85 @@ test("登录接口按标识限流，超过阈值返回 429", async (context) => 
   const app = await startAuthServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  await register(app, { identifier: "eve@example.com", password: "password123" });
+  await register(app, { identifier: "eve@example.com", password: "Test1234!" });
   let last;
   for (let attempt = 0; attempt < 6; attempt += 1) {
     last = await login(app, { identifier: "eve@example.com", password: "wrong-password" });
   }
   assert.equal(last.status, 429);
+});
+
+test("手机号验证码登录：发码、错误码拒绝、正确码自动注册并登录", async (context) => {
+  let capturedCode = "";
+  const smsService = {
+    async send(phone, code) {
+      capturedCode = code;
+      return { dev: true };
+    }
+  };
+  const app = await startServer({ port: 0, smsService });
+  context.after(() => new Promise((resolve) => app.server.close(resolve)));
+  await app.configService.set({ phone_code_login_enabled: true });
+
+  const sendRes = await fetch(`${app.origin}/api/auth/send-code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ identifier: "13900000000" })
+  });
+  assert.equal(sendRes.status, 200);
+  assert.match(capturedCode, /^\d{6}$/);
+
+  const wrongCode = capturedCode === "000000" ? "111111" : "000000";
+  const bad = await fetch(`${app.origin}/api/auth/login/code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ identifier: "13900000000", code: wrongCode })
+  });
+  assert.equal(bad.status, 400);
+
+  const ok = await fetch(`${app.origin}/api/auth/login/code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ identifier: "13900000000", code: capturedCode })
+  });
+  assert.equal(ok.status, 200);
+  const { user } = await ok.json();
+  assert.equal(user.phone, "13900000000");
+  assert.equal(user.isAdmin, false);
+
+  const session = await fetch(`${app.origin}/api/auth/session`, { headers: authHeaders(cookieFrom(ok)) });
+  assert.equal(session.status, 200);
+});
+
+test("邮箱验证码登录：发码、正确码自动注册并登录", async (context) => {
+  let capturedCode = "";
+  const mailerService = {
+    async send(to, subject, text) {
+      capturedCode = (String(text).match(/\d{6}/) || [""])[0];
+      return { dev: true };
+    }
+  };
+  const app = await startServer({ port: 0, mailerService });
+  context.after(() => new Promise((resolve) => app.server.close(resolve)));
+  await app.configService.set({ email_code_login_enabled: true });
+
+  const sendRes = await fetch(`${app.origin}/api/auth/send-code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ identifier: "user@example.com" })
+  });
+  assert.equal(sendRes.status, 200);
+  assert.match(capturedCode, /^\d{6}$/);
+
+  const ok = await fetch(`${app.origin}/api/auth/login/code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ identifier: "user@example.com", code: capturedCode })
+  });
+  assert.equal(ok.status, 200);
+  const { user } = await ok.json();
+  assert.equal(user.email, "user@example.com");
+  assert.equal(user.isAdmin, false);
 });
 
 test("mapUserRow 将数据库行规范为内部 camelCase 形态", () => {
@@ -236,10 +318,10 @@ test("管理员邮箱自动获得管理员角色且普通用户被拒", async (c
   const app = await startServer({ port: 0, adminEmails: ["admin@example.com"] });
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
   assert.equal(admin.body.user.isAdmin, true);
 
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
   assert.equal(bob.body.user.isAdmin, false);
 
   const forbidden = await fetch(`${app.origin}/api/admin/users`, { headers: authHeaders(bob.cookie) });
@@ -256,8 +338,8 @@ test("管理员可设管理员、禁用、删除用户且不能操作自己", as
   const app = await startServer({ port: 0, adminEmails: ["admin@example.com"] });
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
   const bobId = bob.body.user.id;
 
   const promote = await fetch(`${app.origin}/api/admin/users/${bobId}`, {
@@ -278,7 +360,7 @@ test("管理员可设管理员、禁用、删除用户且不能操作自己", as
   const session = await fetch(`${app.origin}/api/auth/session`, { headers: authHeaders(bob.cookie) });
   assert.equal((await session.json()).user, null);
 
-  const relogin = await login(app, { identifier: "bob@example.com", password: "password123" });
+  const relogin = await login(app, { identifier: "bob@example.com", password: "Test1234!" });
   assert.equal(relogin.status, 403);
 
   const del = await fetch(`${app.origin}/api/admin/users/${bobId}`, { method: "DELETE", headers: authHeaders(admin.cookie) });
@@ -292,8 +374,8 @@ test("管理员可查看并删除全站草稿", async (context) => {
   const app = await startServer({ port: 0, adminEmails: ["admin@example.com"] });
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
 
   const created = await fetch(`${app.origin}/api/resumes`, {
     method: "POST",

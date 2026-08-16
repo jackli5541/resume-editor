@@ -75,6 +75,16 @@ const elements = {
   loginError: document.querySelector("#loginError"),
   loginSubmit: document.querySelector("#loginSubmit"),
   loginToggle: document.querySelector("#loginToggle"),
+  loginPasswordHint: document.querySelector("#loginPasswordHint"),
+  turnstileWrap: document.querySelector("#turnstileWrap"),
+  loginTabPassword: document.querySelector("#loginTabPassword"),
+  loginTabCode: document.querySelector("#loginTabCode"),
+  loginIdentifierLabel: document.querySelector("#loginIdentifierLabel"),
+  loginPasswordField: document.querySelector("#loginPasswordField"),
+  loginCodeField: document.querySelector("#loginCodeField"),
+  loginCode: document.querySelector("#loginCode"),
+  sendCodeButton: document.querySelector("#sendCodeButton"),
+  loginSwitchRow: document.querySelector("#loginSwitchRow"),
   settingsForm: document.querySelector("#settingsForm"),
   settingsName: document.querySelector("#settingsName"),
   settingsEmail: document.querySelector("#settingsEmail"),
@@ -172,6 +182,10 @@ const elements = {
   adminConfigForm: document.querySelector("#adminConfigForm"),
   adminConfigFields: document.querySelector("#adminConfigFields"),
   adminConfigMsg: document.querySelector("#adminConfigMsg"),
+  adminAuthStatus: document.querySelector("#adminAuthStatus"),
+  adminAuthSecretForm: document.querySelector("#adminAuthSecretForm"),
+  adminAuthSecretFields: document.querySelector("#adminAuthSecretFields"),
+  adminAuthSecretMsg: document.querySelector("#adminAuthSecretMsg"),
   adminSystemStats: document.querySelector("#adminSystemStats"),
   adminSystemDetail: document.querySelector("#adminSystemDetail"),
   adminSystemStatus: document.querySelector("#adminSystemStatus"),
@@ -233,6 +247,13 @@ const FIELD_TYPE_LABELS = {
 let currentUser = null;
 let loginMode = "login";
 let loginNext = null;
+let authTab = "password";
+let sendCodeTimer = null;
+let sendCodeCountdown = 0;
+let turnstileConfig = { enabled: false, siteKey: "" };
+let turnstileReady = false;
+let turnstileRequested = false;
+let codeLoginMethods = { email: false, phone: false };
 let adminUsers = [];
 let adminDrafts = [];
 let adminUserSearchTimer = null;
@@ -1142,14 +1163,197 @@ function openLogin(next = null) {
   showLoginPage();
 }
 
+function loadTurnstileScript() {
+  if (window.turnstile) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("人机验证组件加载失败，请刷新后重试"));
+    document.head.appendChild(script);
+  });
+}
+
+// 拉取 Turnstile 配置并在登录页渲染人机验证组件（仅当服务端已配置 secret key）。
+async function ensureTurnstile() {
+  if (turnstileRequested) return;
+  turnstileRequested = true;
+  try {
+    const payload = await readApiResponse(await fetch("/api/auth/turnstile-config", { cache: "no-store" }));
+    turnstileConfig = { enabled: Boolean(payload.enabled), siteKey: payload.siteKey || "" };
+  } catch {
+    turnstileConfig = { enabled: false, siteKey: "" };
+  }
+  if (!turnstileConfig.enabled || !turnstileConfig.siteKey) return;
+  try {
+    await loadTurnstileScript();
+    elements.turnstileWrap.hidden = false;
+    window.turnstile.render(elements.turnstileWrap, {
+      sitekey: turnstileConfig.siteKey,
+      theme: "auto"
+    });
+    turnstileReady = true;
+  } catch {
+    turnstileReady = false;
+  }
+}
+
+function turnstileTokenValue() {
+  return turnstileReady && window.turnstile ? (window.turnstile.getResponse() || "") : "";
+}
+
+function resetTurnstile() {
+  if (turnstileReady && window.turnstile) window.turnstile.reset();
+}
+
+// 拉取验证码登录开关，决定是否显示「验证码登录」tab（默认关闭，由管理端开启）。
+async function loadLoginMethods() {
+  try {
+    const payload = await readApiResponse(await fetch("/api/auth/login-methods", { cache: "no-store" }));
+    codeLoginMethods = { email: Boolean(payload.emailCodeEnabled), phone: Boolean(payload.phoneCodeEnabled) };
+  } catch {
+    codeLoginMethods = { email: false, phone: false };
+  }
+  const codeAvailable = codeLoginMethods.email || codeLoginMethods.phone;
+  elements.loginTabCode.hidden = !codeAvailable;
+  if (!codeAvailable && authTab === "code") setAuthTab("password");
+}
+
+function refreshLoginForm() {
+  const isCode = authTab === "code";
+  const isRegister = !isCode && loginMode === "register";
+
+  elements.loginTabPassword.classList.toggle("is-active", !isCode);
+  elements.loginTabCode.classList.toggle("is-active", isCode);
+  elements.loginTabPassword.setAttribute("aria-selected", String(!isCode));
+  elements.loginTabCode.setAttribute("aria-selected", String(isCode));
+
+  elements.loginIdentifierLabel.textContent = "邮箱或手机号";
+  elements.loginIdentifier.autocomplete = "username";
+  elements.loginIdentifier.type = "text";
+  elements.loginPasswordField.hidden = isCode;
+  elements.loginPasswordHint.hidden = isCode || !isRegister;
+  elements.loginCodeField.hidden = !isCode;
+  elements.loginNameField.hidden = isCode || !isRegister;
+  elements.loginSwitchRow.hidden = isCode;
+
+  elements.loginTitle.textContent = isCode ? "验证码登录" : (isRegister ? "注册" : "登录");
+  elements.loginSubmit.textContent = isCode ? "登录 / 注册" : (isRegister ? "注册并登录" : "登录");
+  elements.loginToggle.textContent = isRegister ? "已有账号？去登录" : "还没有账号？立即注册";
+  elements.loginError.hidden = true;
+}
+
 function setLoginMode(mode) {
   loginMode = mode === "register" ? "register" : "login";
-  const isRegister = loginMode === "register";
-  elements.loginTitle.textContent = isRegister ? "注册" : "登录";
-  elements.loginSubmit.textContent = isRegister ? "注册并登录" : "登录";
-  elements.loginToggle.textContent = isRegister ? "已有账号？去登录" : "还没有账号？立即注册";
-  elements.loginNameField.hidden = !isRegister;
+  refreshLoginForm();
+}
+
+function setAuthTab(tab) {
+  authTab = tab === "code" ? "code" : "password";
+  if (authTab === "code") loginMode = "login";
+  refreshLoginForm();
+  elements.loginIdentifier.focus();
+}
+
+function updateSendCodeButton() {
+  if (sendCodeCountdown > 0) {
+    elements.sendCodeButton.disabled = true;
+    elements.sendCodeButton.textContent = `${sendCodeCountdown}s 后重发`;
+  } else {
+    elements.sendCodeButton.disabled = false;
+    elements.sendCodeButton.textContent = "获取验证码";
+  }
+}
+
+function startSendCodeCountdown() {
+  sendCodeCountdown = 60;
+  updateSendCodeButton();
+  clearInterval(sendCodeTimer);
+  sendCodeTimer = setInterval(() => {
+    sendCodeCountdown -= 1;
+    if (sendCodeCountdown <= 0) {
+      clearInterval(sendCodeTimer);
+      sendCodeTimer = null;
+    }
+    updateSendCodeButton();
+  }, 1000);
+}
+
+async function handleSendCode() {
+  const phone = elements.loginIdentifier.value.trim();
+  if (!phone) {
+    elements.loginError.textContent = "请输入手机号";
+    elements.loginError.hidden = false;
+    elements.loginIdentifier.focus();
+    return;
+  }
+  elements.sendCodeButton.disabled = true;
+  try {
+    await readApiResponse(await fetch("/api/auth/send-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier: phone })
+    }));
+    showToast("验证码已发送", "success");
+    startSendCodeCountdown();
+    elements.loginCode.focus();
+  } catch (error) {
+    elements.loginError.textContent = error?.message || "验证码发送失败";
+    elements.loginError.hidden = false;
+  } finally {
+    elements.sendCodeButton.disabled = sendCodeCountdown > 0;
+  }
+}
+
+async function submitCodeLogin() {
+  const phone = elements.loginIdentifier.value.trim();
+  const code = elements.loginCode.value.trim();
+  if (!phone) {
+    elements.loginError.textContent = "请输入手机号";
+    elements.loginError.hidden = false;
+    return;
+  }
+  if (!code) {
+    elements.loginError.textContent = "请输入验证码";
+    elements.loginError.hidden = false;
+    return;
+  }
+  if (turnstileConfig.enabled && !turnstileTokenValue()) {
+    elements.loginError.textContent = "请完成人机验证后再提交";
+    elements.loginError.hidden = false;
+    if (!turnstileReady) ensureTurnstile();
+    return;
+  }
+  elements.loginSubmit.disabled = true;
   elements.loginError.hidden = true;
+  try {
+    const deviceId = await getDeviceId().catch(() => "");
+    const headers = { "Content-Type": "application/json" };
+    if (deviceId) headers["X-Device-Id"] = deviceId;
+    const payload = await readApiResponse(await fetch("/api/auth/login/code", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ identifier: phone, code, turnstileToken: turnstileTokenValue() })
+    }));
+    currentUser = payload.user || null;
+    updateAccountUi();
+    refreshUnreadCount();
+    closeAllAccountMenus();
+    showToast("登录成功", "success");
+    const fallback = defaultPathFor(currentUser);
+    const target = loginNext && isAppPath(loginNext) ? loginNext : fallback;
+    loginNext = null;
+    window.history.replaceState({}, "", target);
+    await applyCurrentRoute();
+  } catch (error) {
+    elements.loginError.textContent = error?.message || "登录失败";
+    elements.loginError.hidden = false;
+    if (/人机验证/.test(error?.message || "")) resetTurnstile();
+  } finally {
+    elements.loginSubmit.disabled = false;
+  }
 }
 
 // 页面切换淡入：用 Web Animations API 显式播放，避免依赖浏览器对
@@ -1170,10 +1374,20 @@ function showLoginPage() {
   elements.adminPage.hidden = true;
   elements.aiPage.hidden = true;
   revealView(elements.loginPage);
-  setLoginMode("login");
+  authTab = "password";
+  loginMode = "login";
+  refreshLoginForm();
   elements.loginIdentifier.value = "";
   elements.loginPassword.value = "";
   elements.loginName.value = "";
+  elements.loginCode.value = "";
+  clearInterval(sendCodeTimer);
+  sendCodeTimer = null;
+  sendCodeCountdown = 0;
+  updateSendCodeButton();
+  ensureTurnstile();
+  resetTurnstile();
+  loadLoginMethods();
   window.scrollTo({ top: 0, behavior: "auto" });
   elements.loginIdentifier.focus();
 }
@@ -1224,13 +1438,26 @@ function closeSettings() {
 
 async function handleLoginSubmit(event) {
   event.preventDefault();
+  if (authTab === "code") {
+    await submitCodeLogin();
+    return;
+  }
   const identifier = elements.loginIdentifier.value.trim();
   const password = elements.loginPassword.value;
   const isRegister = loginMode === "register";
+  if (turnstileConfig.enabled && !turnstileTokenValue()) {
+    elements.loginError.textContent = "请完成人机验证后再提交";
+    elements.loginError.hidden = false;
+    if (!turnstileReady) ensureTurnstile();
+    return;
+  }
   const path = isRegister ? "/api/auth/register" : "/api/auth/login";
-  const body = isRegister
-    ? { identifier, password, displayName: elements.loginName.value.trim() }
-    : { identifier, password };
+  const body = {
+    identifier,
+    password,
+    turnstileToken: turnstileTokenValue()
+  };
+  if (isRegister) body.displayName = elements.loginName.value.trim();
   elements.loginSubmit.disabled = true;
   elements.loginError.hidden = true;
   try {
@@ -1256,6 +1483,7 @@ async function handleLoginSubmit(event) {
   } catch (error) {
     elements.loginError.textContent = error?.message || "操作失败";
     elements.loginError.hidden = false;
+    if (/人机验证/.test(error?.message || "")) resetTurnstile();
   } finally {
     elements.loginSubmit.disabled = false;
   }
@@ -1333,15 +1561,16 @@ const ADMIN_TAB_PERMISSIONS = [
   ["users", "users.read"],
   ["duplicates", "users.read"],
   ["resumes", "resumes.read"],
+  ["recycle", "recycle.read"],
   ["announcements", "announcements.read"],
   ["feedback", "feedback.read"],
   ["templates", "templates.read"],
   ["ai", "ai_config.read"],
   ["logs", "ai_logs.read"],
   ["costs", "ai_logs.read"],
-  ["audit", "audit.read"],
-  ["recycle", "recycle.read"],
   ["config", "config.read"],
+  ["auth", "config.read"],
+  ["audit", "audit.read"],
   ["system", "system.read"]
 ];
 
@@ -1366,6 +1595,10 @@ function showAdminPage() {
   document.querySelectorAll("[data-admin-tab]").forEach((button) => {
     button.hidden = !visibleTabs.includes(button.dataset.adminTab);
   });
+  document.querySelectorAll("[data-admin-group]").forEach((group) => {
+    const hasVisible = [...group.querySelectorAll("[data-admin-tab]")].some((button) => !button.hidden);
+    group.hidden = !hasVisible;
+  });
   setAdminTab(visibleTabs[0] || "users");
 
   loadAdminOverview();
@@ -1382,7 +1615,11 @@ function showAdminPage() {
   if (hasAdminPermission("ai_logs.read")) loadAdminCosts();
   if (hasAdminPermission("audit.read")) loadAdminAuditLogs();
   if (hasAdminPermission("recycle.read")) loadAdminRecycle();
-  if (hasAdminPermission("config.read")) loadAdminConfig();
+  if (hasAdminPermission("config.read")) {
+    loadAdminConfig();
+    loadAdminAuthStatus();
+    loadAdminAuthSecrets();
+  }
   if (hasAdminPermission("system.read")) {
     loadAdminSystem();
     loadAdminAlerts();
@@ -2509,6 +2746,115 @@ async function loadAdminConfig() {
   }
 }
 
+async function loadAdminAuthStatus() {
+  try {
+    const payload = await readApiResponse(await fetch("/api/admin/auth-status", { cache: "no-store" }));
+    const badge = (configured) => configured
+      ? '<span class="auth-status-badge is-on">已配置</span>'
+      : '<span class="auth-status-badge is-off">未配置（开发模式）</span>';
+    elements.adminAuthStatus.innerHTML = `
+      <span class="admin-auth-status__label">认证渠道状态</span>
+      <span class="admin-auth-status__item">邮箱验证码登录：${payload.emailCodeLoginEnabled ? "开启" : "关闭"} · 通道 ${badge(payload.emailConfigured)}</span>
+      <span class="admin-auth-status__item">手机验证码登录：${payload.phoneCodeLoginEnabled ? "开启" : "关闭"} · 通道 ${badge(payload.phoneConfigured)}</span>
+      <small>密钥可在「认证配置」中填写（加密落库，优先于环境变量）；均未配置时验证码会打印到服务端日志。</small>`;
+  } catch {
+    elements.adminAuthStatus.innerHTML = "";
+  }
+}
+
+const AUTH_SECRET_FIELDS = [
+  { key: "turnstile_site_key", label: "Turnstile Site Key", group: "人机验证（Turnstile）", type: "text" },
+  { key: "turnstile_secret_key", label: "Turnstile Secret Key", group: "人机验证（Turnstile）", type: "password" },
+  { key: "smtp_host", label: "SMTP 主机", group: "邮箱验证码（SMTP）", type: "text" },
+  { key: "smtp_port", label: "SMTP 端口", group: "邮箱验证码（SMTP）", type: "text" },
+  { key: "smtp_secure", label: "SMTP 加密（true/false）", group: "邮箱验证码（SMTP）", type: "text" },
+  { key: "smtp_user", label: "SMTP 账号", group: "邮箱验证码（SMTP）", type: "text" },
+  { key: "smtp_pass", label: "SMTP 密码/授权码", group: "邮箱验证码（SMTP）", type: "password" },
+  { key: "smtp_from", label: "发件人地址", group: "邮箱验证码（SMTP）", type: "text" },
+  { key: "aliyun_sms_access_key_id", label: "AccessKey ID", group: "手机验证码（阿里云短信）", type: "text" },
+  { key: "aliyun_sms_access_key_secret", label: "AccessKey Secret", group: "手机验证码（阿里云短信）", type: "password" },
+  { key: "aliyun_sms_sign_name", label: "短信签名", group: "手机验证码（阿里云短信）", type: "text" },
+  { key: "aliyun_sms_template_code", label: "模板 Code", group: "手机验证码（阿里云短信）", type: "text" }
+];
+
+function renderAdminAuthSecrets(secrets) {
+  const groups = {};
+  for (const field of AUTH_SECRET_FIELDS) {
+    (groups[field.group] ||= []).push(field);
+  }
+  const canWrite = hasAdminPermission("config.write");
+  elements.adminAuthSecretFields.innerHTML = Object.entries(groups).map(([group, fields]) => `
+    <div class="admin-secret-group">
+      <span class="admin-secret-group__label">${escapeHtml(group)}</span>
+      ${fields.map((field) => {
+        const record = secrets?.[field.key] || {};
+        const placeholder = record.set ? record.hint || "已配置" : "未配置";
+        return `
+          <div class="admin-field">
+            <span class="admin-field__label">${escapeHtml(field.label)}</span>
+            <div class="admin-key-row">
+              <input type="${field.type}" data-secret-key="${escapeHtml(field.key)}" placeholder="${escapeHtml(placeholder)}" autocomplete="new-password" ${canWrite ? "" : "disabled"} />
+              ${record.set && canWrite ? `<button type="button" class="danger-link" data-action="admin-clear-secret" data-secret-key="${escapeHtml(field.key)}">清除</button>` : ""}
+            </div>
+          </div>`;
+      }).join("")}
+    </div>`).join("");
+  const submit = elements.adminAuthSecretForm.querySelector("button[type='submit']");
+  if (submit) submit.disabled = !canWrite;
+}
+
+async function loadAdminAuthSecrets() {
+  try {
+    const payload = await readApiResponse(await fetch("/api/admin/auth-secrets", { cache: "no-store" }));
+    renderAdminAuthSecrets(payload.secrets || {});
+  } catch {
+    renderAdminAuthSecrets({});
+  }
+}
+
+async function saveAdminAuthSecrets(event) {
+  event.preventDefault();
+  const body = {};
+  elements.adminAuthSecretFields.querySelectorAll("[data-secret-key]").forEach((input) => {
+    const value = input.value.trim();
+    if (value) body[input.dataset.secretKey] = value;
+  });
+  elements.adminAuthSecretMsg.hidden = false;
+  elements.adminAuthSecretMsg.textContent = "正在保存…";
+  try {
+    const result = await readApiResponse(await fetch("/api/admin/auth-secrets", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }));
+    renderAdminAuthSecrets(result.secrets || {});
+    elements.adminAuthSecretMsg.textContent = "已保存";
+    showToast("密钥已保存", "success");
+    loadAdminAuthStatus();
+  } catch (error) {
+    elements.adminAuthSecretMsg.textContent = error?.message || "保存失败";
+  }
+}
+
+async function clearAdminSecret(target) {
+  const key = target.dataset.secretKey;
+  if (!key) return;
+  elements.adminAuthSecretMsg.hidden = false;
+  elements.adminAuthSecretMsg.textContent = "正在清除…";
+  try {
+    const result = await readApiResponse(await fetch("/api/admin/auth-secrets", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [key]: "" })
+    }));
+    renderAdminAuthSecrets(result.secrets || {});
+    elements.adminAuthSecretMsg.textContent = "已清除";
+    loadAdminAuthStatus();
+  } catch (error) {
+    elements.adminAuthSecretMsg.textContent = error?.message || "清除失败";
+  }
+}
+
 function renderAdminConfig(schema, values) {
   adminConfigSchema = schema;
   const canWrite = hasAdminPermission("config.write");
@@ -3549,6 +3895,7 @@ document.addEventListener("click", async (event) => {
   else if (action === "admin-download-draft") adminDownloadDraft(actionTarget.dataset.resumeId);
   else if (action === "admin-delete-draft") adminDeleteDraft(actionTarget);
   else if (action === "admin-clear-ai-key") clearAdminAiKey();
+  else if (action === "admin-clear-secret") clearAdminSecret(actionTarget);
   else if (action === "admin-revoke-sessions") adminRevokeSessions(actionTarget);
   else if (action === "admin-restore-user") adminRestoreUser(actionTarget);
   else if (action === "admin-purge-user") adminPurgeUser(actionTarget);
@@ -3933,6 +4280,9 @@ elements.settingsForm.addEventListener("submit", handleSettingsSubmit);
 elements.loginToggle.addEventListener("click", () => {
   setLoginMode(loginMode === "login" ? "register" : "login");
 });
+elements.loginTabPassword.addEventListener("click", () => setAuthTab("password"));
+elements.loginTabCode.addEventListener("click", () => setAuthTab("code"));
+elements.sendCodeButton.addEventListener("click", handleSendCode);
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".account-area")) closeAllAccountMenus();
   if (!event.target.closest(".module-add")) elements.addModuleMenu.hidden = true;
@@ -3989,6 +4339,7 @@ elements.adminAnnouncementForm.addEventListener("submit", saveAnnouncement);
 elements.adminFeedbackReplyForm.addEventListener("submit", saveFeedbackReply);
 elements.feedbackForm.addEventListener("submit", submitFeedback);
 elements.adminConfigForm.addEventListener("submit", saveAdminConfig);
+elements.adminAuthSecretForm.addEventListener("submit", saveAdminAuthSecrets);
 
 // Word 简历导入：文件选择、字数实时统计、拖拽导入。
 elements.aiWordFile.addEventListener("change", () => {

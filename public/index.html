@@ -225,19 +225,40 @@
         <div class="admin-stats" id="adminStats"></div>
         <div id="adminChart" class="admin-chart" hidden></div>
         <div class="admin-tabs" role="tablist" aria-label="管理功能">
-          <button class="admin-tab is-active" type="button" data-admin-tab="users">用户管理</button>
-          <button class="admin-tab" type="button" data-admin-tab="duplicates">疑似多账号</button>
-          <button class="admin-tab" type="button" data-admin-tab="resumes">草稿管理</button>
-          <button class="admin-tab" type="button" data-admin-tab="announcements">公告</button>
-          <button class="admin-tab" type="button" data-admin-tab="feedback">反馈</button>
-          <button class="admin-tab" type="button" data-admin-tab="templates">模板</button>
-          <button class="admin-tab" type="button" data-admin-tab="ai">AI 配置</button>
-          <button class="admin-tab" type="button" data-admin-tab="logs">AI 调用</button>
-          <button class="admin-tab" type="button" data-admin-tab="costs">AI 成本</button>
-          <button class="admin-tab" type="button" data-admin-tab="audit">审计日志</button>
-          <button class="admin-tab" type="button" data-admin-tab="recycle">回收站</button>
-          <button class="admin-tab" type="button" data-admin-tab="config">配置</button>
-          <button class="admin-tab" type="button" data-admin-tab="system">运维</button>
+          <div class="admin-tab-group" data-admin-group="content">
+            <span class="admin-tab-group__label">用户与内容</span>
+            <div class="admin-tab-group__tabs">
+              <button class="admin-tab is-active" type="button" data-admin-tab="users">用户管理</button>
+              <button class="admin-tab" type="button" data-admin-tab="duplicates">疑似多账号</button>
+              <button class="admin-tab" type="button" data-admin-tab="resumes">草稿管理</button>
+              <button class="admin-tab" type="button" data-admin-tab="recycle">回收站</button>
+            </div>
+          </div>
+          <div class="admin-tab-group" data-admin-group="ops">
+            <span class="admin-tab-group__label">运营</span>
+            <div class="admin-tab-group__tabs">
+              <button class="admin-tab" type="button" data-admin-tab="announcements">公告</button>
+              <button class="admin-tab" type="button" data-admin-tab="feedback">反馈</button>
+              <button class="admin-tab" type="button" data-admin-tab="templates">模板</button>
+            </div>
+          </div>
+          <div class="admin-tab-group" data-admin-group="ai">
+            <span class="admin-tab-group__label">AI 能力</span>
+            <div class="admin-tab-group__tabs">
+              <button class="admin-tab" type="button" data-admin-tab="ai">AI 配置</button>
+              <button class="admin-tab" type="button" data-admin-tab="logs">AI 调用</button>
+              <button class="admin-tab" type="button" data-admin-tab="costs">AI 成本</button>
+            </div>
+          </div>
+          <div class="admin-tab-group" data-admin-group="system">
+            <span class="admin-tab-group__label">系统与安全</span>
+            <div class="admin-tab-group__tabs">
+              <button class="admin-tab" type="button" data-admin-tab="config">运行配置</button>
+              <button class="admin-tab" type="button" data-admin-tab="auth">认证配置</button>
+              <button class="admin-tab" type="button" data-admin-tab="audit">审计日志</button>
+              <button class="admin-tab" type="button" data-admin-tab="system">运维状态</button>
+            </div>
+          </div>
         </div>
         <section class="admin-panel" data-admin-panel="users">
           <div class="admin-toolbar">
@@ -489,11 +510,25 @@
           <div class="admin-toolbar">
             <h2 class="admin-subhead">运行配置（Feature Flag）</h2>
           </div>
+          <div class="admin-auth-status" id="adminAuthStatus"></div>
           <form id="adminConfigForm" novalidate>
             <div id="adminConfigFields" class="admin-form__grid"></div>
             <div class="admin-form__footer">
               <button type="submit" class="admin-submit">保存配置</button>
               <span id="adminConfigMsg" class="library-status" role="status"></span>
+            </div>
+          </form>
+        </section>
+        <section class="admin-panel" data-admin-panel="auth" hidden>
+          <div class="admin-toolbar">
+            <h2 class="admin-subhead">认证渠道密钥配置</h2>
+          </div>
+          <p class="admin-secret-note">密钥经 AES-256-GCM 加密后落库，仅回显「是否已配置」与脱敏提示；输入框留空表示不修改，点「清除」可删除对应密钥。</p>
+          <form id="adminAuthSecretForm" novalidate>
+            <div id="adminAuthSecretFields" class="admin-form__grid"></div>
+            <div class="admin-form__footer">
+              <button type="submit" class="admin-submit">保存密钥</button>
+              <span id="adminAuthSecretMsg" class="library-status" role="status"></span>
             </div>
           </form>
         </section>
@@ -819,22 +854,35 @@
           <h1 id="loginTitle">登录</h1>
           <p>登录后将根据账号角色进入对应工作台。</p>
         </div>
+        <div class="login-tabs" role="tablist" aria-label="登录方式">
+          <button type="button" class="login-tab is-active" id="loginTabPassword" data-auth-tab="password" role="tab" aria-selected="true">密码登录</button>
+          <button type="button" class="login-tab" id="loginTabCode" data-auth-tab="code" role="tab" aria-selected="false">验证码登录</button>
+        </div>
         <form id="loginForm" novalidate>
           <label class="form-field">
-            <span>邮箱或手机号</span>
+            <span id="loginIdentifierLabel">邮箱或手机号</span>
             <input type="text" id="loginIdentifier" autocomplete="username" required />
           </label>
-          <label class="form-field">
+          <label class="form-field" id="loginPasswordField">
             <span>密码</span>
             <input type="password" id="loginPassword" autocomplete="current-password" required />
+          </label>
+          <p class="auth-hint" id="loginPasswordHint" hidden>密码需 8–200 位，且同时包含字母和数字。</p>
+          <label class="form-field" id="loginCodeField" hidden>
+            <span>验证码</span>
+            <div class="code-row">
+              <input type="text" id="loginCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码" />
+              <button class="code-send" type="button" id="sendCodeButton">获取验证码</button>
+            </div>
           </label>
           <label class="form-field" id="loginNameField" hidden>
             <span>昵称（可选）</span>
             <input type="text" id="loginName" autocomplete="name" maxlength="60" />
           </label>
+          <div class="turnstile-wrap" id="turnstileWrap" hidden></div>
           <p class="auth-error" id="loginError" role="alert" hidden></p>
           <button class="primary-button auth-submit" type="submit" id="loginSubmit">登录</button>
-          <p class="auth-switch">还没有账号？<button class="link-button" type="button" id="loginToggle">立即注册</button></p>
+          <p class="auth-switch" id="loginSwitchRow">还没有账号？<button class="link-button" type="button" id="loginToggle">立即注册</button></p>
         </form>
       </div>
     </section>

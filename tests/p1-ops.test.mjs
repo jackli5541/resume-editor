@@ -29,9 +29,9 @@ test("用户列表支持角色与状态筛选", async (context) => {
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
-  await register(app, { identifier: "carol@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
+  await register(app, { identifier: "carol@example.com", password: "Test1234!" });
 
   // 禁用 bob
   await fetch(`${app.origin}/api/admin/users/${bob.body.user.id}`, {
@@ -57,8 +57,8 @@ test("草稿列表支持模板筛选", async (context) => {
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
 
   await fetch(`${app.origin}/api/resumes`, {
     method: "POST",
@@ -77,7 +77,7 @@ test("公告：创建、发布、公开可见、下线、删除", async (context
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
 
   const created = await fetch(`${app.origin}/api/admin/announcements`, {
     method: "POST",
@@ -116,8 +116,8 @@ test("反馈：用户提交，管理员查看并回复", async (context) => {
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
 
   const submit = await fetch(`${app.origin}/api/feedback`, {
     method: "POST",
@@ -149,7 +149,7 @@ test("指标接口返回日序列与总计", async (context) => {
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
   const payload = await (await fetch(`${app.origin}/api/admin/metrics?days=7`, { headers: authHeaders(admin.cookie) })).json();
   assert.equal(payload.days.length, 7);
   assert.ok(typeof payload.totals.users === "number");
@@ -160,7 +160,7 @@ test("CSV 导出返回带 BOM 的 text/csv", async (context) => {
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
   const response = await fetch(`${app.origin}/api/admin/users?format=csv`, { headers: authHeaders(admin.cookie) });
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") || "", /text\/csv/);
@@ -176,8 +176,8 @@ test("站内信广播与读取", async (context) => {
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
-  const bob = await register(app, { identifier: "bob@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
 
   const broadcast = await fetch(`${app.origin}/api/admin/messages/broadcast`, {
     method: "POST",
@@ -195,7 +195,7 @@ test("模板管理列表与状态流转接口", async (context) => {
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));
 
-  const admin = await register(app, { identifier: "admin@example.com", password: "password123" });
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
   const list = await (await fetch(`${app.origin}/api/admin/templates`, { headers: authHeaders(admin.cookie) })).json();
   assert.ok(Array.isArray(list.templates));
   assert.ok(list.templates.some((t) => t.slug === "clean-single"));

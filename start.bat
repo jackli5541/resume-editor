@@ -3,6 +3,9 @@ setlocal
 
 cd /d "%~dp0"
 
+rem 加载 .env（若存在）：让容器、应用与迁移脚本使用同一份配置（强口令）。
+if exist ".env" for /f "usebackq eol=# tokens=1,* delims==" %%a in (".env") do set "%%a=%%b"
+
 if not defined PORT set "PORT=4173"
 rem 本地开发专用口令（仅绑定 127.0.0.1）；compose 与宿主进程需保持一致
 if not defined POSTGRES_USER set "POSTGRES_USER=resume"
