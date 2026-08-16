@@ -16,6 +16,7 @@ if not defined REDIS_URL set "REDIS_URL=redis://:%REDIS_PASSWORD%@127.0.0.1:6379
 where node >nul 2>nul
 if errorlevel 1 (
   echo Node.js 20 or later is required. Install Node.js and try again.
+  pause
   exit /b 1
 )
 
@@ -27,6 +28,7 @@ where docker >nul 2>nul
 if errorlevel 1 (
   echo Docker Desktop is required to run the document worker and fidelity preview.
   echo For lightweight local editing without DOCX preview, use start_dev.bat instead.
+  pause
   exit /b 1
 )
 
@@ -42,6 +44,7 @@ echo First run builds the document-worker image, which can take several minutes.
 if errorlevel 1 (
   echo Failed to start Docker services. Make sure Docker Desktop is running.
   echo Inspect with: %COMPOSE_CMD% ps
+  pause
   exit /b 1
 )
 
@@ -49,6 +52,7 @@ echo Applying database migrations...
 call npm run db:migrate
 if errorlevel 1 (
   echo Database migration failed. Check DATABASE_URL and that PostgreSQL is healthy.
+  pause
   exit /b 1
 )
 
@@ -66,3 +70,6 @@ echo Fidelity preview and DOCX export are handled by the Docker worker.
 echo.
 
 node server.mjs
+echo.
+echo Server process ended. Check the message above, then press any key to close.
+pause

@@ -8,6 +8,7 @@ import {
 import { promisify } from "node:util";
 import { ADMIN_ROLES, effectiveRole, listPermissions } from "./permissions.mjs";
 import { isDisposableEmail } from "./email-guard.mjs";
+import { TONE_HINTS } from "./ai/extract.mjs";
 
 const scryptAsync = promisify(scrypt);
 
@@ -698,6 +699,8 @@ const ALLOWED_SETTING_KEYS = new Set([
 
 const ALLOWED_AI_KEYS = new Set(["enabled", "targetRole", "tone", "provider"]);
 
+const ALLOWED_TONES = Object.keys(TONE_HINTS);
+
 function sanitizeSettings(next, existing) {
   const base = existing && typeof existing === "object" ? { ...existing } : {};
   if (!next || typeof next !== "object" || Array.isArray(next)) return base;
@@ -718,7 +721,7 @@ function sanitizeAi(next, existing) {
     if (!ALLOWED_AI_KEYS.has(key)) continue;
     if (key === "enabled") base.enabled = Boolean(value);
     else if (key === "targetRole") base.targetRole = String(value ?? "").slice(0, 120);
-    else if (key === "tone") base.tone = ["professional", "concise", "confident"].includes(value) ? value : (base.tone || "professional");
+    else if (key === "tone") base.tone = ALLOWED_TONES.includes(value) ? value : (base.tone || "professional");
     else if (key === "provider") base.provider = String(value ?? "").slice(0, 40);
   }
   return base;

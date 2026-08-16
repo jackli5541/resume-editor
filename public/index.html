@@ -562,13 +562,38 @@
             </div>
             <label class="ai-label" for="aiDescription">个人经历描述</label>
             <textarea id="aiDescription" rows="11" placeholder="例如：我叫张三，5 年产品经理经验，2017 年毕业于华东理工大学信息管理专业；2021 年起在青屿科技担任高级产品经理，负责企业协作产品从 0 到 1……也可以直接导入 Word 简历，自动提取文字。"></textarea>
+            <fieldset class="ai-tone-field" id="aiTone">
+              <legend class="ai-tone-field__label">表达风格</legend>
+              <div class="ai-tone-options">
+                <label class="ai-tone-option" title="语气专业、严谨、客观，措辞规范克制">
+                  <input type="radio" name="aiTone" value="professional" checked />
+                  <span>专业严谨</span>
+                </label>
+                <label class="ai-tone-option" title="删减冗余，用最少的字表达核心信息">
+                  <input type="radio" name="aiTone" value="concise" />
+                  <span>极简精炼</span>
+                </label>
+                <label class="ai-tone-option" title="突出个人贡献与价值，措辞有冲击力">
+                  <input type="radio" name="aiTone" value="confident" />
+                  <span>自信有力</span>
+                </label>
+                <label class="ai-tone-option" title="尽量量化成果，突出数字与业绩指标">
+                  <input type="radio" name="aiTone" value="quantified" />
+                  <span>数据成果</span>
+                </label>
+                <label class="ai-tone-option" title="强动词开头，突出主动性与执行力">
+                  <input type="radio" name="aiTone" value="dynamic" />
+                  <span>行动导向</span>
+                </label>
+                <label class="ai-tone-option" title="措辞文雅得体，适合高端或注重文字修养的岗位">
+                  <input type="radio" name="aiTone" value="elegant" />
+                  <span>文雅沉稳</span>
+                </label>
+              </div>
+            </fieldset>
             <div class="ai-input-actions">
-              <select id="aiTone" aria-label="表达语气">
-                <option value="professional">专业简洁</option>
-                <option value="concise">尽量简洁</option>
-                <option value="confident">自信有力</option>
-              </select>
               <button class="ai-submit" type="button" data-action="ai-generate">AI 生成</button>
+              <button class="ai-submit ai-submit--secondary" type="button" data-action="manual-edit">直接手动编辑</button>
               <span class="ai-char-count" id="aiCharCount" title="已输入字数">0 字</span>
             </div>
             <p id="aiStatus" class="library-status" role="status"></p>
@@ -839,9 +864,12 @@
             <label class="form-field">
               <span>表达风格</span>
               <select id="settingsAiTone">
-                <option value="professional">专业</option>
-                <option value="concise">简洁</option>
-                <option value="confident">自信</option>
+                <option value="professional">专业严谨</option>
+                <option value="concise">极简精炼</option>
+                <option value="confident">自信有力</option>
+                <option value="quantified">数据成果</option>
+                <option value="dynamic">行动导向</option>
+                <option value="elegant">文雅沉稳</option>
               </select>
             </label>
           </fieldset>

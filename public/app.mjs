@@ -2901,6 +2901,11 @@ async function loadAiLimits() {
   updateAiCharCount();
 }
 
+function aiToneValue() {
+  const checked = elements.aiTone?.querySelector('input[type="radio"]:checked');
+  return checked?.value || "professional";
+}
+
 async function generateAi() {
   if (aiGenerating) return;
   if (!currentUser) {
@@ -2930,7 +2935,7 @@ async function generateAi() {
       body: JSON.stringify({
         templateSlug: "clean-single",
         description,
-        tone: elements.aiTone.value
+        tone: aiToneValue()
       })
     }));
     renderAiPreview();
@@ -3445,6 +3450,33 @@ async function selectTemplate(target) {
   target.textContent = "使用此模板";
 }
 
+function manualEdit() {
+  const template = availableTemplates.find((item) => item.slug === "clean-single");
+  resume = createResumeForTemplate({
+    slug: "clean-single",
+    version: template?.version || 1,
+    name: template?.name || "极简轻",
+    engine: template?.engine || "html-native",
+    previewUrl: template?.previewUrl || null,
+    editorSchema: template?.editorSchema || getTemplateSchema("clean-single"),
+    defaultResume: template?.defaultResume || null
+  });
+  activeModuleId = "profile";
+  activeItemBySection.clear();
+  hasUnsavedChanges = true;
+  saveNow();
+  if (!currentUser) {
+    openLogin("/editor");
+    showToast("登录后开始编辑", "info");
+    return;
+  }
+  hideAiPage();
+  revealView(elements.app);
+  updateBrowserRoute({ name: "editor" });
+  renderAll();
+  showToast("已进入手动编辑，填写内容后点击保存即可生成草稿", "info");
+}
+
 function fitOnePage() {
   if (currentPages <= 1) {
     showToast("当前已经是一页简历", "info");
@@ -3551,6 +3583,7 @@ document.addEventListener("click", async (event) => {
   else if (action === "ai-regen") generateAi();
   else if (action === "ai-save") saveAiDraft();
   else if (action === "ai-import-word") elements.aiWordFile.click();
+  else if (action === "manual-edit") manualEdit();
   else if (action === "toggle-add-module") toggleAddModuleMenu();
   else if (action === "add-module") addModule(actionTarget.dataset.moduleId);
   else if (action === "select-template") selectTemplate(actionTarget);

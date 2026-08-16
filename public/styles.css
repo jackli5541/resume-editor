@@ -4575,6 +4575,72 @@ select:focus-visible,
   font-size: 13px;
 }
 
+.ai-tone-field {
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.ai-tone-field__label {
+  display: block;
+  margin-bottom: 8px;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.ai-tone-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ai-tone-option {
+  position: relative;
+  cursor: pointer;
+}
+
+.ai-tone-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ai-tone-option span {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid #dce2e9;
+  border-radius: 999px;
+  color: #273548;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  user-select: none;
+}
+
+.ai-tone-option:hover span {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+}
+
+.ai-tone-option input:checked + span {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+  font-weight: 700;
+}
+
+.ai-tone-option input:focus-visible + span {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
 .ai-submit,
 .ai-save {
   padding: 9px 18px;
@@ -4596,6 +4662,16 @@ select:focus-visible,
 .ai-submit:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.ai-submit--secondary {
+  color: var(--brand-dark);
+  background: #fff;
+  border: 1px solid var(--brand);
+}
+
+.ai-submit--secondary:hover {
+  background: #f0f7f5;
 }
 
 .ai-privacy {
