@@ -3468,44 +3468,87 @@ select:focus-visible,
   line-height: 1.6;
 }
 
-/* AI 优化：左侧可拖动浮动图标 */
+/* AI 优化：左侧可拖动胶囊入口 */
 .ai-float-btn {
   position: fixed;
   left: 18px;
-  top: calc(50% - 30px);
+  top: calc(50% - 24px);
   z-index: 46;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  width: 60px;
-  height: 60px;
-  border: 0;
-  border-radius: 50%;
+  gap: 9px;
+  min-width: 118px;
+  height: 48px;
+  padding: 5px 17px 5px 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 999px;
   color: var(--white);
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
-  box-shadow: 0 10px 26px rgba(18, 167, 125, 0.4);
+  background: linear-gradient(135deg, #087d69 0%, #0da77e 52%, #16b98b 100%);
+  box-shadow: 0 10px 26px rgba(8, 125, 105, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.2);
   font: inherit;
   cursor: grab;
   user-select: none;
   touch-action: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.ai-float-btn::after {
+  position: absolute;
+  top: -80%;
+  left: -42%;
+  width: 34px;
+  height: 250%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  content: "";
+  pointer-events: none;
+  transform: rotate(24deg);
+  transition: left 0.5s ease;
+}
+.ai-float-btn:hover {
+  filter: saturate(1.08);
+  box-shadow: 0 13px 30px rgba(8, 125, 105, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
+}
+.ai-float-btn:hover::after {
+  left: 115%;
+}
+.ai-float-btn:focus-visible {
+  outline: 3px solid rgba(18, 167, 125, 0.25);
+  outline-offset: 3px;
 }
 .ai-float-btn:active {
   cursor: grabbing;
+  transform: translateY(0) scale(0.98);
 }
 .ai-float-btn__icon {
-  font-size: 20px;
-  line-height: 1;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 .ai-float-btn__label {
-  font-size: 10px;
-  font-weight: 700;
+  position: relative;
+  z-index: 1;
+  font-size: 14px;
+  font-weight: 750;
   line-height: 1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
-.ai-float-btn[aria-pressed="true"] {
-  background: linear-gradient(135deg, var(--danger), var(--danger-strong));
-  box-shadow: 0 10px 26px rgba(229, 72, 77, 0.4);
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-float-btn,
+  .ai-float-btn::after {
+    transition: none;
+  }
 }
 
 .module-tabs {
