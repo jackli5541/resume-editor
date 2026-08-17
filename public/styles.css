@@ -5907,6 +5907,208 @@ select:focus-visible,
   font-size: 11px;
 }
 
+/* ---------- 项目识别确认面板 ---------- */
+.ai-project-review {
+  margin-bottom: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.ai-project-review__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-project-review__head h3 {
+  margin: 4px 0 4px;
+  font-size: 16px;
+}
+
+.ai-project-review__head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.ai-project-review__status {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border: 1px solid var(--warning-line);
+  border-radius: 999px;
+  color: var(--warning-strong);
+  background: var(--warning-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ai-project-review__status.is-confirmed {
+  border-color: var(--brand-300);
+  color: var(--brand-dark);
+  background: var(--brand-25);
+}
+
+.ai-project-review__list {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.ai-project-review__card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.ai-project-review__card.is-uncertain {
+  border-color: var(--warning-line);
+  background: var(--warning-soft);
+}
+
+.ai-project-review__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.ai-project-review__flag {
+  padding: 2px 8px;
+  border: 1px solid var(--warning-line);
+  border-radius: 999px;
+  color: var(--warning-strong);
+  background: var(--surface);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ai-project-review__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.ai-project-review__fields {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.ai-project-review__fields label {
+  display: grid;
+  gap: 5px;
+}
+
+.ai-project-review__fields label > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.ai-project-review__hint {
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--warning-strong);
+  background: var(--warning-line);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.ai-project-review__fields input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+  font: inherit;
+  font-size: 13px;
+}
+
+.ai-project-review__fields input:focus {
+  border-color: var(--brand);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(18, 167, 125, 0.1);
+}
+
+.ai-project-review__fields label.is-uncertain input {
+  border-color: var(--warning-line);
+  box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.12);
+}
+
+.ai-project-review__fields label.is-uncertain input:focus {
+  border-color: var(--warning);
+}
+
+.ai-project-review__dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.ai-project-review__source {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-project-review__source-title {
+  margin-bottom: 6px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.ai-project-review__source pre {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-3);
+  color: var(--ink-soft);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.ai-project-review__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.ai-project-review__footer > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media screen and (max-width: 720px) {
+  .ai-project-review__body {
+    grid-template-columns: 1fr;
+  }
+  .ai-project-review__footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 .ai-preview-scroll {
   overflow: auto;
   padding: 10px;
@@ -6675,4 +6877,246 @@ select:focus-visible,
 .app-dialog__submit.is-danger:hover {
   background: var(--danger-strong);
   border-color: var(--danger-strong);
+}
+
+/* ===== MOBILE SAFETY LAYER =====
+ * Keep the desktop canvas and A4 preview unchanged. These overrides only
+ * remove viewport overflow and reflow controls on tablet/phone widths.
+ */
+@media screen and (max-width: 900px) {
+  html,
+  body {
+    width: 100%;
+    min-width: 0;
+  }
+
+  body {
+    overflow-x: clip;
+  }
+
+  img,
+  svg,
+  video,
+  canvas {
+    max-width: 100%;
+  }
+
+  .topbar__inner,
+  .topbar-sub,
+  .workspace,
+  .drawer__inner {
+    width: calc(100% - 20px);
+    max-width: 100%;
+  }
+
+  .topbar-sub {
+    gap: 8px;
+    padding-inline: 0;
+  }
+
+  .topbar-sub__actions {
+    min-width: 0;
+  }
+
+  .library-header {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .library-main,
+  .admin-main,
+  .ai-main,
+  .home-main {
+    width: calc(100% - 32px);
+    max-width: 100%;
+  }
+
+  .admin-content,
+  .admin-panel,
+  .ai-input-card,
+  .ai-output-card,
+  .side-panel,
+  .drawer-content {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .admin-table-wrap {
+    width: 100%;
+    max-width: calc(100vw - 32px);
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-table {
+    min-width: 680px;
+  }
+
+  .editor-drawer {
+    height: min(70dvh, 520px);
+    max-height: calc(100dvh - 70px);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .drawer-content {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .ai-chat-panel {
+    top: 70px;
+    width: min(360px, 100vw);
+    max-width: 100vw;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .auth-overlay,
+  .app-dialog-overlay {
+    padding: 12px;
+  }
+
+  .auth-dialog,
+  .app-dialog {
+    width: min(420px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+  }
+
+  .account-dropdown {
+    max-width: calc(100vw - 24px);
+  }
+
+  .toast-container {
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    left: 12px;
+    width: auto;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  .library-header {
+    gap: 8px;
+    padding-inline: 10px;
+  }
+
+  .library-header .brand {
+    flex: 0 0 auto;
+  }
+
+  .library-header .brand__text,
+  .library-header .brand__badge,
+  .library-header .github-link,
+  .library-header .account-button > span:not(.account-avatar__mark) {
+    display: none;
+  }
+
+  .library-header .primary-nav {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .library-header .primary-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .library-header .primary-nav a {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .library-header .account-area,
+  .library-header .account-button {
+    flex: 0 0 auto;
+  }
+
+  .library-header .account-button {
+    min-width: 40px;
+    min-height: 40px;
+    padding-inline: 5px;
+  }
+
+  .library-toolbar,
+  .admin-heading,
+  .admin-toolbar,
+  .ai-workspace-heading,
+  .ai-import-bar,
+  .ai-actions,
+  .admin-form__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-toolbar input[type="search"],
+  .admin-toolbar select,
+  .admin-toolbar input[type="date"],
+  .admin-toolbar__actions,
+  .admin-csv,
+  .admin-submit {
+    width: 100%;
+    max-width: none;
+  }
+
+  .admin-form__grid,
+  .admin-stats,
+  .ai-stage-options,
+  .ai-result-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-sidebar {
+    padding: 12px;
+  }
+
+  .admin-tab-group__tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-tab {
+    width: 100%;
+  }
+
+  .ai-guide-card,
+  .ai-input-card,
+  .ai-output-card {
+    padding: 20px 16px;
+  }
+
+  .preview-toolbar > div:first-child {
+    min-width: 0;
+  }
+
+  .preview-toolbar__meta {
+    flex: 0 0 auto;
+  }
+
+  .editor-drawer {
+    height: min(76dvh, 560px);
+  }
+
+  .drawer-toggle {
+    right: 4px;
+  }
+
+  .auth-dialog,
+  .app-dialog {
+    padding: 20px 16px;
+    border-radius: 12px;
+  }
+
+  .app-dialog__actions {
+    flex-wrap: wrap;
+  }
+
+  .app-dialog__actions > button {
+    flex: 1 1 120px;
+    min-height: 42px;
+  }
 }

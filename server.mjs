@@ -1668,6 +1668,7 @@ export function createAppServer(options = {}) {
           userId: user.id,
           templateSlug: payload?.templateSlug,
           description: payload?.description,
+          documentStructure: payload?.documentStructure,
           tone: payload?.tone,
           targetRole: payload?.targetRole,
           jobStage: payload?.jobStage,

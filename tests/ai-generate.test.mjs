@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { mapModelOutput, bulletsToHtml, paragraphToHtml, buildUserPrompt } from "../server/ai/extract.mjs";
+import { parseProjectCandidates } from "../server/ai/project-parser.mjs";
 import { AiQuotaService } from "../server/ai/quota.mjs";
 import { AiGenerationError, AiGenerationService } from "../server/ai/service.mjs";
 import { AiConfigRepository } from "../server/ai/config-repository.mjs";
@@ -111,6 +112,129 @@ test("岗位上下文与真实经历明确隔离", () => {
   assert.match(prompt, /找实习/);
   assert.match(prompt, /不代表用户曾担任该岗位/);
   assert.match(prompt, /<resume_input>\n曾负责校园社团活动/);
+});
+
+test("项目预解析器区分项目名称、角色、技术栈和要点", () => {
+  const candidates = parseProjectCandidates(`项目经历
+“数智交行”AI应用创新项目 | 项目负责人
+技术栈：HTML / CSS / JavaScript
+◆ 面向重点车辆智慧监管场景，拆解协同链路
+图书借阅管理系统｜独立开发 / 全流程设计
+技术栈：Java / MySQL
+- 完成图书入库和借阅管理
+技能特长
+Python`);
+  assert.equal(candidates.length, 2);
+  assert.equal(candidates[0].projectName, "“数智交行”AI应用创新项目");
+  assert.equal(candidates[0].projectRole, "项目负责人");
+  assert.equal(candidates[0].techStack, "HTML / CSS / JavaScript");
+  assert.deepEqual(candidates[0].highlights, ["面向重点车辆智慧监管场景，拆解协同链路"]);
+  assert.equal(candidates[1].projectName, "图书借阅管理系统");
+  assert.equal(candidates[1].projectRole, "独立开发 / 全流程设计");
+});
+
+test("项目预解析器支持 Word 结构标记", () => {
+  const candidates = parseProjectCandidates(`[HEADING level=1] 项目经验
+[PARAGRAPH emphasis=true] 豆瓣电影 Top250 数据采集与可视化分析 | 独立开发 / Python 数据分析项目
+[PARAGRAPH emphasis=false] 技术栈：Python / BeautifulSoup / Pandas
+[BULLET] 搭建网页采集、数据清洗和可视化流程
+[HEADING level=1] 技能特长`);
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].projectName, "豆瓣电影 Top250 数据采集与可视化分析");
+  assert.equal(candidates[0].projectRole, "独立开发 / Python 数据分析项目");
+  assert.equal(candidates[0].techStack, "Python / BeautifulSoup / Pandas");
+});
+
+test("项目预解析器支持中英文章节名和无分隔符标题", () => {
+  const candidates = parseProjectCandidates(`项目经历 PROJECT EXPERIENCE
+智能问答系统
+技术栈：Vue / Node.js / MySQL
+- 完成知识库检索与答案展示
+专业技能 PROFESSIONAL SKILLS`);
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].projectName, "智能问答系统");
+  assert.equal(candidates[0].techStack, "Vue / Node.js / MySQL");
+});
+
+test("项目映射优先使用明确 schema 并保留技术栈", () => {
+  const candidates = parseProjectCandidates(`项目经历
+图书借阅管理系统 | 独立开发
+技术栈：Java / MySQL
+- 完成图书入库和借阅管理
+技能特长`);
+  const { resume } = mapModelOutput({ projects: [{
+    sourceId: "project-1", projectName: "图书借阅管理系统", projectRole: "独立开发",
+    techStack: "Java / MySQL", highlights: ["完成图书入库和借阅管理"]
+  }] }, { projectCandidates: candidates });
+  const project = resume.sections.find((section) => section.id === "projects").items[0];
+  assert.equal(project.organization, "图书借阅管理系统");
+  assert.equal(project.role, "独立开发");
+  assert.match(project.content, /技术栈：Java \/ MySQL/);
+  assert.match(project.content, /完成图书入库和借阅管理/);
+});
+
+test("项目名称被模型遗漏或错放角色时从原文恢复", () => {
+  const candidates = parseProjectCandidates(`项目经历
+“数智交行”AI应用创新项目 | 项目负责人
+技术栈：HTML / CSS / JavaScript
+- 负责项目需求拆解
+技能特长`);
+  const mapped = mapModelOutput({ projects: [{ organization: "项目负责人", role: "", content: "- 负责项目需求拆解" }] }, { projectCandidates: candidates });
+  const project = mapped.resume.sections.find((section) => section.id === "projects").items[0];
+  assert.equal(project.organization, "“数智交行”AI应用创新项目");
+  assert.equal(project.role, "项目负责人");
+  assert.equal(mapped.notices.some((notice) => notice.includes("恢复项目名称")), true);
+});
+
+test("模型遗漏整条项目时使用导入候选降级恢复", () => {
+  const candidates = parseProjectCandidates(`项目经验
+图书借阅管理系统 | 独立开发
+- 完成借阅流程
+豆瓣电影 Top250 数据分析 | 独立开发
+- 完成数据清洗
+技能特长`);
+  const mapped = mapModelOutput({ projects: [] }, { projectCandidates: candidates });
+  const projects = mapped.resume.sections.find((section) => section.id === "projects");
+  assert.equal(projects.items.length, 2);
+  assert.equal(projects.items[0].organization, "图书借阅管理系统");
+  assert.equal(projects.items[1].organization, "豆瓣电影 Top250 数据分析");
+  assert.equal(mapped.notices.some((notice) => notice.includes("恢复 2 条")), true);
+});
+
+test("用户提示词携带项目候选和 Word 结构说明", () => {
+  const prompt = buildUserPrompt("项目经历\n项目甲 | 负责人", "professional", {
+    documentStructure: "[HEADING level=1] 项目经历\n[PARAGRAPH emphasis=true] 项目甲 | 负责人",
+    projectCandidates: [{ sourceId: "project-1", projectName: "项目甲", projectRole: "负责人", techStack: "Java", highlights: [] }]
+  });
+  assert.match(prompt, /<document_structure>/);
+  assert.match(prompt, /<project_candidates>/);
+  assert.match(prompt, /project-1/);
+});
+
+test("确认面板数据与简历项目逐条对齐并附带原文", () => {
+  const candidates = parseProjectCandidates(`项目经历
+“数智交行”AI应用创新项目 | 项目负责人
+技术栈：HTML / CSS / JavaScript
+- 负责项目需求拆解
+技能特长`);
+  const mapped = mapModelOutput({ projects: [{
+    sourceId: "project-1", projectName: "“数智交行”AI应用创新项目", projectRole: "项目负责人",
+    techStack: "HTML / CSS / JavaScript", highlights: ["负责项目需求拆解"]
+  }] }, { projectCandidates: candidates });
+  const review = mapped.projectReview[0];
+  assert.equal(review.projectName, "“数智交行”AI应用创新项目");
+  assert.equal(review.projectRole, "项目负责人");
+  assert.equal(review.techStack, "HTML / CSS / JavaScript");
+  assert.equal(review.sourceId, "project-1");
+  assert.match(review.sourceText, /数智交行/);
+});
+
+test("无候选时确认面板从 content 回退提取技术栈", () => {
+  const mapped = mapModelOutput({ projects: [{ projectName: "图书系统", projectRole: "独立开发", techStack: "Java / MySQL", highlights: ["完成借阅流程"] }] });
+  const review = mapped.projectReview[0];
+  assert.equal(review.techStack, "Java / MySQL");
+  assert.equal(review.start, "");
+  assert.equal(review.end, "");
 });
 
 // ---------- quota ----------
