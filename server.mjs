@@ -1767,8 +1767,10 @@ export function createAppServer(options = {}) {
         if (template.engine !== "docx-native" || !template.sourcePath) {
           throw new RequestValidationError("该模板不提供高保真预览", 409);
         }
+        const previewQuality = await configService.get("preview_quality");
         sendJson(response, 202, await previewService.create({
-          resumeId: draft.id, revision: draft.revision, resume: draft.data, template
+          resumeId: draft.id, revision: draft.revision, resume: draft.data, template,
+          previewQuality
         }));
       } catch (error) {
         sendJson(response, errorStatusOf(error), { error: error?.message || "创建预览任务失败" });

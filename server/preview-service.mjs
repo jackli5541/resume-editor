@@ -22,15 +22,15 @@ export class PreviewService {
     this.cleanupTimer.unref();
   }
 
-  async create({ resumeId, revision, resume, template }) {
-    const key = `${resumeId}:${revision}:${template.slug}:${template.version}`;
+  async create({ resumeId, revision, resume, template, previewQuality = "balanced" }) {
+    const key = `${resumeId}:${revision}:${template.slug}:${template.version}:${previewQuality}`;
     const existing = this.keys.get(key);
     if (existing && this.jobs.has(existing)) return this.toPublic(this.jobs.get(existing));
     const now = Date.now();
     this.latestRevision.set(resumeId, revision);
     const job = {
       id: randomUUID(), token: randomBytes(32).toString("base64url"), key,
-      resumeId, revision, resume, template, status: "queued", pages: [],
+      resumeId, revision, resume, template, previewQuality, status: "queued", pages: [],
       error: null, createdAt: now, updatedAt: now
     };
     this.jobs.set(job.id, job);
@@ -50,7 +50,7 @@ export class PreviewService {
     job.updatedAt = Date.now();
     const targetDir = join(this.outputDir, job.id);
     try {
-      const result = await this.renderer({ sourcePath: job.template.sourcePath, outputDir: targetDir, resume: job.resume });
+      const result = await this.renderer({ sourcePath: job.template.sourcePath, outputDir: targetDir, resume: job.resume, previewQuality: job.previewQuality });
       if (!result.pages.length) throw new Error("预览未生成页面");
       job.pages = result.pages;
       job.status = "completed";
