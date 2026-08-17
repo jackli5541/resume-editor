@@ -424,7 +424,6 @@ function renderAll() {
   renderPreview();
   updateStatusCards();
   elements.drawer.classList.toggle("is-open", drawerOpen);
-  requestAnimationFrame(ensureAiFloatButtonVisible);
 }
 
 function applySettings() {
@@ -4246,91 +4245,10 @@ function setAiChatOpen(open) {
   if (elements.aiFloatBtn) {
     elements.aiFloatBtn.setAttribute("aria-pressed", String(open));
     elements.aiFloatBtn.setAttribute("aria-label", open ? "关闭 AI 优化" : "打开 AI 优化");
-    elements.aiFloatBtn.title = open ? "关闭 AI 优化" : "AI 优化（可拖动）";
-    elements.aiFloatBtn.hidden = false;
-    requestAnimationFrame(ensureAiFloatButtonVisible);
+    elements.aiFloatBtn.title = open ? "关闭 AI 优化" : "AI 优化";
+    const label = elements.aiFloatBtn.querySelector("[data-ai-toolbar-label]");
+    if (label) label.textContent = open ? "关闭 AI" : "AI 优化";
   }
-}
-
-// 浮动按钮拖动：pointer 拖拽调整位置，点击（未拖动）才切换面板。
-let aiFloatDragging = false;
-let aiFloatMoved = false;
-let aiFloatStart = { x: 0, y: 0, left: 0, top: 0 };
-
-function restoreAiFloatPosition(btn) {
-  try {
-    const saved = JSON.parse(localStorage.getItem("aiFloatPos") || "null");
-    if (saved?.left && saved?.top) {
-      btn.style.left = saved.left;
-      btn.style.top = saved.top;
-    }
-  } catch { /* 忽略无效的本地存储 */ }
-}
-
-function ensureAiFloatButtonVisible() {
-  const btn = elements.aiFloatBtn;
-  if (!btn || elements.app.hidden) return;
-  // 入口始终可见；同一个按钮负责打开和关闭面板，避免状态不同步后无法再次进入。
-  btn.hidden = false;
-
-  const rect = btn.getBoundingClientRect();
-  if (!rect.width || !rect.height) {
-    requestAnimationFrame(ensureAiFloatButtonVisible);
-    return;
-  }
-  const fallbackLeft = 18;
-  const fallbackTop = Math.max(8, (window.innerHeight - rect.height) / 2);
-  const currentLeft = Number.parseFloat(btn.style.left);
-  const currentTop = Number.parseFloat(btn.style.top);
-  const rawLeft = Number.isFinite(currentLeft) ? currentLeft : (Number.isFinite(rect.left) ? rect.left : fallbackLeft);
-  const rawTop = Number.isFinite(currentTop) ? currentTop : (Number.isFinite(rect.top) ? rect.top : fallbackTop);
-  const maxLeft = Math.max(8, window.innerWidth - rect.width - 8);
-  const maxTop = Math.max(8, window.innerHeight - rect.height - 8);
-  btn.style.left = `${Math.max(8, Math.min(maxLeft, rawLeft))}px`;
-  btn.style.top = `${Math.max(8, Math.min(maxTop, rawTop))}px`;
-}
-
-function setupAiFloatDrag() {
-  const btn = elements.aiFloatBtn;
-  if (!btn) return;
-  btn.hidden = false;
-  restoreAiFloatPosition(btn);
-  window.addEventListener("resize", ensureAiFloatButtonVisible);
-
-  btn.addEventListener("pointerdown", (event) => {
-    const rect = btn.getBoundingClientRect();
-    aiFloatDragging = true;
-    aiFloatMoved = false;
-    aiFloatStart = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top };
-    try { btn.setPointerCapture(event.pointerId); } catch { /* 忽略 */ }
-  });
-  btn.addEventListener("pointermove", (event) => {
-    if (!aiFloatDragging) return;
-    const dx = event.clientX - aiFloatStart.x;
-    const dy = event.clientY - aiFloatStart.y;
-    if (Math.abs(dx) + Math.abs(dy) > 5) aiFloatMoved = true;
-    if (!aiFloatMoved) return;
-    const rect = btn.getBoundingClientRect();
-    const left = Math.max(8, Math.min(window.innerWidth - rect.width - 8, aiFloatStart.left + dx));
-    const top = Math.max(8, Math.min(window.innerHeight - rect.height - 8, aiFloatStart.top + dy));
-    btn.style.left = `${left}px`;
-    btn.style.top = `${top}px`;
-  });
-  btn.addEventListener("pointerup", () => {
-    if (aiFloatMoved) {
-      try {
-        localStorage.setItem("aiFloatPos", JSON.stringify({ left: btn.style.left, top: btn.style.top }));
-      } catch { /* 忽略 */ }
-    }
-    aiFloatDragging = false;
-  });
-  btn.addEventListener("click", (event) => {
-    if (aiFloatMoved) {
-      aiFloatMoved = false;
-      event.stopPropagation();
-      event.preventDefault();
-    }
-  });
 }
 
 function ensureAiChatHint() {
@@ -5786,7 +5704,6 @@ if (elements.aiInputCard) {
 
 async function initialize() {
   injectAccountItems();
-  setupAiFloatDrag();
   await refreshSession();
   await Promise.all([loadTemplates(), loadDrafts(), loadAnnouncementBanner()]);
   populateAdminResumeTemplates();
