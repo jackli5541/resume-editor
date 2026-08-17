@@ -249,6 +249,8 @@ const elements = {
   aiStatus: document.querySelector("#aiStatus"),
   aiResult: document.querySelector("#aiResult"),
   aiNotices: document.querySelector("#aiNotices"),
+  aiProjectReview: document.querySelector("#aiProjectReview"),
+  aiSaveButton: document.querySelector("#aiSaveButton"),
   aiPreviewPaper: document.querySelector("#aiPreviewPaper"),
   aiPreviewFlow: document.querySelector("#aiPreviewFlow"),
   aiWordFile: document.querySelector("#aiWordFile"),
@@ -326,11 +328,13 @@ let adminTemplateSearchTimer = null;
 let adminCosts = { days: [], byModel: [] };
 let adminConfigSchema = {};
 let aiResult = null;
+let aiProjectReviewConfirmed = true;
 let aiGenerating = false;
 let aiGuideStep = "role";
 const aiJobContext = { targetRole: "", jobStage: "", jobDescription: "" };
 let aiWordImporting = false;
 let mammothPromise = null;
+let aiWordDocumentStructure = "";
 let aiOptimizePending = null;
 let aiOptimizing = false;
 let aiRecognition = null;
@@ -3513,6 +3517,198 @@ function loadMammoth() {
   return mammothPromise;
 }
 
+function wordHtmlToStructure(html) {
+  const doc = new DOMParser().parseFromString(String(html || ""), "text/html");
+  const lines = [];
+  const cleanText = (node) => String(node?.textContent || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+  const push = (marker, text) => {
+    const value = String(text || "").trim();
+    if (value) lines.push(`[${marker}] ${value}`);
+  };
+  const visit = (node) => {
+    if (!(node instanceof Element)) return;
+    const tag = node.tagName.toLowerCase();
+    if (/^h[1-6]$/.test(tag)) {
+      push(`HEADING level=${tag.slice(1)}`, cleanText(node));
+      return;
+    }
+    if (tag === "li") {
+      push("BULLET", cleanText(node));
+      return;
+    }
+    if (tag === "tr") {
+      const cells = [...node.querySelectorAll(":scope > th, :scope > td")].map(cleanText).filter(Boolean);
+      if (cells.length) push("ROW", cells.join(" | "));
+      return;
+    }
+    if (tag === "p") {
+      const text = cleanText(node);
+      const emphasized = text && [...node.children].some((child) => ["strong", "b"].includes(child.tagName.toLowerCase()) && cleanText(child) === text);
+      push(`PARAGRAPH emphasis=${emphasized}`, text);
+      return;
+    }
+    [...node.children].forEach(visit);
+  };
+  [...doc.body.children].forEach(visit);
+  return lines.join("\n");
+}
+
+function aiProjectItems() {
+  return aiResult?.resume?.sections?.find((section) => section.id === "projects")?.items || [];
+}
+
+function projectTechStack(content) {
+  const doc = new DOMParser().parseFromString(`<div>${String(content || "")}</div>`, "text/html");
+  const node = [...doc.querySelectorAll("li, p")].find((item) => /^技术栈\s*[：:]/.test(item.textContent.trim()));
+  return node ? node.textContent.replace(/^技术栈\s*[：:]\s*/, "").trim() : "";
+}
+
+function replaceProjectTechStack(content, value) {
+  const doc = new DOMParser().parseFromString(`<div id="root">${String(content || "")}</div>`, "text/html");
+  const root = doc.querySelector("#root");
+  const existing = [...root.querySelectorAll("li, p")].find((item) => /^技术栈\s*[：:]/.test(item.textContent.trim()));
+  const text = String(value || "").trim();
+  if (existing && text) existing.textContent = `技术栈：${text}`;
+  else if (existing) existing.remove();
+  else if (text) {
+    const list = root.querySelector("ul");
+    const node = doc.createElement(list ? "li" : "p");
+    node.textContent = `技术栈：${text}`;
+    if (list) list.prepend(node);
+    else root.prepend(node);
+  }
+  return root.innerHTML;
+}
+
+function setAiProjectReviewState(confirmed) {
+  aiProjectReviewConfirmed = confirmed;
+  if (elements.aiSaveButton) elements.aiSaveButton.disabled = !confirmed;
+  const status = elements.aiProjectReview?.querySelector("[data-project-review-status]");
+  if (status) {
+    status.textContent = confirmed ? "已确认" : "待确认";
+    status.classList.toggle("is-confirmed", confirmed);
+  }
+}
+
+const AI_PROJECT_FIELD_ALIASES = {
+  organization: ["projectName", "name", "organization"],
+  role: ["projectRole", "role"],
+  techStack: ["techStack", "technology"],
+  start: ["start"],
+  end: ["end"]
+};
+
+// 将模型的 uncertain 路径（如 projects[0].projectName）映射到确认面板字段，实现字段级高亮；
+// 整条项目不确定时至少高亮项目名称。
+function aiProjectUncertainFields(index) {
+  const result = { any: false, fields: new Set() };
+  const prefix = `projects[${index}]`;
+  for (const raw of aiResult?.uncertain || []) {
+    const path = String(raw || "");
+    if (path === prefix) {
+      result.any = true;
+      continue;
+    }
+    if (!path.startsWith(`${prefix}.`) && !path.startsWith(`${prefix}[`)) continue;
+    result.any = true;
+    const leaf = path.slice(prefix.length).replace(/^[.[\]]+/, "").split(".").pop();
+    for (const [fieldName, aliases] of Object.entries(AI_PROJECT_FIELD_ALIASES)) {
+      if (aliases.includes(leaf)) result.fields.add(fieldName);
+    }
+  }
+  if (result.any && result.fields.size === 0) result.fields.add("organization");
+  return result;
+}
+
+function aiProjectFieldUncertain(index, fieldName) {
+  return aiProjectUncertainFields(index).fields.has(fieldName);
+}
+
+function aiProjectFieldValue(index, fieldName) {
+  const project = aiProjectItems()[index];
+  if (!project) return "";
+  if (fieldName === "techStack") return projectTechStack(project.content);
+  return project[fieldName] ?? "";
+}
+
+function renderAiProjectReview() {
+  const projects = aiProjectItems();
+  if (!projects.length) {
+    elements.aiProjectReview.hidden = true;
+    elements.aiProjectReview.innerHTML = "";
+    setAiProjectReviewState(true);
+    return;
+  }
+  elements.aiProjectReview.hidden = false;
+  const field = (index, key, label, { required = false, placeholder = "" } = {}) => {
+    const uncertain = aiProjectFieldUncertain(index, key);
+    return `<label class="${uncertain ? "is-uncertain" : ""}">
+      <span>${label}${required ? " *" : ""}${uncertain ? '<i class="ai-project-review__hint" title="AI 无法确认该字段">待核对</i>' : ""}</span>
+      <input type="text" value="${escapeHtml(aiProjectFieldValue(index, key))}" placeholder="${escapeHtml(placeholder)}" data-ai-project-index="${index}" data-ai-project-field="${key}" />
+    </label>`;
+  };
+  elements.aiProjectReview.innerHTML = `
+    <div class="ai-project-review__head">
+      <div><span class="eyebrow">PROJECT CHECK</span><h3>确认项目识别结果</h3><p>核对项目名称、角色、时间与技术栈；高亮字段请重点确认，修改会立即同步到预览。</p></div>
+      <span class="ai-project-review__status" data-project-review-status>待确认</span>
+    </div>
+    <div class="ai-project-review__list">
+      ${projects.map((project, index) => {
+        const source = aiResult.projectReview?.[index]?.sourceText || "";
+        const cardUncertain = aiProjectUncertainFields(index).any;
+        return `<article class="ai-project-review__card ${cardUncertain ? "is-uncertain" : ""}">
+          <div class="ai-project-review__title">
+            <strong>项目 ${index + 1}</strong>
+            ${cardUncertain ? '<span class="ai-project-review__flag">AI 标记为不确定</span>' : ""}
+          </div>
+          <div class="ai-project-review__body">
+            <div class="ai-project-review__fields">
+              ${field(index, "organization", "项目名称", { required: true, placeholder: "项目正式名称" })}
+              ${field(index, "role", "项目角色", { placeholder: "如：项目负责人" })}
+              ${field(index, "techStack", "技术栈", { placeholder: "如：Vue / Node.js" })}
+              <div class="ai-project-review__dates">
+                ${field(index, "start", "开始时间", { placeholder: "如 2021-04" })}
+                ${field(index, "end", "结束时间", { placeholder: "如 至今" })}
+              </div>
+            </div>
+            ${source ? `<div class="ai-project-review__source"><div class="ai-project-review__source-title">导入原文</div><pre>${escapeHtml(source)}</pre></div>` : ""}
+          </div>
+        </article>`;
+      }).join("")}
+    </div>
+    <div class="ai-project-review__footer"><span>带 * 的项目名称不能为空；确认前无法保存草稿。</span><button type="button" class="ai-save" data-action="ai-confirm-projects">确认项目信息</button></div>`;
+  setAiProjectReviewState(false);
+}
+
+function updateAiProjectReviewField(target) {
+  const project = aiProjectItems()[Number(target.dataset.aiProjectIndex)];
+  if (!project) return;
+  const fieldName = target.dataset.aiProjectField;
+  if (fieldName === "techStack") project.content = replaceProjectTechStack(project.content, target.value);
+  else if (["organization", "role", "start", "end"].includes(fieldName)) project[fieldName] = target.value;
+  setAiProjectReviewState(false);
+  renderAiPreview();
+}
+
+function confirmAiProjects() {
+  const projects = aiProjectItems();
+  const missingIndex = projects.findIndex((project) => !String(project.organization || "").trim());
+  if (missingIndex >= 0) {
+    const input = elements.aiProjectReview.querySelector(`[data-ai-project-index="${missingIndex}"][data-ai-project-field="organization"]`);
+    input?.focus();
+    showToast(`请填写项目 ${missingIndex + 1} 的名称`, "warning");
+    return;
+  }
+  projects.forEach((project) => {
+    project.organization = String(project.organization || "").trim();
+    project.role = String(project.role || "").trim();
+    project.start = String(project.start || "").trim();
+    project.end = String(project.end || "").trim();
+  });
+  setAiProjectReviewState(true);
+  showToast("项目经历已确认", "success");
+}
+
 async function extractWordText(file) {
   if (!file) throw new Error("未选择文件");
   if (!/\.docx$/i.test(file.name)) {
@@ -3520,10 +3716,22 @@ async function extractWordText(file) {
   }
   if (file.size > AI_MAX_WORD_BYTES) throw new Error("文件超过 5 MB，请精简后重试");
   const mammoth = await loadMammoth();
-  const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
-  const text = String(result?.value || "").replace(/\u00a0/g, " ").trim();
+  const arrayBuffer = await file.arrayBuffer();
+  const [rawResult, htmlResult] = await Promise.all([
+    mammoth.extractRawText({ arrayBuffer }),
+    mammoth.convertToHtml({ arrayBuffer }, {
+      styleMap: [
+        "p[style-name='Title'] => h1:fresh",
+        "p[style-name='Heading 1'] => h1:fresh",
+        "p[style-name='Heading 2'] => h2:fresh",
+        "p[style-name='标题 1'] => h1:fresh",
+        "p[style-name='标题 2'] => h2:fresh"
+      ]
+    })
+  ]);
+  const text = String(rawResult?.value || "").replace(/\u00a0/g, " ").trim();
   if (!text) throw new Error("未能提取到文字，该文件可能是图片/扫描件简历");
-  return text;
+  return { text, structure: wordHtmlToStructure(htmlResult?.value) };
 }
 
 async function handleAiWordImport(file) {
@@ -3535,7 +3743,8 @@ async function handleAiWordImport(file) {
   elements.aiImportStatus.textContent = "正在解析 Word 简历…";
   elements.aiImportStatus.classList.remove("is-error");
   try {
-    const text = await extractWordText(file);
+    const { text, structure } = await extractWordText(file);
+    aiWordDocumentStructure = structure;
     elements.aiDescription.value = text;
     updateAiCharCount();
     elements.aiImportStatus.textContent = `已提取 ${text.length} 字，可先修改再生成`;
@@ -3717,6 +3926,7 @@ async function generateAi() {
       body: JSON.stringify({
         templateSlug: "clean-single",
         description,
+        documentStructure: aiWordDocumentStructure,
         tone: aiToneValue(),
         targetRole: aiJobContext.targetRole,
         jobStage: aiJobContext.jobStage,
@@ -3724,6 +3934,7 @@ async function generateAi() {
       })
     }));
     renderAiPreview();
+    renderAiProjectReview();
     renderAiNotices();
     elements.aiResult.hidden = false;
     elements.aiStatus.textContent = "";
@@ -3739,6 +3950,11 @@ async function generateAi() {
 
 async function saveAiDraft() {
   if (!aiResult || aiGenerating) return;
+  if (!aiProjectReviewConfirmed) {
+    elements.aiProjectReview?.scrollIntoView({ behavior: "smooth", block: "center" });
+    showToast("请先确认项目经历识别结果", "warning");
+    return;
+  }
   const data = { ...aiResult.resume };
   delete data.template;
   try {
@@ -4839,6 +5055,7 @@ document.addEventListener("click", async (event) => {
   else if (action === "ai-generate") generateAi();
   else if (action === "ai-regen") generateAi();
   else if (action === "ai-save") saveAiDraft();
+  else if (action === "ai-confirm-projects") confirmAiProjects();
   else if (action === "ai-import-word") elements.aiWordFile.click();
   else if (action === "ai-voice") toggleAiVoice();
   else if (action === "manual-edit") manualEdit();
@@ -5013,7 +5230,9 @@ document.addEventListener("click", async (event) => {
 
 document.addEventListener("input", (event) => {
   const target = event.target;
-  if (target.matches("[data-setting]")) {
+  if (target.matches("[data-ai-project-field]")) {
+    updateAiProjectReviewField(target);
+  } else if (target.matches("[data-setting]")) {
     const key = target.dataset.setting;
     resume.settings[key] = target.type === "range" ? Number(target.value) : target.value;
     applySettings();
@@ -5269,7 +5488,11 @@ elements.aiWordFile.addEventListener("change", () => {
   if (file) handleAiWordImport(file);
 });
 
-elements.aiDescription.addEventListener("input", updateAiCharCount);
+elements.aiDescription.addEventListener("input", () => {
+  // 用户手工修改后不再提交可能已过期的 Word 结构；正文仍照常生成。
+  aiWordDocumentStructure = "";
+  updateAiCharCount();
+});
 elements.aiGuideCard?.addEventListener("keydown", (event) => {
   if (event.key !== "Enter" || event.shiftKey || event.target.tagName === "TEXTAREA") return;
   if (event.target.id === "aiGuideRole") {

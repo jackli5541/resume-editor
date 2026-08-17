@@ -2,6 +2,7 @@ import { validateExportPayload } from "../validation.mjs";
 import { buildSystemPrompt, buildUserPrompt, mapModelOutput } from "./extract.mjs";
 import { buildOptimizeSystemPrompt, buildOptimizeUserPrompt, mapOptimizeOutput } from "./optimize.mjs";
 import { AiProviderError } from "./provider.mjs";
+import { parseProjectCandidates } from "./project-parser.mjs";
 
 export class AiGenerationError extends Error {
   constructor(message, statusCode = 400, code = "ai_generation_error") {
@@ -55,7 +56,7 @@ export class AiGenerationService {
     else this.active -= 1;
   }
 
-  async generate({ userId, templateSlug, description, tone = "professional", targetRole = "", jobStage = "", jobDescription = "", isAdmin = false, aiDailyLimit = null }) {
+  async generate({ userId, templateSlug, description, documentStructure = "", tone = "professional", targetRole = "", jobStage = "", jobDescription = "", isAdmin = false, aiDailyLimit = null }) {
     if (templateSlug && templateSlug !== "clean-single") {
       throw new AiGenerationError("当前仅支持极简轻模板", 400, "unsupported_template");
     }
@@ -70,6 +71,10 @@ export class AiGenerationService {
     if (text.length > config.maxInputChars) {
       throw new AiGenerationError(`描述内容过长（上限 ${config.maxInputChars} 字），请精简后再试`, 413, "input_too_long");
     }
+    const structure = String(documentStructure || "").trim();
+    if (structure.length > config.maxInputChars * 2) {
+      throw new AiGenerationError("Word 文档结构过长，请精简后再试", 413, "document_structure_too_long");
+    }
     const role = String(targetRole || "").trim();
     const stage = String(jobStage || "").trim();
     const jd = String(jobDescription || "").trim();
@@ -77,6 +82,7 @@ export class AiGenerationService {
     if (role.length > 120) throw new AiGenerationError("目标岗位过长（上限 120 字）", 400, "invalid_target_role");
     if (!allowedStages.has(stage)) throw new AiGenerationError("求职阶段无效", 400, "invalid_job_stage");
     if (jd.length > 5000) throw new AiGenerationError("职位描述过长（上限 5000 字）", 400, "job_description_too_long");
+    const projectCandidates = parseProjectCandidates(structure || text);
 
     const quota = await this.quota.check(userId, { isAdmin, limit: aiDailyLimit });
     if (!quota.allowed) {
@@ -101,7 +107,7 @@ export class AiGenerationService {
           maxOutputTokens: config.maxOutputTokens,
           timeoutMs: config.timeoutMs,
           systemPrompt: buildSystemPrompt(config.systemPrompt),
-          userPrompt: buildUserPrompt(text, tone, { targetRole: role, jobStage: stage, jobDescription: jd })
+          userPrompt: buildUserPrompt(text, tone, { targetRole: role, jobStage: stage, jobDescription: jd, documentStructure: structure, projectCandidates })
         });
         outputChars = JSON.stringify(modelJson).length;
       } catch (error) {
@@ -115,7 +121,7 @@ export class AiGenerationService {
         throw new AiGenerationError("模型服务异常，请稍后再试", 502, "provider_error");
       }
 
-      const mapped = mapModelOutput(modelJson);
+      const mapped = mapModelOutput(modelJson, { projectCandidates });
       if (role) {
         mapped.resume.profile.job = role;
         const objective = mapped.resume.sections.find((section) => section.id === "objective");
@@ -138,6 +144,7 @@ export class AiGenerationService {
         resume,
         uncertain: mapped.uncertain,
         notices: mapped.notices,
+        projectReview: mapped.projectReview || [],
         usage: { model: config.model }
       };
     } finally {
