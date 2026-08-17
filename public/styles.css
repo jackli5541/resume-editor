@@ -5649,8 +5649,22 @@ select:focus-visible,
 .ai-input-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 12px;
+}
+
+.ai-clear-input {
+  color: var(--muted);
+}
+
+.ai-autosave-status {
+  color: var(--brand-dark);
+  font-size: 12px;
+}
+
+.ai-autosave-status:empty {
+  display: none;
 }
 
 .ai-input-actions select {
@@ -5850,6 +5864,10 @@ select:focus-visible,
 .ai-result {
   min-width: 0;
   grid-column: 1 / -1;
+}
+
+.ai-result[hidden] {
+  display: none;
 }
 
 /* 生成后切换为独立预览视图，避免在输入表单下方继续堆叠内容。 */

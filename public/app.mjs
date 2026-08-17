@@ -256,6 +256,7 @@ const elements = {
   aiPreviewFlow: document.querySelector("#aiPreviewFlow"),
   aiWordFile: document.querySelector("#aiWordFile"),
   aiImportStatus: document.querySelector("#aiImportStatus"),
+  aiAutosaveStatus: document.querySelector("#aiAutosaveStatus"),
   aiCharCount: document.querySelector("#aiCharCount"),
   aiVoiceBtn: document.querySelector("#aiVoiceBtn"),
   addModuleButton: document.querySelector("#addModuleButton"),
@@ -347,8 +348,11 @@ let aiChatVoicePrefix = "";
 let aiVoiceBase = "";
 let aiVoicePrefix = "";
 let aiLimits = { maxInputChars: 8000, enabled: true };
+let aiInputSaveTimer = null;
+let aiDraftOfferPending = false;
 const AI_MAX_WORD_BYTES = 5 * 1024 * 1024;
 const AI_FALLBACK_MAX_CHARS = 8000;
+const AI_INPUT_DRAFT_VERSION = 1;
 
 function loadResume() {
   try {
@@ -1157,7 +1161,7 @@ function showToast(message, type = "success") {
 // 应用内确认/输入弹窗（替代浏览器 window.confirm / window.prompt）。
 const dialogState = { mode: "confirm", resolve: null };
 
-function openDialog({ title = "确认操作", message = "", confirmLabel = "确定", danger = false, input = null }) {
+function openDialog({ title = "确认操作", message = "", confirmLabel = "确定", cancelLabel = "取消", danger = false, input = null }) {
   return new Promise((resolve) => {
     dialogState.resolve = resolve;
     dialogState.mode = input === null ? "confirm" : "prompt";
@@ -1167,6 +1171,7 @@ function openDialog({ title = "确认操作", message = "", confirmLabel = "确�
     elements.appDialogInput.hidden = input === null;
     elements.appDialogInput.value = input?.value ?? "";
     elements.appDialogInput.placeholder = input?.placeholder ?? "";
+    elements.appDialogCancel.textContent = cancelLabel;
     elements.appDialogSubmit.textContent = confirmLabel;
     elements.appDialogSubmit.classList.toggle("is-danger", danger);
     elements.appDialog.hidden = false;
@@ -1189,8 +1194,8 @@ function closeDialog(result) {
   setTimeout(() => { elements.appDialog.hidden = true; }, 180);
 }
 
-function confirmAction({ title = "确认操作", message = "", confirmLabel = "确定", danger = false }) {
-  return openDialog({ title, message, confirmLabel, danger, input: null });
+function confirmAction({ title = "确认操作", message = "", confirmLabel = "确定", cancelLabel = "取消", danger = false }) {
+  return openDialog({ title, message, confirmLabel, cancelLabel, danger, input: null });
 }
 
 function promptValue({ title = "请输入", message = "", confirmLabel = "确定", value = "", placeholder = "" }) {
@@ -1696,6 +1701,7 @@ async function handleSettingsSubmit(event) {
 }
 
 async function handleLogout() {
+  clearAiInputDraft(currentUser);
   try {
     await fetch("/api/auth/logout", { method: "POST" });
   } catch {
@@ -3401,6 +3407,7 @@ function renderAiGuide() {
 }
 
 function setAiGuideStep(step) {
+  scheduleAiInputDraftSave();
   elements.aiGuideCard.classList.add("is-leaving");
   window.setTimeout(() => {
     aiGuideStep = step;
@@ -3430,6 +3437,7 @@ function renderAiContextSummary() {
 }
 
 function openAiWorkspace() {
+  scheduleAiInputDraftSave();
   elements.aiOnboarding.classList.add("is-complete");
   window.setTimeout(() => {
     elements.aiOnboarding.hidden = true;
@@ -3448,6 +3456,131 @@ function restartAiGuide() {
   elements.aiOnboarding.classList.remove("is-complete");
   aiGuideStep = "role";
   renderAiGuide();
+}
+
+function aiInputDraftKey(user = currentUser) {
+  const accountId = user?.id || user?.email || user?.phone;
+  return accountId ? `qingjianli.ai-input-draft.v1.${accountId}` : "";
+}
+
+function readAiInputDraft() {
+  const key = aiInputDraftKey();
+  if (!key) return null;
+  try {
+    const draft = JSON.parse(localStorage.getItem(key) || "null");
+    return draft?.version === AI_INPUT_DRAFT_VERSION && String(draft.description || "").trim() ? draft : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveAiInputDraft() {
+  clearTimeout(aiInputSaveTimer);
+  const key = aiInputDraftKey();
+  if (!key) return;
+  const description = elements.aiDescription.value;
+  if (!description.trim()) {
+    localStorage.removeItem(key);
+    elements.aiAutosaveStatus.textContent = "";
+    return;
+  }
+  const draft = {
+    version: AI_INPUT_DRAFT_VERSION,
+    updatedAt: new Date().toISOString(),
+    description,
+    documentStructure: aiWordDocumentStructure,
+    tone: aiToneValue(),
+    jobContext: { ...aiJobContext }
+  };
+  try {
+    localStorage.setItem(key, JSON.stringify(draft));
+    elements.aiAutosaveStatus.textContent = "已自动保存";
+  } catch {
+    elements.aiAutosaveStatus.textContent = "暂时无法自动保存";
+  }
+}
+
+function scheduleAiInputDraftSave() {
+  clearTimeout(aiInputSaveTimer);
+  aiInputSaveTimer = window.setTimeout(saveAiInputDraft, 350);
+}
+
+function clearAiInputDraft(user = currentUser) {
+  clearTimeout(aiInputSaveTimer);
+  const key = aiInputDraftKey(user);
+  if (key) localStorage.removeItem(key);
+  if (elements.aiAutosaveStatus) elements.aiAutosaveStatus.textContent = "";
+}
+
+function resetAiInputFlow() {
+  stopAiVoice();
+  aiResult = null;
+  aiProjectReviewConfirmed = true;
+  aiWordDocumentStructure = "";
+  elements.aiDescription.value = "";
+  elements.aiResult.hidden = true;
+  elements.aiWorkspace.classList.remove("is-preview-mode");
+  elements.aiProjectReview.innerHTML = "";
+  elements.aiProjectReview.hidden = true;
+  elements.aiNotices.innerHTML = "";
+  const professionalTone = elements.aiTone?.querySelector('input[value="professional"]');
+  if (professionalTone) professionalTone.checked = true;
+  elements.aiImportStatus.textContent = "";
+  updateAiCharCount();
+}
+
+function applyAiInputDraft(draft) {
+  Object.assign(aiJobContext, {
+    targetRole: draft.jobContext?.targetRole || "",
+    jobStage: draft.jobContext?.jobStage || "",
+    jobDescription: draft.jobContext?.jobDescription || ""
+  });
+  elements.aiDescription.value = String(draft.description || "");
+  aiWordDocumentStructure = String(draft.documentStructure || "");
+  const tone = elements.aiTone?.querySelector(`input[value="${CSS.escape(String(draft.tone || "professional"))}"]`);
+  if (tone) tone.checked = true;
+  updateAiCharCount();
+  elements.aiAutosaveStatus.textContent = "已恢复上次未完成内容";
+  openAiWorkspace();
+}
+
+async function offerAiInputDraft() {
+  if (aiDraftOfferPending) return;
+  const draft = readAiInputDraft();
+  if (!draft) return;
+  aiDraftOfferPending = true;
+  const restore = await confirmAction({
+    title: "继续上次未完成的内容？",
+    message: "检测到上次尚未保存为草稿的个人经历描述。继续可恢复求职方向、描述内容和表达风格；选择取消将清空这份临时内容。",
+    confirmLabel: "继续填写",
+    cancelLabel: "清空重新开始"
+  });
+  aiDraftOfferPending = false;
+  if (parseAppRoute(window.location.pathname).name !== "ai") return;
+  if (restore) {
+    applyAiInputDraft(draft);
+    showToast("已恢复上次未完成内容", "info");
+  } else {
+    clearAiInputDraft();
+    resetAiInputFlow();
+    showToast("已清空上次未完成内容", "info");
+  }
+}
+
+async function confirmClearAiInput() {
+  if (!elements.aiDescription.value.trim() && !aiResult) return;
+  const confirmed = await confirmAction({
+    title: "清空个人经历内容",
+    message: "将清空个人经历描述、生成预览和临时保存内容，此操作无法撤销。",
+    confirmLabel: "确认清空",
+    cancelLabel: "保留内容",
+    danger: true
+  });
+  if (!confirmed) return;
+  clearAiInputDraft();
+  resetAiInputFlow();
+  showToast("个人经历内容已清空", "info");
+  elements.aiDescription.focus();
 }
 
 function openAiPreview() {
@@ -3479,6 +3612,7 @@ function showAiPage() {
   }
   updateAiCharCount();
   loadAiLimits().catch(() => {});
+  offerAiInputDraft().catch(() => {});
   window.scrollTo({ top: 0, behavior: "auto" });
 }
 
@@ -3766,6 +3900,7 @@ async function handleAiWordImport(file) {
     aiWordDocumentStructure = structure;
     elements.aiDescription.value = text;
     updateAiCharCount();
+    saveAiInputDraft();
     elements.aiImportStatus.textContent = `已提取 ${text.length} 字，可先修改再生成`;
     showToast("Word 文本已提取", "success");
   } catch (error) {
@@ -3856,6 +3991,7 @@ function toggleAiVoice() {
     }
     elements.aiDescription.value = aiVoiceBase + aiVoicePrefix + finalText + interimText;
     updateAiCharCount();
+    scheduleAiInputDraftSave();
   };
   recognition.onerror = (event) => {
     const message = aiVoiceErrorText(event.error);
@@ -3981,6 +4117,8 @@ async function saveAiDraft() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ templateSlug: "clean-single", templateVersion: 1, data })
     }));
+    clearAiInputDraft();
+    resetAiInputFlow();
     showToast("草稿已保存，正在打开编辑器", "success");
     updateBrowserRoute({ name: "resume", resumeId: draft.id });
     await applyCurrentRoute();
@@ -5143,6 +5281,7 @@ document.addEventListener("click", async (event) => {
     openAiWorkspace();
   }
   else if (action === "ai-restart-guide") restartAiGuide();
+  else if (action === "ai-clear-input") confirmClearAiInput();
   else if (action === "ai-generate") generateAi();
   else if (action === "ai-regen") generateAi();
   else if (action === "ai-back-to-input") closeAiPreview();
@@ -5586,7 +5725,9 @@ elements.aiDescription.addEventListener("input", () => {
   // 用户手工修改后不再提交可能已过期的 Word 结构；正文仍照常生成。
   aiWordDocumentStructure = "";
   updateAiCharCount();
+  scheduleAiInputDraftSave();
 });
+elements.aiTone?.addEventListener("change", scheduleAiInputDraftSave);
 elements.aiGuideCard?.addEventListener("keydown", (event) => {
   if (event.key !== "Enter" || event.shiftKey || event.target.tagName === "TEXTAREA") return;
   if (event.target.id === "aiGuideRole") {
