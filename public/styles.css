@@ -3468,98 +3468,66 @@ select:focus-visible,
   line-height: 1.6;
 }
 
-/* AI 优化：左侧可拖动的助手悬浮卡片 */
-.ai-float-btn {
-  position: fixed;
-  left: 18px;
-  top: calc(50% - 36px);
-  z-index: 70;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 4px;
-  width: 92px;
-  min-width: 92px;
-  height: 72px;
-  padding: 8px 10px 9px;
-  overflow: visible;
-  border: 1px solid rgba(255, 255, 255, 0.38);
-  border-radius: 22px 22px 22px 8px;
-  color: var(--white);
-  background: linear-gradient(135deg, #087d69 0%, #0da77e 52%, #16b98b 100%);
-  box-shadow: 0 14px 32px rgba(8, 125, 105, 0.3), 0 0 0 4px rgba(18, 167, 125, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.24);
-  font: inherit;
-  cursor: grab;
-  user-select: none;
-  touch-action: none;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
-}
-.ai-float-btn::before {
-  position: absolute;
-  bottom: -7px;
-  left: 11px;
-  width: 18px;
-  height: 18px;
-  border-radius: 0 0 0 5px;
-  background: #0b9675;
-  content: "";
-  pointer-events: none;
-  transform: rotate(34deg) skew(-12deg, -12deg);
-  z-index: -1;
-}
-.ai-float-btn::after {
-  display: none;
-}
-.ai-float-btn:hover {
-  filter: saturate(1.08);
-  box-shadow: 0 17px 36px rgba(8, 125, 105, 0.38), 0 0 0 6px rgba(18, 167, 125, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.28);
-  transform: translateY(-3px) scale(1.02);
-}
-.ai-float-btn:focus-visible {
-  outline: 3px solid rgba(18, 167, 125, 0.25);
-  outline-offset: 3px;
-}
-.ai-float-btn[aria-pressed="true"] {
-  border-color: rgba(255, 255, 255, 0.62);
-  box-shadow: 0 0 0 6px rgba(18, 167, 125, 0.16), 0 17px 36px rgba(8, 125, 105, 0.38);
-}
-.ai-float-btn:active {
-  cursor: grabbing;
-  transform: translateY(0) scale(0.98);
-}
-.ai-float-btn__icon {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  flex: 0 0 32px;
-  width: 36px;
-  height: 32px;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.26);
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.16);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
-}
-.ai-float-btn__icon svg {
-  width: 24px;
-  height: 24px;
-  filter: drop-shadow(0 2px 4px rgba(0, 64, 52, 0.24));
-}
-.ai-float-btn__label {
-  position: relative;
-  z-index: 1;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: 0.05em;
-  white-space: nowrap;
+/* AI 优化：固定在排版工具栏中，避免遮挡简历内容。 */
+.toolbar__divider {
+  align-self: center;
+  width: 1px;
+  height: 28px;
+  margin: 0 7px;
+  background: var(--line-strong);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .ai-float-btn,
-  .ai-float-btn::after {
-    transition: none;
+.ai-toolbar-button {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 36px;
+  min-width: 106px;
+  padding: 0 14px;
+  border: 1px solid var(--brand-200);
+  border-radius: 10px;
+  color: var(--brand-dark);
+  background: var(--brand-25);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: color 0.16s ease, background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.ai-toolbar-button:hover {
+  border-color: var(--brand);
+  background: var(--brand-50);
+  box-shadow: 0 4px 12px rgba(18, 167, 125, 0.12);
+}
+
+.ai-toolbar-button:focus-visible {
+  outline: 3px solid rgba(18, 167, 125, 0.18);
+  outline-offset: 2px;
+}
+
+.ai-toolbar-button[aria-pressed="true"] {
+  border-color: var(--brand);
+  color: var(--white);
+  background: var(--brand);
+  box-shadow: 0 5px 14px rgba(18, 167, 125, 0.24);
+}
+
+@media screen and (max-width: 1120px) {
+  .toolbar__divider {
+    margin-inline: 3px;
+  }
+
+  .ai-toolbar-button {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+  }
+
+  .ai-toolbar-button [data-ai-toolbar-label] {
+    display: none;
   }
 }
 

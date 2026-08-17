@@ -1,12 +1,17 @@
 export const HTML_CSP = [
   "default-src 'self'",
+  "object-src 'none'",
   "img-src 'self' data: https:",
   // 阿里云验证码：SDK 会动态加载 alicdn 的 JS / CSS / iframe 资源，故统一放行 *.alicdn.com。
   "style-src 'self' 'unsafe-inline' https://*.alicdn.com",
   "script-src 'self' https://*.alicdn.com",
+  "script-src-attr 'none'",
   "frame-src https://*.alicdn.com https://*.aliyuncs.com https://*.aliyun.com",
   "connect-src 'self' https://*.alicdn.com https://*.aliyuncs.com https://*.aliyun.com",
   "font-src 'self' data: https://*.alicdn.com",
+  "media-src 'self' data: blob:",
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
   "frame-ancestors 'none'",
   "base-uri 'none'",
   "form-action 'self'"
@@ -17,7 +22,13 @@ export function applySecurityHeaders(response, { html = false, secure = false } 
   response.setHeader("X-Frame-Options", "DENY");
   response.setHeader("Referrer-Policy", "no-referrer");
   response.setHeader("X-Permitted-Cross-Domain-Policies", "none");
+  response.setHeader("X-DNS-Prefetch-Control", "off");
+  response.setHeader("Cross-Origin-Resource-Policy", "same-origin");
   response.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  response.setHeader(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()"
+  );
   if (html) {
     response.setHeader("Content-Security-Policy", HTML_CSP);
   }
