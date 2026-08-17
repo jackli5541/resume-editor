@@ -1,3 +1,4 @@
+import base64
 import json
 import re
 import sys
@@ -21,6 +22,34 @@ TEMPLATE_THEMES = {
 }
 FONT_NAME = "Microsoft YaHei"
 FONT_SCALE = 1.0
+
+
+def decode_profile_photo(value):
+    match = re.fullmatch(r"data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)", str(value or ""))
+    if not match:
+        return None
+    try:
+        data = base64.b64decode(match.group(2), validate=True)
+    except ValueError:
+        return None
+    if not data or len(data) > 1_500_000:
+        return None
+    extension = {"jpeg": "jpg"}.get(match.group(1).lower(), match.group(1).lower())
+    return {"data": data, "extension": extension}
+
+
+def photo_paragraph():
+    return (
+        '<w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:drawing>'
+        '<wp:inline distT="0" distB="0" distL="0" distR="0">'
+        '<wp:extent cx="1097280" cy="1463040"/><wp:docPr id="1" name="个人照片"/>'
+        '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        '<pic:pic><pic:nvPicPr><pic:cNvPr id="1" name="个人照片"/><pic:cNvPicPr/></pic:nvPicPr>'
+        '<pic:blipFill><a:blip r:embed="rId3"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+        '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1097280" cy="1463040"/></a:xfrm>'
+        '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>'
+        '</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>'
+    )
 
 
 class RichTextParser(HTMLParser):
@@ -276,7 +305,7 @@ def two_column_table(left_content, right_content, left_width=3300, shade=None):
     )
 
 
-def build_document(payload):
+def build_document(payload, has_photo=False):
     global FONT_NAME, FONT_SCALE
     resume = payload["resume"]
     profile = resume.get("profile", {})
@@ -293,8 +322,17 @@ def build_document(payload):
     contact = " · ".join(filter(None, [profile.get("mobile"), profile.get("email"), profile.get("city"), profile.get("workYears")]))
     contact_block = paragraph(contact, size=20, color="64748B", after=160)
     banner_slugs = {"resume-collection-cn-001", "resume-collection-cn-006"}
-    if template_slug in banner_slugs:
-        body.append('<w:tbl><w:tblPr><w:tblW w:w="9720" w:type="dxa"/></w:tblPr><w:tblGrid><w:gridCol w:w="9720"/></w:tblGrid><w:tr>' + table_cell(name_block + job_block + contact_block, 9720, theme) + '</w:tr></w:tbl>')
+    profile_block = name_block + job_block + contact_block
+    if has_photo:
+        body.append(
+            '<w:tbl><w:tblPr><w:tblW w:w="9720" w:type="dxa"/><w:tblLayout w:type="fixed"/></w:tblPr>'
+            '<w:tblGrid><w:gridCol w:w="7900"/><w:gridCol w:w="1820"/></w:tblGrid><w:tr>'
+            + table_cell(profile_block, 7900, theme if template_slug in banner_slugs else None)
+            + table_cell(photo_paragraph(), 1820, theme if template_slug in banner_slugs else None)
+            + '</w:tr></w:tbl>'
+        )
+    elif template_slug in banner_slugs:
+        body.append('<w:tbl><w:tblPr><w:tblW w:w="9720" w:type="dxa"/></w:tblPr><w:tblGrid><w:gridCol w:w="9720"/></w:tblGrid><w:tr>' + table_cell(profile_block, 9720, theme) + '</w:tr></w:tbl>')
     else:
         body.extend([name_block, job_block, contact_block])
 
@@ -327,16 +365,24 @@ def build_document(payload):
     )
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+        'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" '
+        'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+        'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
         '<w:body>' + "".join(body) + '</w:body></w:document>'
     )
 
 
 def write_docx(payload, output_path):
+    photo = decode_profile_photo(payload.get("resume", {}).get("profile", {}).get("photo"))
     content_types = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="jpg" ContentType="image/jpeg"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="webp" ContentType="image/webp"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
@@ -353,7 +399,12 @@ def write_docx(payload, output_path):
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
   <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+  {photo_relationship}
 </Relationships>'''
+    document_rels = document_rels.format(photo_relationship=(
+        '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
+        f'Target="media/profile.{photo["extension"]}"/>' if photo else ""
+    ))
     styles = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:eastAsia="Microsoft YaHei" w:hAnsi="Arial"/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr></w:rPrDefault></w:docDefaults>
@@ -373,12 +424,14 @@ def write_docx(payload, output_path):
     with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as package:
         package.writestr("[Content_Types].xml", content_types)
         package.writestr("_rels/.rels", root_rels)
-        package.writestr("word/document.xml", build_document(payload))
+        package.writestr("word/document.xml", build_document(payload, bool(photo)))
         package.writestr("word/_rels/document.xml.rels", document_rels)
         package.writestr("word/styles.xml", styles)
         package.writestr("word/numbering.xml", numbering)
         package.writestr("docProps/core.xml", core)
         package.writestr("docProps/app.xml", app)
+        if photo:
+            package.writestr(f'word/media/profile.{photo["extension"]}', photo["data"])
 
 
 if __name__ == "__main__":

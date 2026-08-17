@@ -46,7 +46,7 @@ const defaultHost = process.env.HOST || "127.0.0.1";
 const defaultOutputDir = process.env.EXPORT_DIR || join(projectRoot, "var", "exports");
 const defaultPreviewDir = process.env.PREVIEW_DIR || join(projectRoot, "var", "previews");
 const defaultTemplateStorageDir = process.env.TEMPLATE_STORAGE_DIR || join(projectRoot, "var", "templates");
-const maxRequestBytes = Number.parseInt(process.env.MAX_EXPORT_REQUEST_BYTES || "2097152", 10);
+const maxRequestBytes = Number.parseInt(process.env.MAX_EXPORT_REQUEST_BYTES || "4194304", 10);
 const allowedImageHosts = (process.env.EXPORT_IMAGE_HOSTS || "")
   .split(",")
   .map((value) => value.trim())
@@ -124,12 +124,12 @@ function sendJson(response, statusCode, value) {
 
 async function readJson(request) {
   const declaredLength = Number.parseInt(request.headers["content-length"] || "0", 10);
-  if (declaredLength > maxRequestBytes) throw new RequestValidationError("请求体超过 2 MB", 413);
+  if (declaredLength > maxRequestBytes) throw new RequestValidationError("请求体超过 4 MB", 413);
   const chunks = [];
   let received = 0;
   for await (const chunk of request) {
     received += chunk.length;
-    if (received > maxRequestBytes) throw new RequestValidationError("请求体超过 2 MB", 413);
+    if (received > maxRequestBytes) throw new RequestValidationError("请求体超过 4 MB", 413);
     chunks.push(chunk);
   }
   try {

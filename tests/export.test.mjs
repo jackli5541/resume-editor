@@ -223,6 +223,7 @@ test("真实 Word 渲染器生成可解压且包含可编辑正文的 DOCX", asy
   context.after(() => rm(testDir, { recursive: true, force: true }));
   const resume = createInitialResume();
   resume.profile.name = "林知夏";
+  resume.profile.photo = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=";
 
   await renderDocx({ outputPath, resume, template: { slug: "clean-single", version: 1 } });
   const file = await readFile(outputPath);
@@ -232,11 +233,12 @@ test("真实 Word 渲染器生成可解压且包含可编辑正文的 DOCX", asy
   const python = process.env.PYTHON_BIN || (process.platform === "win32" ? "python" : "python3");
   const { stdout } = await execFileAsync(python, ["-X", "utf8",
     "-c",
-    "import sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; print(z.read('word/document.xml').decode('utf-8'))",
+    "import sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; assert 'word/media/profile.png' in z.namelist(); print(z.read('word/document.xml').decode('utf-8'))",
     outputPath
   ], { maxBuffer: 5 * 1024 * 1024 });
   assert.match(stdout, /林知夏/);
   assert.match(stdout, /<w:t/);
+  assert.match(stdout, /r:embed="rId3"/);
 });
 
 test("极简轻 Word 导出渲染自定义字段（字段驱动）", async (context) => {
