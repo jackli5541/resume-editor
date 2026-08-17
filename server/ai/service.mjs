@@ -55,7 +55,7 @@ export class AiGenerationService {
     else this.active -= 1;
   }
 
-  async generate({ userId, templateSlug, description, tone = "professional", isAdmin = false, aiDailyLimit = null }) {
+  async generate({ userId, templateSlug, description, tone = "professional", targetRole = "", jobStage = "", jobDescription = "", isAdmin = false, aiDailyLimit = null }) {
     if (templateSlug && templateSlug !== "clean-single") {
       throw new AiGenerationError("当前仅支持极简轻模板", 400, "unsupported_template");
     }
@@ -70,6 +70,13 @@ export class AiGenerationService {
     if (text.length > config.maxInputChars) {
       throw new AiGenerationError(`描述内容过长（上限 ${config.maxInputChars} 字），请精简后再试`, 413, "input_too_long");
     }
+    const role = String(targetRole || "").trim();
+    const stage = String(jobStage || "").trim();
+    const jd = String(jobDescription || "").trim();
+    const allowedStages = new Set(["", "internship", "graduate", "experienced", "career_switch", "unsure"]);
+    if (role.length > 120) throw new AiGenerationError("目标岗位过长（上限 120 字）", 400, "invalid_target_role");
+    if (!allowedStages.has(stage)) throw new AiGenerationError("求职阶段无效", 400, "invalid_job_stage");
+    if (jd.length > 5000) throw new AiGenerationError("职位描述过长（上限 5000 字）", 400, "job_description_too_long");
 
     const quota = await this.quota.check(userId, { isAdmin, limit: aiDailyLimit });
     if (!quota.allowed) {
@@ -94,7 +101,7 @@ export class AiGenerationService {
           maxOutputTokens: config.maxOutputTokens,
           timeoutMs: config.timeoutMs,
           systemPrompt: buildSystemPrompt(config.systemPrompt),
-          userPrompt: buildUserPrompt(text, tone)
+          userPrompt: buildUserPrompt(text, tone, { targetRole: role, jobStage: stage, jobDescription: jd })
         });
         outputChars = JSON.stringify(modelJson).length;
       } catch (error) {
@@ -109,6 +116,14 @@ export class AiGenerationService {
       }
 
       const mapped = mapModelOutput(modelJson);
+      if (role) {
+        mapped.resume.profile.job = role;
+        const objective = mapped.resume.sections.find((section) => section.id === "objective");
+        if (objective?.data) {
+          objective.data.job = role;
+          objective.visible = true;
+        }
+      }
       let resume;
       try {
         resume = validateExportPayload({ resume: mapped.resume, template: { slug: "clean-single", version: 1 } }).resume;

@@ -236,6 +236,13 @@ const elements = {
   adminDuplicatesList: document.querySelector("#adminDuplicatesList"),
   adminDuplicatesStatus: document.querySelector("#adminDuplicatesStatus"),
   aiPage: document.querySelector("#aiPage"),
+  aiOnboarding: document.querySelector("#aiOnboarding"),
+  aiGuideCard: document.querySelector("#aiGuideCard"),
+  aiGuideProgress: document.querySelector("#aiGuideProgress"),
+  aiWorkspace: document.querySelector("#aiWorkspace"),
+  aiContextSummary: document.querySelector("#aiContextSummary"),
+  aiDescriptionHint: document.querySelector("#aiDescriptionHint"),
+  aiGenerateButton: document.querySelector("#aiGenerateButton"),
   aiInputCard: document.querySelector("#aiInputCard"),
   aiDescription: document.querySelector("#aiDescription"),
   aiTone: document.querySelector("#aiTone"),
@@ -320,6 +327,8 @@ let adminCosts = { days: [], byModel: [] };
 let adminConfigSchema = {};
 let aiResult = null;
 let aiGenerating = false;
+let aiGuideStep = "role";
+const aiJobContext = { targetRole: "", jobStage: "", jobDescription: "" };
 let aiWordImporting = false;
 let mammothPromise = null;
 let aiOptimizePending = null;
@@ -3353,6 +3362,84 @@ function aiTemplateRef() {
   };
 }
 
+const AI_JOB_STAGE_LABELS = {
+  internship: "找实习",
+  graduate: "应届求职",
+  experienced: "有经验求职",
+  career_switch: "转行求职",
+  unsure: "暂不确定"
+};
+
+function renderAiGuide() {
+  const stepIndex = { role: 1, stage: 2, jobDescription: 3 }[aiGuideStep] || 1;
+  elements.aiGuideProgress.style.width = `${stepIndex / 3 * 100}%`;
+  let content = "";
+  if (aiGuideStep === "role") {
+    content = `<div class="ai-guide-question"><span class="ai-guide-avatar">AI</span><div><span class="eyebrow">第 1 个问题</span><h2>你准备投递什么岗位？</h2><p>我会根据目标岗位决定简历应当突出哪些经历。</p></div></div>
+      <div class="ai-guide-answer"><input id="aiGuideRole" type="text" maxlength="120" value="${escapeHtml(aiJobContext.targetRole)}" placeholder="例如：产品经理、Java 开发、品牌运营" autocomplete="off" />
+      <div class="ai-guide-actions"><button type="button" class="ai-submit" data-action="ai-guide-role-next">继续</button><button type="button" class="link-button" data-action="ai-guide-role-skip">暂时不确定，跳过</button></div></div>`;
+  } else if (aiGuideStep === "stage") {
+    content = `<div class="ai-guide-question"><span class="ai-guide-avatar">AI</span><div><span class="eyebrow">第 2 个问题</span><h2>你目前处于哪个求职阶段？</h2><p>不同阶段适合强调不同类型的经历。</p></div></div><div class="ai-stage-options">${Object.entries(AI_JOB_STAGE_LABELS).map(([value, label]) => `<button type="button" data-action="ai-guide-stage" data-stage="${value}">${label}</button>`).join("")}</div>`;
+  } else {
+    content = `<div class="ai-guide-question"><span class="ai-guide-avatar">AI</span><div><span class="eyebrow">最后一个问题</span><h2>有具体职位描述吗？</h2><p>粘贴 JD 后，我可以更准确地匹配招聘要求。这一项可以跳过。</p></div></div>
+      <div class="ai-guide-answer"><textarea id="aiGuideJd" rows="6" maxlength="5000" placeholder="粘贴职位职责和任职要求……">${escapeHtml(aiJobContext.jobDescription)}</textarea>
+      <div class="ai-guide-actions"><button type="button" class="ai-submit" data-action="ai-guide-jd-next">整理好了，继续</button><button type="button" class="link-button" data-action="ai-guide-jd-skip">暂时没有，跳过</button></div></div>`;
+  }
+  elements.aiGuideCard.classList.remove("is-entering");
+  elements.aiGuideCard.innerHTML = content;
+  requestAnimationFrame(() => elements.aiGuideCard.classList.add("is-entering"));
+  elements.aiGuideCard.querySelector("input")?.focus();
+}
+
+function setAiGuideStep(step) {
+  elements.aiGuideCard.classList.add("is-leaving");
+  window.setTimeout(() => {
+    aiGuideStep = step;
+    elements.aiGuideCard.classList.remove("is-leaving");
+    renderAiGuide();
+  }, 180);
+}
+
+function aiDescriptionHint() {
+  if (aiJobContext.jobStage === "internship") return "可以介绍教育背景、课程项目、实习、竞赛、社团和技能，不需要整理格式。";
+  if (aiJobContext.jobStage === "graduate") return "可以介绍教育背景、项目实践、校园经历和技能，我会帮你突出潜力。";
+  if (aiJobContext.jobStage === "career_switch") return "介绍过去的经历和想转向的方向，我会帮你提取可迁移能力。";
+  return "可以介绍工作、项目、教育经历和成果，不需要整理格式，我会帮你组织。";
+}
+
+function renderAiContextSummary() {
+  const role = aiJobContext.targetRole || "未设置（生成通用版本）";
+  const stage = AI_JOB_STAGE_LABELS[aiJobContext.jobStage] || "未设置";
+  const jd = aiJobContext.jobDescription ? `已添加 ${aiJobContext.jobDescription.length} 字` : "未添加";
+  const focus = aiJobContext.jobStage === "internship" ? ["项目与实践经历", "学习能力与岗位技能"]
+    : aiJobContext.jobStage === "graduate" ? ["教育与项目成果", "岗位相关技能"]
+    : aiJobContext.jobStage === "career_switch" ? ["可迁移能力", "与目标岗位相关的成果"]
+    : ["岗位相关经历", "职责、行动与成果"];
+  elements.aiContextSummary.innerHTML = `<dl class="ai-context-list"><div><dt>目标岗位</dt><dd>${escapeHtml(role)}</dd></div><div><dt>求职阶段</dt><dd>${escapeHtml(stage)}</dd></div><div><dt>职位描述</dt><dd>${escapeHtml(jd)}</dd></div></dl><div class="ai-context-focus"><strong>本次生成将重点突出</strong><ul>${focus.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
+  elements.aiDescriptionHint.textContent = aiDescriptionHint();
+  elements.aiGenerateButton.textContent = aiJobContext.targetRole ? "根据求职目标生成简历" : "生成通用简历";
+}
+
+function openAiWorkspace() {
+  elements.aiOnboarding.classList.add("is-complete");
+  window.setTimeout(() => {
+    elements.aiOnboarding.hidden = true;
+    elements.aiWorkspace.hidden = false;
+    renderAiContextSummary();
+    requestAnimationFrame(() => elements.aiWorkspace.classList.add("is-entering"));
+    elements.aiDescription.focus();
+  }, 220);
+}
+
+function restartAiGuide() {
+  elements.aiWorkspace.hidden = true;
+  elements.aiWorkspace.classList.remove("is-entering");
+  elements.aiOnboarding.hidden = false;
+  elements.aiOnboarding.classList.remove("is-complete");
+  aiGuideStep = "role";
+  renderAiGuide();
+}
+
 function showAiPage() {
   document.documentElement.classList.remove("home-page-mode");
   document.documentElement.classList.remove("template-library-mode");
@@ -3363,6 +3450,10 @@ function showAiPage() {
   elements.adminPage.hidden = true;
   elements.loginPage.hidden = true;
   revealView(elements.aiPage);
+  if (!elements.aiWorkspace.hidden || !elements.aiOnboarding.hidden) {
+    if (!aiJobContext.targetRole) aiJobContext.targetRole = currentUser?.settings?.ai?.targetRole || "";
+    restartAiGuide();
+  }
   updateAiCharCount();
   loadAiLimits().catch(() => {});
   window.scrollTo({ top: 0, behavior: "auto" });
@@ -3626,7 +3717,10 @@ async function generateAi() {
       body: JSON.stringify({
         templateSlug: "clean-single",
         description,
-        tone: aiToneValue()
+        tone: aiToneValue(),
+        targetRole: aiJobContext.targetRole,
+        jobStage: aiJobContext.jobStage,
+        jobDescription: aiJobContext.jobDescription
       })
     }));
     renderAiPreview();
@@ -4721,6 +4815,27 @@ document.addEventListener("click", async (event) => {
     const banner = actionTarget.closest("#announcementBanner");
     if (banner) banner.hidden = true;
   }
+  else if (action === "ai-guide-role-next") {
+    aiJobContext.targetRole = document.querySelector("#aiGuideRole")?.value.trim() || "";
+    setAiGuideStep("stage");
+  }
+  else if (action === "ai-guide-role-skip") {
+    aiJobContext.targetRole = "";
+    setAiGuideStep("stage");
+  }
+  else if (action === "ai-guide-stage") {
+    aiJobContext.jobStage = actionTarget.dataset.stage || "unsure";
+    setAiGuideStep("jobDescription");
+  }
+  else if (action === "ai-guide-jd-next") {
+    aiJobContext.jobDescription = document.querySelector("#aiGuideJd")?.value.trim() || "";
+    openAiWorkspace();
+  }
+  else if (action === "ai-guide-jd-skip") {
+    aiJobContext.jobDescription = "";
+    openAiWorkspace();
+  }
+  else if (action === "ai-restart-guide") restartAiGuide();
   else if (action === "ai-generate") generateAi();
   else if (action === "ai-regen") generateAi();
   else if (action === "ai-save") saveAiDraft();
@@ -5155,6 +5270,13 @@ elements.aiWordFile.addEventListener("change", () => {
 });
 
 elements.aiDescription.addEventListener("input", updateAiCharCount);
+elements.aiGuideCard?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" || event.shiftKey || event.target.tagName === "TEXTAREA") return;
+  if (event.target.id === "aiGuideRole") {
+    event.preventDefault();
+    elements.aiGuideCard.querySelector('[data-action="ai-guide-role-next"]')?.click();
+  }
+});
 
 elements.aiChatForm.addEventListener("submit", handleAiChatSubmit);
 
