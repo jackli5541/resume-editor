@@ -4259,6 +4259,13 @@ function restoreAiFloatPosition(btn) {
     if (saved?.left && saved?.top) {
       btn.style.left = saved.left;
       btn.style.top = saved.top;
+      requestAnimationFrame(() => {
+        const rect = btn.getBoundingClientRect();
+        const left = Math.max(8, Math.min(window.innerWidth - rect.width - 8, rect.left));
+        const top = Math.max(8, Math.min(window.innerHeight - rect.height - 8, rect.top));
+        btn.style.left = `${left}px`;
+        btn.style.top = `${top}px`;
+      });
     }
   } catch { /* 忽略无效的本地存储 */ }
 }
