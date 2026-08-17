@@ -1669,6 +1669,9 @@ export function createAppServer(options = {}) {
           templateSlug: payload?.templateSlug,
           description: payload?.description,
           tone: payload?.tone,
+          targetRole: payload?.targetRole,
+          jobStage: payload?.jobStage,
+          jobDescription: payload?.jobDescription,
           isAdmin: user.isAdmin,
           aiDailyLimit: user.aiDailyLimit
         });

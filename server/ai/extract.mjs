@@ -72,9 +72,21 @@ function buildSystemPrompt(customPrompt = "") {
   return extra ? `${BASE_SYSTEM_PROMPT}\n\n管理员附加要求：\n${extra}` : BASE_SYSTEM_PROMPT;
 }
 
-function buildUserPrompt(description, tone) {
+const JOB_STAGE_HINTS = {
+  internship: "用户正在找实习：优先突出教育、课程项目、实践、竞赛和岗位相关技能，不得因缺少正式工作经历而编造内容。",
+  graduate: "用户正在应届求职：优先突出教育背景、项目实践、校园成果和岗位相关技能。",
+  experienced: "用户属于有经验求职：优先突出近期且与目标岗位相关的工作经历、个人行动和实际成果。",
+  career_switch: "用户正在转行求职：提取真实经历中的可迁移能力，不得把原岗位改写为目标岗位或虚构转行动机。",
+  unsure: "用户尚未确定求职阶段：使用通用简历整理策略，不要自行推测阶段。"
+};
+
+function buildUserPrompt(description, tone, context = {}) {
   const hint = TONE_HINTS[tone] || TONE_HINTS.professional;
-  return `<resume_input>\n${String(description || "")}\n</resume_input>\n\n${hint}`;
+  const targetRole = clean(context.targetRole);
+  const jobStage = clean(context.jobStage);
+  const jobDescription = clean(context.jobDescription);
+  const jobContext = `<job_context>\n目标岗位：${targetRole || "未提供，生成通用版本"}\n求职阶段：${JOB_STAGE_HINTS[jobStage] || "未提供，使用通用策略"}\n职位描述：${jobDescription || "未提供"}\n</job_context>`;
+  return `${jobContext}\n\n重要：job_context 只是求职目标，不代表用户曾担任该岗位或具备其中要求；只能用它筛选和组织 resume_input 中已有的真实信息，绝不能据此新增经历、技能、数字或成果。若提供目标岗位，将其填写到 profile.job 和 objective.job，但不得写入历史经历的 role。\n\n<resume_input>\n${String(description || "")}\n</resume_input>\n\n${hint}`;
 }
 
 // 纯文本分条 → 白名单富文本：只做转义，绝不解析/透传任何 HTML。
@@ -171,4 +183,4 @@ export function mapModelOutput(modelJson) {
   return { resume, uncertain, notices };
 }
 
-export { buildSystemPrompt, buildUserPrompt, bulletsToHtml, paragraphToHtml, DECLARED_SECTIONS, TONE_HINTS };
+export { buildSystemPrompt, buildUserPrompt, bulletsToHtml, paragraphToHtml, DECLARED_SECTIONS, TONE_HINTS, JOB_STAGE_HINTS };

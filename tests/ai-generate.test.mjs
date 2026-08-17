@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { mapModelOutput, bulletsToHtml, paragraphToHtml } from "../server/ai/extract.mjs";
+import { mapModelOutput, bulletsToHtml, paragraphToHtml, buildUserPrompt } from "../server/ai/extract.mjs";
 import { AiQuotaService } from "../server/ai/quota.mjs";
 import { AiGenerationError, AiGenerationService } from "../server/ai/service.mjs";
 import { AiConfigRepository } from "../server/ai/config-repository.mjs";
@@ -100,6 +100,19 @@ test("bulletsToHtml 与 paragraphToHtml 空输入", () => {
   assert.equal(paragraphToHtml(""), "");
 });
 
+test("岗位上下文与真实经历明确隔离", () => {
+  const prompt = buildUserPrompt("曾负责校园社团活动", "professional", {
+    targetRole: "产品经理实习生",
+    jobStage: "internship",
+    jobDescription: "协助完成用户调研"
+  });
+  assert.match(prompt, /<job_context>/);
+  assert.match(prompt, /产品经理实习生/);
+  assert.match(prompt, /找实习/);
+  assert.match(prompt, /不代表用户曾担任该岗位/);
+  assert.match(prompt, /<resume_input>\n曾负责校园社团活动/);
+});
+
 // ---------- quota ----------
 
 test("内存配额：按日计数并在超限后拒绝", async () => {
@@ -142,6 +155,14 @@ test("服务层：非 clean-single 模板被拒绝", async () => {
   await assert.rejects(
     () => service.generate({ userId: "u1", templateSlug: "resume-collection-cn-001", description: "张三" }),
     (error) => error instanceof AiGenerationError && error.statusCode === 400
+  );
+});
+
+test("服务层：拒绝未知求职阶段", async () => {
+  const service = await makeService();
+  await assert.rejects(
+    () => service.generate({ userId: "u1", description: "张三", jobStage: "invalid" }),
+    (error) => error instanceof AiGenerationError && error.statusCode === 400 && error.code === "invalid_job_stage"
   );
 });
 
@@ -192,6 +213,22 @@ test("AI 生成成功返回规范化简历", async (context) => {
   // 极简轻之外的模块必须为空，不得混入示例数据。
   const interests = body.resume.sections.find((section) => section.id === "interests");
   assert.equal(interests.items.length, 0);
+});
+
+test("目标岗位写入求职字段且不覆盖历史职位", async (context) => {
+  const app = await startAiServer(await makeService());
+  closeServer(app, context);
+  const cookie = await registerAndLogin(app, "context@example.com");
+  const response = await fetch(`${app.origin}/api/ai/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookie },
+    body: JSON.stringify({ description: "我在青屿科技担任高级产品经理", targetRole: "AI 产品负责人", jobStage: "experienced" })
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.resume.profile.job, "AI 产品负责人");
+  assert.equal(body.resume.sections.find((section) => section.id === "objective").data.job, "AI 产品负责人");
+  assert.equal(body.resume.sections.find((section) => section.id === "experience").items[0].role, "高级产品经理");
 });
 
 test("非 clean-single 模板返回 400", async (context) => {

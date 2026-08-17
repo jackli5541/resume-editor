@@ -598,11 +598,19 @@
       <main class="ai-main">
         <div class="ai-heading">
           <span class="eyebrow">AI GENERATE</span>
-          <h1>一句话生成极简轻简历</h1>
-          <p>粘贴你的经历描述，AI 会将其结构化填入「极简轻」模板；未提到的信息绝不编造。</p>
+          <h1>让 AI 先了解你的求职方向</h1>
+          <p>回答几个简单问题，再自由描述经历；AI 会针对求职目标整理简历，未提到的信息绝不编造。</p>
         </div>
-        <div class="ai-layout">
+        <div class="ai-onboarding" id="aiOnboarding">
+          <div class="ai-guide-progress" aria-label="求职信息填写进度"><span id="aiGuideProgress"></span></div>
+          <section class="ai-guide-card" id="aiGuideCard" aria-live="polite"></section>
+        </div>
+        <div class="ai-layout" id="aiWorkspace" hidden>
           <section class="ai-input-card" id="aiInputCard">
+            <div class="ai-workspace-heading">
+              <div><span class="eyebrow">YOUR STORY</span><h2>告诉我你的个人经历</h2></div>
+              <p id="aiDescriptionHint">不需要整理格式，我会帮你组织成专业简历。</p>
+            </div>
             <div class="ai-import-bar">
               <button class="ai-import-btn" type="button" data-action="ai-import-word">
                 <span aria-hidden="true">⬆</span> 导入 Word 简历
@@ -648,13 +656,17 @@
               </div>
             </fieldset>
             <div class="ai-input-actions">
-              <button class="ai-submit" type="button" data-action="ai-generate">AI 生成</button>
+              <button class="ai-submit" type="button" data-action="ai-generate" id="aiGenerateButton">根据求职目标生成简历</button>
               <button class="ai-submit ai-submit--secondary" type="button" data-action="manual-edit">直接手动编辑</button>
               <span class="ai-char-count" id="aiCharCount" title="已输入字数">0 字</span>
             </div>
             <p id="aiStatus" class="library-status" role="status"></p>
             <p class="ai-privacy">描述或导入的 Word 文本将发送至第三方大模型服务用于生成，请勿填写身份证号、银行卡号等无关敏感信息。</p>
           </section>
+          <aside class="ai-context-card" id="aiContextCard">
+            <div class="ai-context-card__head"><div><span class="eyebrow">JOB CONTEXT</span><h2>已整理的求职信息</h2></div><button type="button" class="link-button" data-action="ai-restart-guide">重新问答</button></div>
+            <div id="aiContextSummary"></div>
+          </aside>
           <section class="ai-result" id="aiResult" hidden>
             <div class="ai-result__head">
               <div><span class="eyebrow">PREVIEW</span><h2>生成预览</h2></div>
