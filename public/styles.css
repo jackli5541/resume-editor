@@ -4561,7 +4561,8 @@ select:focus-visible,
   margin-left: 0;
 }
 
-.github-link {
+.github-link,
+.theme-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4572,10 +4573,13 @@ select:focus-visible,
   border-radius: 9px;
   color: var(--ink-soft);
   background: var(--surface);
+  font: inherit;
+  cursor: pointer;
   transition: 0.18s ease;
 }
 
-.github-link:hover {
+.github-link:hover,
+.theme-toggle:hover {
   color: var(--ink);
   border-color: var(--brand-200);
   background: var(--brand-25);
@@ -5688,6 +5692,12 @@ select:focus-visible,
 
 .ai-autosave-status:empty {
   display: none;
+}
+
+.ai-blank-resume-hint {
+  flex-basis: 100%;
+  color: var(--subtle);
+  font-size: 12px;
 }
 
 .ai-input-actions select {
