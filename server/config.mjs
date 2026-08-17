@@ -30,6 +30,17 @@ const CONFIG_SCHEMA = Object.freeze({
     defaultValue: false,
     label: "邮箱验证码登录",
     description: "开启后，邮箱验证码登录/注册可用（SMTP 通道由 SMTP_* 环境变量配置；默认关闭）"
+  }),
+  preview_quality: Object.freeze({
+    type: "enum",
+    defaultValue: "balanced",
+    label: "在线成品预览清晰度",
+    description: "仅影响原生 Word 模板的在线预览，不影响 PDF / Word 导出；清晰度越高，生成时间、内存与流量开销越大",
+    options: Object.freeze([
+      Object.freeze({ value: "economy", label: "省资源（120 DPI）" }),
+      Object.freeze({ value: "balanced", label: "均衡（160 DPI，推荐）" }),
+      Object.freeze({ value: "high", label: "高清（192 DPI）" })
+    ])
   })
 });
 
@@ -58,7 +69,8 @@ export class AppConfigService {
       for (const row of result.rows) {
         const schema = CONFIG_SCHEMA[row.key];
         if (!schema) continue;
-        values[row.key] = schema.type === "boolean" ? Boolean(row.value) : row.value;
+        if (schema.type === "boolean") values[row.key] = Boolean(row.value);
+        else if (schema.type !== "enum" || schema.options.some((option) => option.value === row.value)) values[row.key] = row.value;
       }
     } else {
       for (const key of CONFIG_KEYS) {
@@ -81,7 +93,8 @@ export class AppConfigService {
     for (const [key, raw] of Object.entries(entries || {})) {
       const schema = CONFIG_SCHEMA[key];
       if (!schema) continue;
-      updates[key] = schema.type === "boolean" ? Boolean(raw) : raw;
+      if (schema.type === "boolean") updates[key] = Boolean(raw);
+      else if (schema.type === "enum" && schema.options.some((option) => option.value === raw)) updates[key] = raw;
     }
 
     if (this.database) {

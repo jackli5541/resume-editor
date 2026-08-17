@@ -76,7 +76,18 @@ export async function renderNativeDocument({ sourcePath, outputPath, resume, for
   }
 }
 
-export async function renderPreviewPages({ sourcePath, outputDir, resume }) {
+const PREVIEW_QUALITY_PRESETS = Object.freeze({
+  economy: Object.freeze({ dpi: 120, webpQuality: 88 }),
+  balanced: Object.freeze({ dpi: 160, webpQuality: 92 }),
+  high: Object.freeze({ dpi: 192, webpQuality: 94 })
+});
+
+export function previewQualityOptions(name) {
+  return PREVIEW_QUALITY_PRESETS[name] || PREVIEW_QUALITY_PRESETS.balanced;
+}
+
+export async function renderPreviewPages({ sourcePath, outputDir, resume, previewQuality = "balanced" }) {
+  const quality = previewQualityOptions(previewQuality);
   const workDir = await mkdtemp(join(tmpdir(), "resume-preview-"));
   try {
     const docxPath = join(workDir, "resume.docx");
@@ -84,12 +95,12 @@ export async function renderPreviewPages({ sourcePath, outputDir, resume }) {
     const pdfPath = await convertWithLibreOffice(docxPath, workDir);
     await mkdir(outputDir, { recursive: true });
     const pdftoppm = process.env.PDFTOPPM_BIN || "pdftoppm";
-    await execFileAsync(pdftoppm, ["-png", "-r", "120", pdfPath, join(outputDir, "page")], {
+    await execFileAsync(pdftoppm, ["-png", "-r", String(quality.dpi), pdfPath, join(outputDir, "page")], {
       timeout: 60_000, windowsHide: true, maxBuffer: 5 * 1024 * 1024
     });
     const pngPages = (await readdir(outputDir)).filter((name) => /^page-\d+\.png$/.test(name)).sort();
     const python = process.env.PYTHON_BIN || (process.platform === "win32" ? "python" : "python3");
-    await execFileAsync(python, ["-X", "utf8", join(projectRoot, "scripts", "convert-preview-pages.py"), ...pngPages.map((name) => join(outputDir, name))], {
+    await execFileAsync(python, ["-X", "utf8", join(projectRoot, "scripts", "convert-preview-pages.py"), `--quality=${quality.webpQuality}`, ...pngPages.map((name) => join(outputDir, name))], {
       timeout: 60_000, windowsHide: true, maxBuffer: 5 * 1024 * 1024
     });
     const pages = pngPages.map((name) => name.replace(/\.png$/, ".webp"));

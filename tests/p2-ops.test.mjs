@@ -42,11 +42,17 @@ test("配置中心：读取默认值并可热改", async (context) => {
   const initial = await (await fetch(`${app.origin}/api/admin/config`, { headers: authHeaders(admin.cookie) })).json();
   assert.equal(initial.config.maintenance_mode, false);
   assert.equal(initial.config.registration_enabled, true);
+  assert.equal(initial.config.preview_quality, "balanced");
   assert.ok(initial.schema.maintenance_mode);
   assert.ok(initial.schema.registration_enabled);
 
   const updated = await (await patchConfig(app, admin.cookie, { maintenance_mode: true })).json();
   assert.equal(updated.config.maintenance_mode, true);
+
+  const quality = await (await patchConfig(app, admin.cookie, { preview_quality: "high" })).json();
+  assert.equal(quality.config.preview_quality, "high");
+  const ignored = await (await patchConfig(app, admin.cookie, { preview_quality: "unbounded" })).json();
+  assert.equal(ignored.config.preview_quality, "high");
 });
 
 test("维护模式阻止普通用户写操作，管理员不受影响", async (context) => {

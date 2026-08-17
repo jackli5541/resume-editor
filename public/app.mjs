@@ -3181,11 +3181,21 @@ async function clearAdminSecret(target) {
 function renderAdminConfig(schema, values) {
   adminConfigSchema = schema;
   const canWrite = hasAdminPermission("config.write");
-  elements.adminConfigFields.innerHTML = Object.entries(schema).map(([key, meta]) => `
-    <label class="admin-check-row">
+  elements.adminConfigFields.innerHTML = Object.entries(schema).map(([key, meta]) => {
+    if (meta.type === "enum") {
+      return `<label class="admin-field">
+        <span class="admin-field__label">${escapeHtml(meta.label || key)}</span>
+        <select data-config-key="${escapeHtml(key)}" ${canWrite ? "" : "disabled"}>
+          ${(meta.options || []).map((option) => `<option value="${escapeHtml(option.value)}" ${values[key] === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}
+        </select>
+        <small>${escapeHtml(meta.description || "")}</small>
+      </label>`;
+    }
+    return `<label class="admin-check-row">
       <input type="checkbox" data-config-key="${escapeHtml(key)}" ${values[key] ? "checked" : ""} ${canWrite ? "" : "disabled"} />
       <span><strong>${escapeHtml(meta.label || key)}</strong><small>${escapeHtml(meta.description || "")}</small></span>
-    </label>`).join("");
+    </label>`;
+  }).join("");
   const submit = elements.adminConfigForm.querySelector("button[type='submit']");
   if (submit) submit.disabled = !canWrite;
 }
@@ -3193,8 +3203,8 @@ function renderAdminConfig(schema, values) {
 async function saveAdminConfig(event) {
   event.preventDefault();
   const body = {};
-  document.querySelectorAll("[data-config-key]").forEach((checkbox) => {
-    body[checkbox.dataset.configKey] = checkbox.checked;
+  elements.adminConfigFields.querySelectorAll("[data-config-key]").forEach((control) => {
+    body[control.dataset.configKey] = control.type === "checkbox" ? control.checked : control.value;
   });
   elements.adminConfigMsg.hidden = false;
   elements.adminConfigMsg.textContent = "正在保存…";

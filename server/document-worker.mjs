@@ -44,7 +44,8 @@ const previewWorker = new Worker("resume-previews", async (job) => {
   const result = await renderPreviewPages({
     sourcePath: job.data.template.sourcePath,
     outputDir: join(previewDir, job.data.id),
-    resume: job.data.resume
+    resume: job.data.resume,
+    previewQuality: job.data.previewQuality
   });
   if (!objectStorageEnabled()) return result;
   const pages = [];

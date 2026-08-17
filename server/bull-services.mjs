@@ -98,7 +98,7 @@ export class BullPreviewService {
   }
 
   async create(payload) {
-    const key = `${payload.resumeId}:${payload.revision}:${payload.template.slug}:${payload.template.version}`;
+    const key = `${payload.resumeId}:${payload.revision}:${payload.template.slug}:${payload.template.version}:${payload.previewQuality || "balanced"}`;
     const id = createHash("sha256").update(key).digest("hex").slice(0, 32);
     const existing = await this.queue.getJob(id);
     if (existing) return this.toPublic(await this.get(id, existing.data.token));
