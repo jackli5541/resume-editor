@@ -3285,6 +3285,38 @@ select:focus-visible,
   border-color: var(--brand-300);
   outline: none;
 }
+.ai-chat__voice {
+  flex: none;
+  align-self: flex-end;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  cursor: pointer;
+}
+.ai-chat__voice:hover {
+  border-color: var(--brand-300);
+  color: var(--brand-dark);
+}
+.ai-chat__voice.is-recording {
+  border-color: #e25555;
+  color: #fff;
+  background: #e25555;
+  box-shadow: 0 0 0 4px rgba(226, 85, 85, 0.14);
+  animation: ai-chat-voice-pulse 1.25s ease-in-out infinite;
+}
+.ai-chat__voice:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+@keyframes ai-chat-voice-pulse {
+  50% { box-shadow: 0 0 0 7px rgba(226, 85, 85, 0.08); }
+}
 .ai-chat__send {
   flex: none;
   align-self: flex-end;
@@ -5820,6 +5852,20 @@ select:focus-visible,
   grid-column: 1 / -1;
 }
 
+/* 生成后切换为独立预览视图，避免在输入表单下方继续堆叠内容。 */
+.ai-layout.is-preview-mode {
+  display: block;
+}
+
+.ai-layout.is-preview-mode .ai-input-card,
+.ai-layout.is-preview-mode .ai-context-card {
+  display: none;
+}
+
+.ai-layout.is-preview-mode .ai-result {
+  width: 100%;
+}
+
 @media screen and (max-width: 820px) {
   .ai-layout { grid-template-columns: 1fr; }
   .ai-context-card { position: static; grid-row: 1; }
@@ -5849,6 +5895,29 @@ select:focus-visible,
 .ai-result__head h2 {
   margin: 4px 0 0;
   font-size: 20px;
+}
+
+.ai-result__title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ai-preview-back {
+  padding: 9px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.ai-preview-back:hover {
+  border-color: var(--brand-300);
+  color: var(--brand-dark);
 }
 
 .ai-result__actions {
@@ -6119,6 +6188,19 @@ select:focus-visible,
 
 .ai-preview-scroll .resume-paper {
   margin: 0 auto;
+}
+
+@media screen and (max-width: 640px) {
+  .ai-result__head,
+  .ai-result__title {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ai-result__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 /* ---------- 右侧悬浮入口（反馈 / 赞赏，点击展开） ---------- */

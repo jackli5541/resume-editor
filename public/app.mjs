@@ -80,6 +80,7 @@ const elements = {
   aiChatBody: document.querySelector("#aiChatBody"),
   aiChatForm: document.querySelector("#aiChatForm"),
   aiChatInput: document.querySelector("#aiChatInput"),
+  aiChatVoiceBtn: document.querySelector("#aiChatVoiceBtn"),
   aiChatSend: document.querySelector("#aiChatSend"),
   saveState: document.querySelector("#saveState"),
   pageCount: document.querySelector("#pageCountBadge"),
@@ -339,6 +340,10 @@ let aiOptimizePending = null;
 let aiOptimizing = false;
 let aiRecognition = null;
 let aiVoiceActive = false;
+let aiChatRecognition = null;
+let aiChatVoiceActive = false;
+let aiChatVoiceBase = "";
+let aiChatVoicePrefix = "";
 let aiVoiceBase = "";
 let aiVoicePrefix = "";
 let aiLimits = { maxInputChars: 8000, enabled: true };
@@ -3436,12 +3441,26 @@ function openAiWorkspace() {
 }
 
 function restartAiGuide() {
+  elements.aiWorkspace.classList.remove("is-preview-mode");
   elements.aiWorkspace.hidden = true;
   elements.aiWorkspace.classList.remove("is-entering");
   elements.aiOnboarding.hidden = false;
   elements.aiOnboarding.classList.remove("is-complete");
   aiGuideStep = "role";
   renderAiGuide();
+}
+
+function openAiPreview() {
+  elements.aiWorkspace.classList.add("is-preview-mode");
+  elements.aiResult.hidden = false;
+  elements.aiResult.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function closeAiPreview() {
+  elements.aiWorkspace.classList.remove("is-preview-mode");
+  elements.aiResult.hidden = true;
+  elements.aiInputCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  window.setTimeout(() => elements.aiDescription.focus(), 250);
 }
 
 function showAiPage() {
@@ -3936,10 +3955,9 @@ async function generateAi() {
     renderAiPreview();
     renderAiProjectReview();
     renderAiNotices();
-    elements.aiResult.hidden = false;
     elements.aiStatus.textContent = "";
     elements.aiStatus.hidden = true;
-    elements.aiResult.scrollIntoView({ behavior: "smooth", block: "start" });
+    openAiPreview();
   } catch (error) {
     elements.aiStatus.textContent = error?.message || "AI 生成失败，请稍后重试";
     showToast(error?.message || "AI 生成失败", "warning");
@@ -4164,7 +4182,77 @@ function toggleAiChat() {
 }
 
 function closeAiChat() {
+  stopAiChatVoice();
   setAiChatOpen(false);
+}
+
+function setAiChatVoiceState(recording) {
+  aiChatVoiceActive = recording;
+  const button = elements.aiChatVoiceBtn;
+  if (!button) return;
+  button.classList.toggle("is-recording", recording);
+  button.setAttribute("aria-pressed", String(recording));
+  button.setAttribute("aria-label", recording ? "停止语音输入" : "语音输入修改要求");
+  button.title = recording ? "停止语音输入" : "语音输入";
+}
+
+function stopAiChatVoice() {
+  const recognition = aiChatRecognition;
+  aiChatRecognition = null;
+  if (recognition) {
+    try { recognition.stop(); } catch { /* 已停止则忽略 */ }
+  }
+  setAiChatVoiceState(false);
+}
+
+function toggleAiChatVoice() {
+  const Recognition = speechRecognitionCtor();
+  if (!Recognition) {
+    showToast("当前浏览器不支持语音输入，请使用 Chrome、Edge 或 Safari", "warning");
+    return;
+  }
+  if (aiChatVoiceActive) {
+    stopAiChatVoice();
+    elements.aiChatInput.focus();
+    return;
+  }
+  if (!window.isSecureContext) {
+    showToast("语音输入需要 HTTPS 或 localhost 环境", "warning");
+    return;
+  }
+
+  const recognition = new Recognition();
+  aiChatRecognition = recognition;
+  aiChatVoiceBase = elements.aiChatInput.value;
+  aiChatVoicePrefix = aiChatVoiceBase && !/\s$/.test(aiChatVoiceBase) ? " " : "";
+  recognition.lang = "zh-CN";
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+  recognition.onstart = () => setAiChatVoiceState(true);
+  recognition.onresult = (event) => {
+    let transcript = "";
+    for (let index = 0; index < event.results.length; index++) {
+      transcript += event.results[index][0]?.transcript || "";
+    }
+    elements.aiChatInput.value = `${aiChatVoiceBase}${aiChatVoicePrefix}${transcript}`.slice(0, 2000);
+  };
+  recognition.onerror = (event) => {
+    const message = aiVoiceErrorText(event.error);
+    stopAiChatVoice();
+    if (message) showToast(message, "warning");
+  };
+  recognition.onend = () => {
+    if (aiChatRecognition === recognition) aiChatRecognition = null;
+    setAiChatVoiceState(false);
+  };
+  try {
+    recognition.start();
+  } catch {
+    aiChatRecognition = null;
+    setAiChatVoiceState(false);
+    showToast("无法启动语音识别，请检查麦克风权限", "warning");
+  }
 }
 
 function appendAiMessage(kind, text) {
@@ -4225,6 +4313,7 @@ function renderAiProposal(proposal) {
 async function handleAiChatSubmit(event) {
   event.preventDefault();
   if (aiOptimizing) return;
+  stopAiChatVoice();
   const instruction = elements.aiChatInput.value.trim();
   if (!instruction) {
     showToast("请先填写修改要求", "warning");
@@ -4238,6 +4327,7 @@ async function handleAiChatSubmit(event) {
   }
   aiOptimizing = true;
   elements.aiChatSend.disabled = true;
+  elements.aiChatVoiceBtn.disabled = true;
   elements.aiChatSend.textContent = "生成中…";
   appendAiMessage("user", instruction);
   elements.aiChatInput.value = "";
@@ -4258,6 +4348,7 @@ async function handleAiChatSubmit(event) {
   } finally {
     aiOptimizing = false;
     elements.aiChatSend.disabled = false;
+    elements.aiChatVoiceBtn.disabled = false;
     elements.aiChatSend.textContent = "发送";
   }
 }
@@ -5054,6 +5145,7 @@ document.addEventListener("click", async (event) => {
   else if (action === "ai-restart-guide") restartAiGuide();
   else if (action === "ai-generate") generateAi();
   else if (action === "ai-regen") generateAi();
+  else if (action === "ai-back-to-input") closeAiPreview();
   else if (action === "ai-save") saveAiDraft();
   else if (action === "ai-confirm-projects") confirmAiProjects();
   else if (action === "ai-import-word") elements.aiWordFile.click();
@@ -5096,6 +5188,8 @@ document.addEventListener("click", async (event) => {
     toggleAiChat();
   } else if (action === "close-ai-chat") {
     closeAiChat();
+  } else if (action === "ai-chat-voice") {
+    toggleAiChatVoice();
   } else if (action === "ai-apply") {
     applyAiOptimize();
   } else if (action === "ai-cancel") {
