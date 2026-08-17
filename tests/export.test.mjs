@@ -32,6 +32,17 @@ test("后端导出校验只保留规范字段且无效头像不阻断导出", ()
   assert.equal(payload.fileName, "林知夏_产品经理_.pdf");
 });
 
+test("后端导出接受四种开源简历字体并拒绝未知字体", () => {
+  for (const fontFamily of ["source-han-sans", "source-han-serif", "lxgw-wenkai", "zhuque-fangsong"]) {
+    const resume = createInitialResume();
+    resume.settings.fontFamily = fontFamily;
+    assert.equal(validateExportPayload({ resume }).resume.settings.fontFamily, fontFamily);
+  }
+  const resume = createInitialResume();
+  resume.settings.fontFamily = "unknown-font";
+  assert.equal(validateExportPayload({ resume }).resume.settings.fontFamily, "source-han-sans");
+});
+
 test("头像为空、格式无效或过大时均继续导出无头像简历", () => {
   const resume = createInitialResume();
   for (const photo of ["", "不是图片地址", "http://example.com/photo.png"]) {
@@ -233,12 +244,14 @@ test("真实 Word 渲染器生成可解压且包含可编辑正文的 DOCX", asy
   const python = process.env.PYTHON_BIN || (process.platform === "win32" ? "python" : "python3");
   const { stdout } = await execFileAsync(python, ["-X", "utf8",
     "-c",
-    "import sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; assert 'word/media/profile.png' in z.namelist(); print(z.read('word/document.xml').decode('utf-8'))",
+    "import sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; assert 'word/media/profile.png' in z.namelist(); assert 'word/fonts/font1.odttf' in z.namelist(); assert 'word/fontTable.xml' in z.namelist(); print(z.read('word/document.xml').decode('utf-8') + z.read('word/fontTable.xml').decode('utf-8'))",
     outputPath
   ], { maxBuffer: 5 * 1024 * 1024 });
   assert.match(stdout, /林知夏/);
   assert.match(stdout, /<w:t/);
   assert.match(stdout, /r:embed="rId3"/);
+  assert.match(stdout, /Source Han Sans SC/);
+  assert.match(stdout, /embedRegular/);
 });
 
 test("极简轻 Word 导出渲染自定义字段（字段驱动）", async (context) => {

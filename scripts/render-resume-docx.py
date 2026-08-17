@@ -2,9 +2,11 @@ import base64
 import json
 import re
 import sys
+import uuid
 import zipfile
 from datetime import datetime, timezone
 from html.parser import HTMLParser
+from pathlib import Path
 from xml.sax.saxutils import escape
 
 
@@ -22,6 +24,17 @@ TEMPLATE_THEMES = {
 }
 FONT_NAME = "Microsoft YaHei"
 FONT_SCALE = 1.0
+FONT_FILES = {
+    "source-han-sans": ("Source Han Sans SC", "SourceHanSansSC-Regular.otf"),
+    "source-han-serif": ("Source Han Serif SC", "SourceHanSerifSC-Regular.otf"),
+    "lxgw-wenkai": ("LXGW WenKai", "LXGWWenKai-Regular.ttf"),
+    "zhuque-fangsong": ("Zhuque Fangsong (technical preview)", "ZhuqueFangsong-Regular.ttf"),
+    # Backward-compatible values stored by earlier resume versions.
+    "system": ("Source Han Sans SC", "SourceHanSansSC-Regular.otf"),
+    "serif": ("Source Han Serif SC", "SourceHanSerifSC-Regular.otf"),
+    "rounded": ("Source Han Sans SC", "SourceHanSansSC-Regular.otf"),
+}
+FONT_DIR = Path(__file__).resolve().parents[1] / "public" / "fonts"
 
 
 def decode_profile_photo(value):
@@ -310,7 +323,7 @@ def build_document(payload, has_photo=False):
     resume = payload["resume"]
     profile = resume.get("profile", {})
     settings = resume.get("settings", {})
-    FONT_NAME = {"system": "Microsoft YaHei", "serif": "SimSun", "rounded": "Microsoft YaHei"}.get(settings.get("fontFamily"), "Microsoft YaHei")
+    FONT_NAME = FONT_FILES.get(settings.get("fontFamily"), FONT_FILES["source-han-sans"])[0]
     FONT_SCALE = max(12, min(18, int(settings.get("fontSize", 14)))) / 14
     template_slug = str((payload.get("template") or {}).get("slug", "clean-single"))
     theme = TEMPLATE_THEMES.get(template_slug)
@@ -376,6 +389,15 @@ def build_document(payload, has_photo=False):
 
 def write_docx(payload, output_path):
     photo = decode_profile_photo(payload.get("resume", {}).get("profile", {}).get("photo"))
+    font_key = payload.get("resume", {}).get("settings", {}).get("fontFamily", "source-han-sans")
+    font_name, font_file_name = FONT_FILES.get(font_key, FONT_FILES["source-han-sans"])
+    font_path = FONT_DIR / font_file_name
+    font_guid = uuid.uuid4()
+    font_bytes = bytearray(font_path.read_bytes())
+    obfuscation_key = font_guid.bytes[::-1]
+    for index in range(min(32, len(font_bytes))):
+        font_bytes[index] ^= obfuscation_key[index % 16]
+    font_guid_text = "{" + str(font_guid).upper() + "}"
     content_types = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -383,9 +405,11 @@ def write_docx(payload, output_path):
   <Default Extension="jpg" ContentType="image/jpeg"/>
   <Default Extension="png" ContentType="image/png"/>
   <Default Extension="webp" ContentType="image/webp"/>
+  <Default Extension="odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+  <Override PartName="/word/fontTable.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
   <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
 </Types>'''
@@ -399,6 +423,7 @@ def write_docx(payload, output_path):
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
   <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+  <Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml"/>
   {photo_relationship}
 </Relationships>'''
     document_rels = document_rels.format(photo_relationship=(
@@ -407,9 +432,17 @@ def write_docx(payload, output_path):
     ))
     styles = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:eastAsia="Microsoft YaHei" w:hAnsi="Arial"/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr></w:rPrDefault></w:docDefaults>
+  <w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="{font_name}" w:eastAsia="{font_name}" w:hAnsi="{font_name}"/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr></w:rPrDefault></w:docDefaults>
   <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>
-</w:styles>'''
+</w:styles>'''.format(font_name=escape(font_name))
+    font_table = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:font w:name="{escape(font_name)}"><w:embedRegular r:id="rId1" w:fontKey="{font_guid_text}"/></w:font>
+</w:fonts>'''
+    font_table_rels = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="fonts/font1.odttf"/>
+</Relationships>'''
     numbering = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="singleLevel"/><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/><w:lvlJc w:val="left"/><w:pPr><w:tabs><w:tab w:val="num" w:pos="360"/></w:tabs><w:ind w:left="360" w:hanging="180"/></w:pPr></w:lvl></w:abstractNum>
@@ -428,6 +461,9 @@ def write_docx(payload, output_path):
         package.writestr("word/_rels/document.xml.rels", document_rels)
         package.writestr("word/styles.xml", styles)
         package.writestr("word/numbering.xml", numbering)
+        package.writestr("word/fontTable.xml", font_table)
+        package.writestr("word/_rels/fontTable.xml.rels", font_table_rels)
+        package.writestr("word/fonts/font1.odttf", font_bytes)
         package.writestr("docProps/core.xml", core)
         package.writestr("docProps/app.xml", app)
         if photo:

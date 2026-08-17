@@ -241,6 +241,14 @@ const elements = {
   adminDuplicatesList: document.querySelector("#adminDuplicatesList"),
   adminDuplicatesStatus: document.querySelector("#adminDuplicatesStatus"),
   aiPage: document.querySelector("#aiPage"),
+  aiTranslatePage: document.querySelector("#aiTranslatePage"),
+  aiGenerateFeatureNotice: document.querySelector("#aiGenerateFeatureNotice"),
+  aiTranslateFeatureNotice: document.querySelector("#aiTranslateFeatureNotice"),
+  translateWordFile: document.querySelector("#translateWordFile"),
+  translateTargetLanguage: document.querySelector("#translateTargetLanguage"),
+  translateStatus: document.querySelector("#translateStatus"),
+  translateTemplateOverlay: document.querySelector("#translateTemplateOverlay"),
+  translateTemplateList: document.querySelector("#translateTemplateList"),
   aiOnboarding: document.querySelector("#aiOnboarding"),
   aiGuideCard: document.querySelector("#aiGuideCard"),
   aiGuideProgress: document.querySelector("#aiGuideProgress"),
@@ -291,6 +299,8 @@ let fidelityRequest = 0;
 let fidelityRevision = 0;
 let fidelityResumeId = "";
 let fidelityRequestKey = "";
+let translateDocument = null;
+let translateProcessing = false;
 let previewMode = resume.template?.engine === "docx-native" ? "final" : "instant";
 const activeItemBySection = new Map();
 
@@ -1642,6 +1652,7 @@ function revealView(element) {
 }
 
 function showLoginPage() {
+  elements.aiTranslatePage.hidden = true;
   document.documentElement.classList.remove("home-page-mode");
   document.documentElement.classList.remove("template-library-mode");
   elements.homePage.hidden = true;
@@ -1822,6 +1833,7 @@ function adminTabsForUser() {
 }
 
 function showAdminPage() {
+  elements.aiTranslatePage.hidden = true;
   document.documentElement.classList.remove("home-page-mode");
   document.documentElement.classList.remove("template-library-mode");
   elements.homePage.hidden = true;
@@ -3192,7 +3204,11 @@ async function clearAdminSecret(target) {
 function renderAdminConfig(schema, values) {
   adminConfigSchema = schema;
   const canWrite = hasAdminPermission("config.write");
-  elements.adminConfigFields.innerHTML = Object.entries(schema).map(([key, meta]) => {
+  const groupLabels = { ai: "AI 用户功能", access: "账号与访问", document: "文档与预览", system: "系统运行" };
+  const groupOrder = ["ai", "access", "document", "system"];
+  const groups = {};
+  for (const [key, meta] of Object.entries(schema)) (groups[meta.group || "system"] ||= []).push([key, meta]);
+  const renderControl = ([key, meta]) => {
     if (meta.type === "enum") {
       return `<label class="admin-field">
         <span class="admin-field__label">${escapeHtml(meta.label || key)}</span>
@@ -3206,7 +3222,11 @@ function renderAdminConfig(schema, values) {
       <input type="checkbox" data-config-key="${escapeHtml(key)}" ${values[key] ? "checked" : ""} ${canWrite ? "" : "disabled"} />
       <span><strong>${escapeHtml(meta.label || key)}</strong><small>${escapeHtml(meta.description || "")}</small></span>
     </label>`;
-  }).join("");
+  };
+  elements.adminConfigFields.innerHTML = groupOrder
+    .filter((group) => groups[group]?.length)
+    .map((group) => `<section class="admin-config-group"><h3>${escapeHtml(groupLabels[group] || group)}</h3><div class="admin-config-group__fields">${groups[group].map(renderControl).join("")}</div></section>`)
+    .join("");
   const submit = elements.adminConfigForm.querySelector("button[type='submit']");
   if (submit) submit.disabled = !canWrite;
 }
@@ -3429,7 +3449,7 @@ async function saveAdminAiConfig(event) {
 }
 
 async function clearAdminAiKey() {
-  if (!(await confirmAction({ title: "清除 API Key", message: "确定清除已保存的 API Key？清除后 AI 生成将不可用，直到重新配置。", confirmLabel: "清除", danger: true }))) return;
+  if (!(await confirmAction({ title: "清除 API Key", message: "确定清除已保存的 API Key？清除后 AI 生成简历将不可用，直到重新配置。", confirmLabel: "清除", danger: true }))) return;
   try {
     const result = await readApiResponse(await fetch("/api/admin/ai-config", {
       method: "PATCH",
@@ -3682,6 +3702,7 @@ function showAiPage() {
   elements.app.hidden = true;
   elements.adminPage.hidden = true;
   elements.loginPage.hidden = true;
+  elements.aiTranslatePage.hidden = true;
   revealView(elements.aiPage);
   if (!elements.aiWorkspace.hidden || !elements.aiOnboarding.hidden) {
     if (!aiJobContext.targetRole) aiJobContext.targetRole = currentUser?.settings?.ai?.targetRole || "";
@@ -3695,6 +3716,160 @@ function showAiPage() {
 
 function hideAiPage() {
   elements.aiPage.hidden = true;
+}
+
+function installAiToolMenus() {
+  document.querySelectorAll(".primary-nav, .editor-nav").forEach((nav) => {
+    const link = [...nav.querySelectorAll(':scope > a[href="/ai"]')][0];
+    if (!link || link.closest(".ai-tool-menu")) return;
+    const active = ["/ai", "/ai/translate"].includes(window.location.pathname);
+    const menu = document.createElement("div");
+    menu.className = `ai-tool-menu${active ? " is-active" : ""}`;
+    menu.innerHTML = `<button type="button" class="ai-tool-menu__trigger" data-action="toggle-ai-tools" aria-haspopup="true" aria-expanded="false">AI 简历工具 <span aria-hidden="true">▾</span></button><div class="ai-tool-menu__panel" hidden><a href="/ai" data-ai-feature="generate">AI 生成简历<small>从描述或 Word 整理新简历</small></a><a href="/ai/translate" data-ai-feature="translate">AI 翻译简历<small>上传 DOCX 并生成双语草稿</small></a></div>`;
+    link.replaceWith(menu);
+  });
+}
+
+function refreshAiToolMenuState() {
+  const path = window.location.pathname.replace(/\/$/, "") || "/";
+  document.querySelectorAll(".ai-tool-menu").forEach((menu) => {
+    menu.classList.toggle("is-active", path === "/ai" || path === "/ai/translate");
+    menu.querySelectorAll("a[href]").forEach((link) => {
+      const linkPath = new URL(link.href, window.location.origin).pathname.replace(/\/$/, "") || "/";
+      if (linkPath === path) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+    });
+  });
+}
+
+function closeAiToolMenus(except = null) {
+  document.querySelectorAll(".ai-tool-menu").forEach((menu) => {
+    if (menu === except) return;
+    menu.querySelector(".ai-tool-menu__panel").hidden = true;
+    menu.querySelector(".ai-tool-menu__trigger").setAttribute("aria-expanded", "false");
+  });
+}
+
+function toggleAiToolMenu(button) {
+  const menu = button.closest(".ai-tool-menu");
+  const panel = menu?.querySelector(".ai-tool-menu__panel");
+  if (!panel) return;
+  const open = panel.hidden;
+  closeAiToolMenus(menu);
+  panel.hidden = !open;
+  button.setAttribute("aria-expanded", String(open));
+}
+
+function renderTranslateTemplates() {
+  const templates = availableTemplates.filter((template) => template.selectable === true);
+  const ordered = [...templates].sort((a, b) => Number(b.slug === "clean-single") - Number(a.slug === "clean-single"));
+  elements.translateTemplateList.innerHTML = ordered.map((template) => {
+    const recommended = template.slug === "clean-single";
+    const preview = template.previewUrl ? `<img src="${escapeHtml(template.previewUrl)}" alt="${escapeHtml(template.name)}模板预览" />` : "";
+    return `<article class="translate-template-card${recommended ? " is-recommended" : ""}"><div class="translate-template-card__preview">${preview}${recommended ? '<span>★ 中英文推荐</span>' : ""}</div><div><strong>${escapeHtml(template.name)}</strong><p>${recommended ? "ATS 友好，已针对中英文内容长度适配" : "可用于翻译草稿，英文长文本可能产生额外换行"}</p><button type="button" data-action="translate-select-template" data-template-slug="${escapeHtml(template.slug)}" data-template-version="${template.version}">${recommended ? "使用推荐模板并翻译" : "使用此模板并翻译"}</button></div></article>`;
+  }).join("");
+}
+
+function showTranslateTemplateChooser() {
+  renderTranslateTemplates();
+  elements.translateTemplateOverlay.hidden = false;
+  document.body.classList.add("has-modal");
+}
+
+function closeTranslateTemplateChooser() {
+  elements.translateTemplateOverlay.hidden = true;
+  document.body.classList.remove("has-modal");
+}
+
+function showAiTranslatePage() {
+  document.documentElement.classList.remove("home-page-mode", "template-library-mode");
+  elements.homePage.hidden = true;
+  elements.templateLibrary.hidden = true;
+  elements.draftPage.hidden = true;
+  elements.app.hidden = true;
+  elements.adminPage.hidden = true;
+  elements.loginPage.hidden = true;
+  elements.aiPage.hidden = true;
+  revealView(elements.aiTranslatePage);
+  elements.translateStatus.textContent = "";
+  loadAiLimits().catch(() => {});
+  window.scrollTo({ top: 0, behavior: "auto" });
+}
+
+function translatedResumeForTemplate(sourceResume, template) {
+  const translated = normalizeResume(sourceResume);
+  const target = createResumeForTemplate({
+    slug: template.slug, version: template.version, name: template.name,
+    engine: template.engine, previewUrl: template.previewUrl,
+    editorSchema: template.editorSchema || getTemplateSchema(template.slug),
+    defaultResume: null
+  });
+  target.title = translated.title;
+  target.settings = { ...target.settings, ...translated.settings };
+  for (const field of Object.keys(target.profile)) {
+    if (translated.profile[field] != null) target.profile[field] = translated.profile[field];
+  }
+  target.sections = target.sections.map((section) => {
+    const source = translated.sections.find((item) => item.id === section.id);
+    if (!source) return section;
+    const next = { ...section, title: source.title || section.title, visible: source.visible !== false };
+    if (Array.isArray(section.items) && Array.isArray(source.items)) next.items = source.items.map((item) => ({ ...item, id: makeId(section.id) }));
+    if ("content" in section && source.content != null) next.content = source.content;
+    if (section.data && source.data) next.data = { ...section.data, ...source.data };
+    return next;
+  });
+  return target;
+}
+
+async function handleTranslateWord(file) {
+  if (translateProcessing) return;
+  if (aiLimits.enabled === false || aiLimits.features?.translate === false) {
+    showToast("AI 翻译简历正在维护中", "info");
+    return;
+  }
+  elements.translateStatus.textContent = "正在解析 Word 简历…";
+  try {
+    translateDocument = await extractWordText(file);
+    elements.translateStatus.textContent = `已读取 ${translateDocument.text.length} 字，请选择翻译模板`;
+    showTranslateTemplateChooser();
+  } catch (error) {
+    translateDocument = null;
+    elements.translateStatus.textContent = error?.message || "Word 解析失败";
+    showToast(error?.message || "Word 解析失败", "warning");
+  } finally {
+    elements.translateWordFile.value = "";
+  }
+}
+
+async function translateWithTemplate(button) {
+  if (!translateDocument || translateProcessing) return;
+  const template = availableTemplates.find((item) => item.slug === button.dataset.templateSlug && item.version === Number(button.dataset.templateVersion));
+  if (!template) return;
+  translateProcessing = true;
+  closeTranslateTemplateChooser();
+  elements.translateStatus.textContent = "AI 正在翻译、识别模块并生成草稿…";
+  try {
+    const result = await readApiResponse(await fetch("/api/ai/translate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description: translateDocument.text, documentStructure: translateDocument.structure, targetLanguage: elements.translateTargetLanguage.value })
+    }));
+    const mapped = translatedResumeForTemplate(result.resume, template);
+    const data = { ...mapped };
+    delete data.template;
+    const draft = await readApiResponse(await fetch("/api/resumes", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ templateSlug: template.slug, templateVersion: template.version, data })
+    }));
+    translateDocument = null;
+    showToast("翻译完成，草稿已保存", "success");
+    updateBrowserRoute({ name: "resume", resumeId: draft.id });
+    await applyCurrentRoute();
+  } catch (error) {
+    elements.translateStatus.textContent = error?.message || "AI 翻译失败，请重试";
+    showToast(error?.message || "AI 翻译失败", "warning");
+  } finally {
+    translateProcessing = false;
+  }
 }
 
 function renderAiNotices() {
@@ -4116,11 +4291,25 @@ async function loadAiLimits() {
     aiLimits = {
       maxInputChars: Number.isFinite(payload.maxInputChars) ? payload.maxInputChars : AI_FALLBACK_MAX_CHARS,
       enabled: payload.enabled !== false,
+      features: payload.features || { generate: true, translate: true },
       daily: payload.daily || null
     };
   } catch {
-    aiLimits = { maxInputChars: AI_FALLBACK_MAX_CHARS, enabled: true, daily: null };
+    aiLimits = { maxInputChars: AI_FALLBACK_MAX_CHARS, enabled: true, features: { generate: true, translate: true }, daily: null };
   }
+  const isFeatureEnabled = (feature) => aiLimits.enabled !== false && aiLimits.features?.[feature] !== false;
+  document.querySelectorAll("[data-ai-feature]").forEach((link) => {
+    const enabled = isFeatureEnabled(link.dataset.aiFeature);
+    link.classList.toggle("is-disabled", !enabled);
+    link.setAttribute("aria-disabled", String(!enabled));
+    if (!enabled) link.title = "功能维护中";
+    else link.removeAttribute("title");
+  });
+  document.querySelectorAll("[data-ai-feature-control]").forEach((control) => {
+    control.disabled = !isFeatureEnabled(control.dataset.aiFeatureControl);
+  });
+  elements.aiGenerateFeatureNotice.hidden = isFeatureEnabled("generate");
+  elements.aiTranslateFeatureNotice.hidden = isFeatureEnabled("translate");
   updateAiCharCount();
 }
 
@@ -4133,6 +4322,10 @@ async function generateAi() {
   if (aiGenerating) return;
   if (!currentUser) {
     openLogin("/ai");
+    return;
+  }
+  if (aiLimits.enabled === false || aiLimits.features?.generate === false) {
+    showToast("AI 生成简历正在维护中", "info");
     return;
   }
   const description = elements.aiDescription.value.trim();
@@ -4172,8 +4365,8 @@ async function generateAi() {
     elements.aiStatus.hidden = true;
     openAiPreview();
   } catch (error) {
-    elements.aiStatus.textContent = error?.message || "AI 生成失败，请稍后重试";
-    showToast(error?.message || "AI 生成失败", "warning");
+    elements.aiStatus.textContent = error?.message || "AI 生成简历失败，请稍后重试";
+    showToast(error?.message || "AI 生成简历失败", "warning");
   } finally {
     aiGenerating = false;
   }
@@ -4680,6 +4873,7 @@ async function exportResume() {
 }
 
 function showTemplateLibrary({ historyMode = "none" } = {}) {
+  elements.aiTranslatePage.hidden = true;
   if (!resume.remoteId && resume.template) {
     clearTimeout(saveTimer);
     clearTimeout(fidelityTimer);
@@ -4767,6 +4961,7 @@ function hideTemplateLibrary() {
 }
 
 function showDraftPage() {
+  elements.aiTranslatePage.hidden = true;
   document.documentElement.classList.remove("home-page-mode");
   document.documentElement.classList.add("template-library-mode");
   elements.homePage.hidden = true;
@@ -4785,6 +4980,7 @@ function hideDraftPage() {
 }
 
 function showHomePage() {
+  elements.aiTranslatePage.hidden = true;
   document.documentElement.classList.remove("template-library-mode");
   document.documentElement.classList.add("home-page-mode");
   elements.app.hidden = true;
@@ -4840,6 +5036,7 @@ async function loadRemoteResume(id) {
 
 async function applyCurrentRoute({ replaceInvalid = false } = {}) {
   const route = parseAppRoute(window.location.pathname);
+  refreshAiToolMenuState();
   if (route.name === "home") {
     showHomePage();
     return;
@@ -4862,6 +5059,14 @@ async function applyCurrentRoute({ replaceInvalid = false } = {}) {
       return;
     }
     showAiPage();
+    return;
+  }
+  if (route.name === "ai-translate") {
+    if (!currentUser) {
+      openLogin("/ai/translate", "replace");
+      return;
+    }
+    showAiTranslatePage();
     return;
   }
   if (route.name === "admin") {
@@ -4891,6 +5096,7 @@ async function applyCurrentRoute({ replaceInvalid = false } = {}) {
       hideAdminPage();
       hideLoginPage();
       elements.aiPage.hidden = true;
+      elements.aiTranslatePage.hidden = true;
       renderAll();
       setSavedState("云端草稿已保存");
       return;
@@ -4921,6 +5127,7 @@ async function applyCurrentRoute({ replaceInvalid = false } = {}) {
     hideAdminPage();
     hideLoginPage();
     elements.aiPage.hidden = true;
+    elements.aiTranslatePage.hidden = true;
     renderAll();
     const target = resume.remoteId
       ? { name: "resume", resumeId: resume.remoteId }
@@ -5217,7 +5424,7 @@ async function manualEdit() {
   if (hasAiInput) {
     const confirmed = await confirmAction({
       title: "新建空白简历？",
-      message: "当前填写或导入的内容不会带入空白简历。你可以返回并使用 AI 生成，或继续从空白简历开始填写。",
+      message: "当前填写或导入的内容不会带入空白简历。你可以返回并使用 AI 生成简历，或继续从空白简历开始填写。",
       confirmLabel: "继续新建",
       cancelLabel: "返回"
     });
@@ -5313,6 +5520,7 @@ document.addEventListener("click", async (event) => {
 
   if (action === "account") { if (currentUser) toggleAccountMenu(actionTarget); else openLogin(window.location.pathname || "/"); }
   else if (action === "toggle-theme") toggleTheme();
+  else if (action === "toggle-ai-tools") toggleAiToolMenu(actionTarget);
   else if (action === "open-settings") openSettings();
   else if (action === "close-settings") closeSettings();
   else if (action === "close-login") closeLogin();
@@ -5384,6 +5592,9 @@ document.addEventListener("click", async (event) => {
   else if (action === "ai-save") saveAiDraft();
   else if (action === "ai-confirm-projects") confirmAiProjects();
   else if (action === "ai-import-word") elements.aiWordFile.click();
+  else if (action === "translate-upload") elements.translateWordFile.click();
+  else if (action === "translate-close-templates") closeTranslateTemplateChooser();
+  else if (action === "translate-select-template") translateWithTemplate(actionTarget);
   else if (action === "ai-voice") toggleAiVoice();
   else if (action === "manual-edit") manualEdit();
   else if (action === "toggle-add-module") toggleAddModuleMenu();
@@ -5725,6 +5936,11 @@ document.addEventListener("click", (event) => {
 
   const link = event.target.closest("a[href]");
   if (!link) return;
+  if (link.getAttribute("aria-disabled") === "true") {
+    event.preventDefault();
+    showToast("该 AI 功能正在维护中", "info");
+    return;
+  }
   if (link.target && link.target !== "_self") return;
   if (link.hasAttribute("download")) return;
 
@@ -5759,6 +5975,7 @@ elements.loginTabRegister.addEventListener("click", () => setAuthTab("register")
 elements.sendCodeButton.addEventListener("click", handleSendCode);
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".account-area")) closeAllAccountMenus();
+  if (!event.target.closest(".ai-tool-menu")) closeAiToolMenus();
   if (!event.target.closest(".module-add")) elements.addModuleMenu.hidden = true;
   if (event.target.closest(".auth-dialog")) return;
   if (event.target.closest("#settingsOverlay") && !elements.settingsOverlay.hidden) closeSettings();
@@ -5827,6 +6044,11 @@ elements.aiDescription.addEventListener("input", () => {
   updateAiCharCount();
   scheduleAiInputDraftSave();
 });
+
+elements.translateWordFile.addEventListener("change", () => {
+  const file = elements.translateWordFile.files?.[0];
+  if (file) handleTranslateWord(file);
+});
 elements.aiTone?.addEventListener("change", scheduleAiInputDraftSave);
 elements.aiGuideCard?.addEventListener("keydown", (event) => {
   if (event.key !== "Enter" || event.shiftKey || event.target.tagName === "TEXTAREA") return;
@@ -5856,6 +6078,7 @@ if (elements.aiInputCard) {
 }
 
 async function initialize() {
+  installAiToolMenus();
   injectAccountItems();
   await refreshSession();
   await Promise.all([loadTemplates(), loadDrafts(), loadAnnouncementBanner()]);

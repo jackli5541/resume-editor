@@ -43,8 +43,12 @@ test("配置中心：读取默认值并可热改", async (context) => {
   assert.equal(initial.config.maintenance_mode, false);
   assert.equal(initial.config.registration_enabled, true);
   assert.equal(initial.config.preview_quality, "balanced");
+  assert.equal(initial.config.ai_generate_enabled, true);
+  assert.equal(initial.config.ai_translate_enabled, true);
   assert.ok(initial.schema.maintenance_mode);
   assert.ok(initial.schema.registration_enabled);
+  assert.equal(initial.schema.ai_generate_enabled.group, "ai");
+  assert.equal(initial.schema.ai_translate_enabled.group, "ai");
 
   const updated = await (await patchConfig(app, admin.cookie, { maintenance_mode: true })).json();
   assert.equal(updated.config.maintenance_mode, true);
@@ -53,6 +57,19 @@ test("配置中心：读取默认值并可热改", async (context) => {
   assert.equal(quality.config.preview_quality, "high");
   const ignored = await (await patchConfig(app, admin.cookie, { preview_quality: "unbounded" })).json();
   assert.equal(ignored.config.preview_quality, "high");
+
+  const featureFlags = await (await patchConfig(app, admin.cookie, {
+    ai_generate_enabled: false,
+    ai_translate_enabled: true
+  })).json();
+  assert.equal(featureFlags.config.ai_generate_enabled, false);
+  assert.equal(featureFlags.config.ai_translate_enabled, true);
+
+  const independentlyUpdated = await (await patchConfig(app, admin.cookie, {
+    ai_translate_enabled: false
+  })).json();
+  assert.equal(independentlyUpdated.config.ai_generate_enabled, false);
+  assert.equal(independentlyUpdated.config.ai_translate_enabled, false);
 });
 
 test("维护模式阻止普通用户写操作，管理员不受影响", async (context) => {

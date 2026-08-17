@@ -24,7 +24,7 @@ const EMPTY_EXTRA_SECTIONS = [
 const DEFAULT_SETTINGS = {
   theme: "#12a77d",
   accent: "#eaf8f4",
-  fontFamily: "system",
+  fontFamily: "source-han-sans",
   fontSize: 14,
   lineHeight: 1.65,
   pagePadding: 38,

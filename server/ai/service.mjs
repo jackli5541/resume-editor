@@ -3,6 +3,7 @@ import { buildSystemPrompt, buildUserPrompt, mapModelOutput } from "./extract.mj
 import { buildOptimizeSystemPrompt, buildOptimizeUserPrompt, mapOptimizeOutput } from "./optimize.mjs";
 import { AiProviderError } from "./provider.mjs";
 import { parseProjectCandidates } from "./project-parser.mjs";
+import { buildTranslateSystemPrompt, buildTranslateUserPrompt, mapTranslationOutput, translationLanguageLabel } from "./translate.mjs";
 
 export class AiGenerationError extends Error {
   constructor(message, statusCode = 400, code = "ai_generation_error") {
@@ -62,7 +63,7 @@ export class AiGenerationService {
     }
 
     const config = await this.configRepository.get();
-    if (!config.enabled) throw new AiGenerationError("AI 生成未启用，请联系管理员", 503, "ai_disabled");
+    if (!config.enabled) throw new AiGenerationError("AI 生成简历未启用，请联系管理员", 503, "ai_disabled");
     const apiKey = await this.configRepository.getApiKey();
     if (!apiKey) throw new AiGenerationError("模型 API Key 未配置，请联系管理员", 503, "missing_api_key");
 
@@ -136,7 +137,7 @@ export class AiGenerationService {
       } catch {
         status = "provider_error";
         errorCode = "validation_error";
-        throw new AiGenerationError("AI 生成结果校验失败，请重试", 502, "validation_error");
+        throw new AiGenerationError("AI 生成简历结果校验失败，请重试", 502, "validation_error");
       }
 
       this.quota.increment(userId);
@@ -162,9 +163,71 @@ export class AiGenerationService {
     }
   }
 
+  async translate({ userId, description, documentStructure = "", targetLanguage, isAdmin = false, aiDailyLimit = null }) {
+    const language = translationLanguageLabel(targetLanguage);
+    if (!language) throw new AiGenerationError("目标语言无效", 400, "invalid_target_language");
+
+    const config = await this.configRepository.get();
+    if (!config.enabled) throw new AiGenerationError("AI 翻译未启用，请联系管理员", 503, "ai_disabled");
+    const apiKey = await this.configRepository.getApiKey();
+    if (!apiKey) throw new AiGenerationError("模型 API Key 未配置，请联系管理员", 503, "missing_api_key");
+
+    const text = String(description || "").trim();
+    const structure = String(documentStructure || "").trim();
+    if (!text) throw new AiGenerationError("未能读取简历内容", 400, "empty_description");
+    if (text.length > config.maxInputChars) throw new AiGenerationError(`简历内容过长（上限 ${config.maxInputChars} 字）`, 413, "input_too_long");
+    if (structure.length > config.maxInputChars * 2) throw new AiGenerationError("Word 文档结构过长", 413, "document_structure_too_long");
+
+    const quota = await this.quota.check(userId, { isAdmin, limit: aiDailyLimit });
+    if (!quota.allowed) throw new AiGenerationError(`今日 AI 调用次数已用完（${quota.limit} 次/天），0 点后重置`, 429, "quota_exceeded");
+
+    const startedAt = Date.now();
+    let status = "ok";
+    let errorCode = null;
+    let outputChars = 0;
+    await this.acquire();
+    try {
+      let modelJson;
+      try {
+        modelJson = await this.provider.complete({
+          baseUrl: config.baseUrl, apiKey, model: config.model,
+          temperature: Math.min(config.temperature, 0.3),
+          maxOutputTokens: config.maxOutputTokens, timeoutMs: config.timeoutMs,
+          systemPrompt: buildTranslateSystemPrompt(targetLanguage, config.systemPrompt),
+          userPrompt: buildTranslateUserPrompt(text, structure, targetLanguage)
+        });
+        outputChars = JSON.stringify(modelJson).length;
+      } catch (error) {
+        const code = error?.code;
+        status = auditStatusFor(code);
+        errorCode = code || "provider_error";
+        if (error instanceof AiProviderError) throw this.toClientError(error);
+        throw new AiGenerationError("模型服务异常，请稍后再试", 502, "provider_error");
+      }
+
+      const mapped = mapTranslationOutput(modelJson, targetLanguage);
+      let resume;
+      try {
+        resume = validateExportPayload({ resume: mapped.resume, template: { slug: "clean-single", version: 1 } }).resume;
+      } catch {
+        status = "provider_error";
+        errorCode = "validation_error";
+        throw new AiGenerationError("AI 翻译结果校验失败，请重试", 502, "validation_error");
+      }
+      this.quota.increment(userId);
+      return { resume, uncertain: mapped.uncertain, notices: mapped.notices, usage: { model: config.model } };
+    } finally {
+      this.release();
+      await this.auditLog.record({
+        userId, provider: config.provider, model: config.model, status,
+        inputChars: text.length, outputChars, latencyMs: Date.now() - startedAt, errorCode
+      });
+    }
+  }
+
   async optimize({ userId, resume, instruction, tone = "professional", isAdmin = false, aiDailyLimit = null }) {
     const config = await this.configRepository.get();
-    if (!config.enabled) throw new AiGenerationError("AI 生成未启用，请联系管理员", 503, "ai_disabled");
+    if (!config.enabled) throw new AiGenerationError("AI 服务未启用，请联系管理员", 503, "ai_disabled");
     if (config.optimizeEnabled === false) throw new AiGenerationError("AI 优化已关闭，请联系管理员", 503, "ai_optimize_disabled");
     const apiKey = await this.configRepository.getApiKey();
     if (!apiKey) throw new AiGenerationError("模型 API Key 未配置，请联系管理员", 503, "missing_api_key");
