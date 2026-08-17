@@ -4548,6 +4548,60 @@ function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+const PROFILE_PHOTO_MAX_WIDTH = 600;
+const PROFILE_PHOTO_MAX_HEIGHT = 800;
+const PROFILE_PHOTO_TARGET_BYTES = 400 * 1024;
+
+function loadPhotoImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("无法读取照片，请换一张图片重试"));
+    };
+    image.src = url;
+  });
+}
+
+function canvasToBlob(canvas, quality) {
+  return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("照片处理失败，请重试"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function compressProfilePhoto(file) {
+  const image = await loadPhotoImage(file);
+  const scale = Math.min(1, PROFILE_PHOTO_MAX_WIDTH / image.naturalWidth, PROFILE_PHOTO_MAX_HEIGHT / image.naturalHeight);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("当前浏览器无法处理照片");
+  context.fillStyle = "#fff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  let blob = null;
+  for (const quality of [0.86, 0.76, 0.66, 0.56]) {
+    blob = await canvasToBlob(canvas, quality);
+    if (blob && blob.size <= PROFILE_PHOTO_TARGET_BYTES) break;
+  }
+  if (!blob) throw new Error("照片压缩失败，请换一张图片重试");
+  return blobToDataUrl(blob);
+}
+
 async function exportResume() {
   if (exportInProgress) return;
   if (!currentUser) {
@@ -5510,7 +5564,7 @@ document.addEventListener("focusout", (event) => {
   }
 });
 
-document.addEventListener("change", (event) => {
+document.addEventListener("change", async (event) => {
   const filterEl = event.target.closest("[data-admin-filter]");
   if (filterEl) {
     const loaders = {
@@ -5529,18 +5583,22 @@ document.addEventListener("change", (event) => {
   if (event.target.id === "photoUpload") {
     const [file] = event.target.files || [];
     if (!file) return;
-    if (file.size > 1.5 * 1024 * 1024) {
-      showToast("用于后端导出的本地照片请控制在 1.5MB 内", "warning");
+    if (file.size > 12 * 1024 * 1024) {
+      showToast("请选择 12MB 以内的照片", "warning");
+      event.target.value = "";
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      resume.profile.photo = String(reader.result || "");
+    try {
+      resume.profile.photo = await compressProfilePhoto(file);
       renderEditor();
       renderPreview();
       scheduleSave();
-    };
-    reader.readAsDataURL(file);
+      showToast("照片已自动压缩并添加", "success");
+    } catch (error) {
+      showToast(error?.message || "照片处理失败", "warning");
+    } finally {
+      event.target.value = "";
+    }
   } else if (event.target.matches('[data-action="admin-set-role"]')) {
     adminSetRole(event.target);
   } else if (event.target.matches('[data-action="admin-set-ai-limit"]')) {

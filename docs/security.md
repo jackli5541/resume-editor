@@ -58,7 +58,7 @@
 | MIME 嗅探 | `X-Content-Type-Options: nosniff` |
 | SQL 注入 | 全部参数化查询（`pg` 占位符），无字符串拼接 SQL |
 | 时序侧信道 | 会话令牌与密码比较使用 `timingSafeEqual` |
-| 请求体炸弹 | `MAX_EXPORT_REQUEST_BYTES`（默认 2 MB）+ 流式长度校验 |
+| 请求体炸弹 | `MAX_EXPORT_REQUEST_BYTES`（默认 4 MB）+ 流式长度校验；头像在浏览器端压缩后上传 |
 | 路径穿越 | 静态资源与模板资产均做 `normalize` + 前缀校验 |
 
 ## 6.1 同人多账号检测（L1 + L2）
