@@ -440,6 +440,9 @@ function applySettings() {
   const finalPreviewButton = document.querySelector('[data-preview-mode="final"]');
   const instantPreviewButton = document.querySelector('[data-preview-mode="instant"]');
   const supportsFidelity = resume.template?.engine === "docx-native";
+  const fidelityTemplateKey = supportsFidelity
+    ? `${resume.template.slug || ""}:${resume.template.version || 1}`
+    : "";
   finalPreviewButton.disabled = !supportsFidelity;
   finalPreviewButton.title = supportsFidelity ? "当前模板使用 DOCX 同源预览" : "此模板仅提供即时预览";
   instantPreviewButton.disabled = supportsFidelity;
@@ -447,8 +450,16 @@ function applySettings() {
   previewMode = supportsFidelity ? "final" : "instant";
   elements.paper.hidden = supportsFidelity;
   elements.fidelityPreview.hidden = !supportsFidelity;
-  if (supportsFidelity && !elements.fidelityPreview.children.length && resume.template?.previewUrl) {
-    elements.fidelityPreview.innerHTML = `<img src="${escapeHtml(resume.template.previewUrl)}" alt="${escapeHtml(resume.template.name || "DOCX 模板")}原始版式预览" />`;
+  if (elements.fidelityPreview.dataset.templateKey !== fidelityTemplateKey) {
+    clearTimeout(fidelityTimer);
+    fidelityRequest += 1;
+    fidelityRequestKey = "";
+    fidelityRevision = null;
+    fidelityResumeId = null;
+    elements.fidelityPreview.dataset.templateKey = fidelityTemplateKey;
+    elements.fidelityPreview.innerHTML = supportsFidelity && resume.template?.previewUrl
+      ? `<img src="${escapeHtml(resume.template.previewUrl)}" alt="${escapeHtml(resume.template.name || "DOCX 模板")}原始版式预览" />`
+      : "";
   }
   document.querySelectorAll("[data-preview-mode]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.previewMode === previewMode);
