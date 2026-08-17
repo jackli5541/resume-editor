@@ -3473,7 +3473,7 @@ select:focus-visible,
   position: fixed;
   left: 18px;
   top: calc(50% - 24px);
-  z-index: 46;
+  z-index: 70;
   display: flex;
   align-items: center;
   justify-content: center;
