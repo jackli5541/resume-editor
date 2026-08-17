@@ -4245,8 +4245,10 @@ function setAiChatOpen(open) {
   elements.aiChatPanel.setAttribute("aria-hidden", String(!open));
   if (elements.aiFloatBtn) {
     elements.aiFloatBtn.setAttribute("aria-pressed", String(open));
-    elements.aiFloatBtn.hidden = open;
-    if (!open) requestAnimationFrame(ensureAiFloatButtonVisible);
+    elements.aiFloatBtn.setAttribute("aria-label", open ? "关闭 AI 优化" : "打开 AI 优化");
+    elements.aiFloatBtn.title = open ? "关闭 AI 优化" : "AI 优化（可拖动）";
+    elements.aiFloatBtn.hidden = false;
+    requestAnimationFrame(ensureAiFloatButtonVisible);
   }
 }
 
@@ -4268,9 +4270,8 @@ function restoreAiFloatPosition(btn) {
 function ensureAiFloatButtonVisible() {
   const btn = elements.aiFloatBtn;
   if (!btn || elements.app.hidden) return;
-  const chatOpen = elements.aiChatPanel.classList.contains("is-open");
-  btn.hidden = chatOpen;
-  if (chatOpen) return;
+  // 入口始终可见；同一个按钮负责打开和关闭面板，避免状态不同步后无法再次进入。
+  btn.hidden = false;
 
   const rect = btn.getBoundingClientRect();
   if (!rect.width || !rect.height) {
@@ -4292,6 +4293,7 @@ function ensureAiFloatButtonVisible() {
 function setupAiFloatDrag() {
   const btn = elements.aiFloatBtn;
   if (!btn) return;
+  btn.hidden = false;
   restoreAiFloatPosition(btn);
   window.addEventListener("resize", ensureAiFloatButtonVisible);
 
