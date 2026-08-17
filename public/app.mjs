@@ -43,13 +43,17 @@ function applyTheme(theme) {
 
 function toggleTheme() {
   applyTheme(currentTheme() === "dark" ? "light" : "dark");
-  closeAllAccountMenus();
 }
 
 function refreshThemeButtons() {
   const dark = currentTheme() === "dark";
   document.querySelectorAll('[data-action="toggle-theme"]').forEach((button) => {
-    button.textContent = dark ? "外观 · 深色" : "外观 · 浅色";
+    const label = dark ? "切换为浅色模式" : "切换为深色模式";
+    button.innerHTML = dark
+      ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>'
+      : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>';
+    button.setAttribute("aria-label", label);
+    button.title = label;
     button.setAttribute("aria-pressed", String(dark));
   });
 }
@@ -1576,12 +1580,54 @@ async function submitAuthNow() {
   }
 }
 
-// 页面切换淡入：用 Web Animations API 显式播放，避免依赖浏览器对
-// hidden(display:none) 切换是否重启 CSS 动画的行为差异。
+const viewAnimations = new WeakMap();
+
+function prefersReducedMotion() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+}
+
+function animateStaggeredContent(element) {
+  if (prefersReducedMotion() || element.hidden) return;
+  let selector = "";
+  if (element === elements.templateLibrary) selector = ".template-featured:not([hidden]) .template-card, #templateList .template-card";
+  else if (element === elements.draftPage) selector = ".draft-item";
+  if (!selector) return;
+
+  element.querySelectorAll(selector).forEach((item, index) => {
+    item.getAnimations().forEach((animation) => animation.cancel());
+    item.animate(
+      [
+        { opacity: 0, transform: "translateY(14px)" },
+        { opacity: 1, transform: "translateY(0)" }
+      ],
+      {
+        duration: 260,
+        delay: Math.min(index * 35, 175),
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+        fill: "backwards"
+      }
+    );
+  });
+}
+
+// 导航保持稳定，仅让新视图的内容区轻微上移淡入。
 function revealView(element) {
   element.hidden = false;
-  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
-  element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: "ease" });
+  if (prefersReducedMotion()) return;
+  viewAnimations.get(element)?.cancel();
+  const content = element.querySelector(":scope > main, :scope > .login-card") || element;
+  const animation = content.animate(
+    [
+      { opacity: 0, transform: "translateY(12px)" },
+      { opacity: 1, transform: "translateY(0)" }
+    ],
+    { duration: 240, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }
+  );
+  viewAnimations.set(element, animation);
+  animation.finished.catch(() => {}).finally(() => {
+    if (viewAnimations.get(element) === animation) viewAnimations.delete(element);
+  });
+  requestAnimationFrame(() => animateStaggeredContent(element));
 }
 
 function showLoginPage() {
@@ -2950,13 +2996,18 @@ function renderAnnouncementBanner(announcement) {
   banner.innerHTML = `<div class="announcement-banner__body"><strong>${escapeHtml(announcement.title)}</strong><span>${escapeHtml(announcement.content)}</span></div><button type="button" data-action="dismiss-banner" data-banner-id="${escapeHtml(announcement.id)}" aria-label="关闭">×</button>`;
 }
 
-// —— 账户下拉注入反馈/站内信入口，填充草稿模板筛选 ——
+// —— 注入账户菜单入口与导航栏主题快捷按钮，填充草稿模板筛选 ——
 
 function injectAccountItems() {
   document.querySelectorAll("[data-account-dropdown]").forEach((dropdown) => {
     if (dropdown.querySelector("[data-action='open-feedback']")) return;
     const settings = dropdown.querySelector("[data-action='open-settings']");
     if (!settings) return;
+    const draftsLink = document.createElement("a");
+    draftsLink.className = "account-dropdown__item";
+    draftsLink.href = "/drafts";
+    draftsLink.textContent = "我的草稿";
+    settings.before(draftsLink);
     const feedbackBtn = document.createElement("button");
     feedbackBtn.className = "account-dropdown__item";
     feedbackBtn.type = "button";
@@ -2969,12 +3020,17 @@ function injectAccountItems() {
     msgBtn.innerHTML = '站内信 <span class="msg-badge" data-msg-badge hidden>0</span>';
     settings.after(feedbackBtn);
     feedbackBtn.after(msgBtn);
-    const themeBtn = document.createElement("button");
-    themeBtn.className = "account-dropdown__item";
-    themeBtn.type = "button";
-    themeBtn.dataset.action = "toggle-theme";
-    themeBtn.setAttribute("aria-pressed", "false");
-    msgBtn.after(themeBtn);
+
+    const accountArea = dropdown.closest(".account-area");
+    const githubLink = accountArea?.querySelector(".github-link");
+    if (githubLink && !accountArea.querySelector(".theme-toggle")) {
+      const themeBtn = document.createElement("button");
+      themeBtn.className = "theme-toggle";
+      themeBtn.type = "button";
+      themeBtn.dataset.action = "toggle-theme";
+      themeBtn.setAttribute("aria-pressed", "false");
+      githubLink.before(themeBtn);
+    }
   });
   refreshThemeButtons();
 
@@ -4606,6 +4662,7 @@ function renderDrafts() {
       <span><strong>${escapeHtml(draft.candidateName)}</strong><small>${escapeHtml(draft.title)}</small></span>
       <span><small>${escapeHtml(draft.templateName)}</small><strong aria-hidden="true">→</strong></span>
     </a>`).join("");
+  requestAnimationFrame(() => animateStaggeredContent(elements.draftPage));
 }
 
 async function loadDrafts() {
@@ -4999,6 +5056,7 @@ function renderTemplateLibrary() {
   }
 
   elements.templateList.innerHTML = grid.map(renderTemplateCard).join("");
+  requestAnimationFrame(() => animateStaggeredContent(elements.templateLibrary));
 }
 
 async function loadTemplates() {
@@ -5073,7 +5131,23 @@ async function selectTemplate(target) {
   target.textContent = "使用此模板";
 }
 
-function manualEdit() {
+async function manualEdit() {
+  const hasAiInput = Boolean(
+    elements.aiDescription.value.trim()
+    || aiWordDocumentStructure.trim()
+    || aiJobContext.targetRole
+    || aiJobContext.jobStage
+    || aiJobContext.jobDescription
+  );
+  if (hasAiInput) {
+    const confirmed = await confirmAction({
+      title: "新建空白简历？",
+      message: "当前填写或导入的内容不会带入空白简历。你可以返回并使用 AI 生成，或继续从空白简历开始填写。",
+      confirmLabel: "继续新建",
+      cancelLabel: "返回"
+    });
+    if (!confirmed) return;
+  }
   const template = availableTemplates.find((item) => item.slug === "clean-single");
   resume = createResumeForTemplate({
     slug: "clean-single",
@@ -5097,7 +5171,7 @@ function manualEdit() {
   revealView(elements.app);
   updateBrowserRoute({ name: "editor" });
   renderAll();
-  showToast("已进入手动编辑，填写内容后点击保存即可生成草稿", "info");
+  showToast("已新建空白简历，填写内容后点击保存即可生成草稿", "info");
 }
 
 function fitOnePage() {
