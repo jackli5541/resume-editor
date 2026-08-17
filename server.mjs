@@ -96,7 +96,10 @@ const contentTypes = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
-  ".webp": "image/webp"
+  ".webp": "image/webp",
+  ".otf": "font/otf",
+  ".ttf": "font/ttf",
+  ".woff2": "font/woff2"
 };
 
 function isPathWithin(root, candidate) {
@@ -1643,6 +1646,10 @@ export function createAppServer(options = {}) {
         const quota = await aiService.quota.check(user.id, { isAdmin: user.isAdmin, limit: user.aiDailyLimit });
         sendJson(response, 200, {
           enabled: Boolean(config.enabled),
+          features: {
+            generate: (await configService.get("ai_generate_enabled")) !== false,
+            translate: (await configService.get("ai_translate_enabled")) !== false
+          },
           maxInputChars: config.maxInputChars,
           model: config.model || null,
           daily: { used: quota.used, limit: quota.limit, remaining: quota.remaining }
@@ -1657,6 +1664,7 @@ export function createAppServer(options = {}) {
       try {
         const user = await authorize(request);
         if (!user?.id) throw new AuthError("请先登录", 401);
+        if ((await configService.get("ai_generate_enabled")) === false) throw new RequestValidationError("AI 生成简历功能维护中", 503);
         if (await rejectIfLimited(response, apiLimiter, clientKey(user.id, "ai"), { limit: 30, windowMs: 60 * 60 * 1000 })) return;
         // 按来源 IP 的每日上限：抑制同人多账号放大 AI 配额（AI_IP_DAILY_LIMIT）。
         if (await rejectIfLimited(response, apiLimiter, clientKey(getClientIp(request), "ai-daily"), { limit: Number.parseInt(process.env.AI_IP_DAILY_LIMIT || "24", 10), windowMs: 24 * 60 * 60 * 1000 })) return;
@@ -1679,7 +1687,34 @@ export function createAppServer(options = {}) {
         await eventLog.record({ userId: user.id, event: "ai_generate" });
         sendJson(response, 200, result);
       } catch (error) {
-        sendJson(response, errorStatusOf(error), { error: error?.message || "AI 生成失败" });
+        sendJson(response, errorStatusOf(error), { error: error?.message || "AI 生成简历失败" });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && pathname === "/api/ai/translate") {
+      try {
+        const user = await authorize(request);
+        if (!user?.id) throw new AuthError("请先登录", 401);
+        if ((await configService.get("ai_translate_enabled")) === false) throw new RequestValidationError("AI 翻译简历功能维护中", 503);
+        if (await rejectIfLimited(response, apiLimiter, clientKey(user.id, "ai"), { limit: 30, windowMs: 60 * 60 * 1000 })) return;
+        if (await rejectIfLimited(response, apiLimiter, clientKey(getClientIp(request), "ai-daily"), { limit: Number.parseInt(process.env.AI_IP_DAILY_LIMIT || "24", 10), windowMs: 24 * 60 * 60 * 1000 })) return;
+        if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
+          throw new RequestValidationError("Content-Type 必须是 application/json", 415);
+        }
+        const payload = await readJson(request);
+        const result = await aiService.translate({
+          userId: user.id,
+          description: payload?.description,
+          documentStructure: payload?.documentStructure,
+          targetLanguage: payload?.targetLanguage,
+          isAdmin: user.isAdmin,
+          aiDailyLimit: user.aiDailyLimit
+        });
+        await eventLog.record({ userId: user.id, event: "ai_translate" });
+        sendJson(response, 200, result);
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "AI 翻译失败" });
       }
       return;
     }
@@ -1891,10 +1926,12 @@ export function createAppServer(options = {}) {
     try {
       if ((await stat(path)).isDirectory()) path = join(path, "index.html");
       const body = await readFile(path);
-      const contentType = contentTypes[extname(path).toLowerCase()] || "application/octet-stream";
+      const extension = extname(path).toLowerCase();
+      const contentType = contentTypes[extension] || "application/octet-stream";
+      const isFont = [".otf", ".ttf", ".woff2"].includes(extension);
       const headers = {
         "Content-Type": contentType,
-        "Cache-Control": "no-store",
+        "Cache-Control": isFont ? "public, max-age=604800" : "no-store",
         "X-Content-Type-Options": "nosniff"
       };
       if (contentType.startsWith("text/html")) {

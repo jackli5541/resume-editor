@@ -166,9 +166,9 @@ export function validateExportPayload(payload, options = {}) {
       settings: {
         theme: /^#[0-9a-f]{6}$/i.test(normalized.settings.theme) ? normalized.settings.theme : "#12a77d",
         accent: text(normalized.settings.accent, "辅助颜色", 80),
-        fontFamily: ["system", "serif", "rounded"].includes(normalized.settings.fontFamily)
+        fontFamily: ["source-han-sans", "source-han-serif", "lxgw-wenkai", "zhuque-fangsong", "system", "serif", "rounded"].includes(normalized.settings.fontFamily)
           ? normalized.settings.fontFamily
-          : "system",
+          : "source-han-sans",
         fontSize: Math.min(templateSchema.styleControls.fontSize?.max || 18, Math.max(templateSchema.styleControls.fontSize?.min || 12, normalized.settings.fontSize)),
         lineHeight: normalized.settings.lineHeight,
         pagePadding: normalized.settings.pagePadding,

@@ -2,9 +2,13 @@ import { escapeHtml, formatRange } from "./core.mjs";
 import { getTemplateSchema, resolveSectionFields } from "./template-schemas.mjs";
 
 const FONT_MAP = {
-  system: 'Inter, "PingFang SC", "Microsoft YaHei", sans-serif',
-  serif: '"Songti SC", SimSun, serif',
-  rounded: '"Arial Rounded MT Bold", "PingFang SC", "Microsoft YaHei", sans-serif'
+  "source-han-sans": '"Resume Source Han Sans", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif',
+  "source-han-serif": '"Resume Source Han Serif", "Source Han Serif SC", "Noto Serif CJK SC", serif',
+  "lxgw-wenkai": '"Resume LXGW WenKai", "LXGW WenKai", serif',
+  "zhuque-fangsong": '"Resume Zhuque Fangsong", "Zhuque Fangsong (technical preview)", serif',
+  system: '"Resume Source Han Sans", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif',
+  serif: '"Resume Source Han Serif", "Source Han Serif SC", "Noto Serif CJK SC", serif',
+  rounded: '"Resume Source Han Sans", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif'
 };
 
 const TEMPLATE_THEMES = {
@@ -36,7 +40,7 @@ export function colorWithAlpha(hex, alpha) {
 export function applyResumeSettings(element, settings) {
   element.style.setProperty("--theme", settings.theme);
   element.style.setProperty("--accent", colorWithAlpha(settings.theme, 0.11));
-  element.style.setProperty("--resume-font", FONT_MAP[settings.fontFamily] || FONT_MAP.system);
+  element.style.setProperty("--resume-font", FONT_MAP[settings.fontFamily] || FONT_MAP["source-han-sans"]);
   element.style.setProperty("--font-size", `${settings.fontSize}px`);
   element.style.setProperty("--line-height", settings.lineHeight);
   element.style.setProperty("--page-padding", `${settings.pagePadding}px`);

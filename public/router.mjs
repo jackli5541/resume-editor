@@ -8,6 +8,7 @@ export function parseAppRoute(pathname) {
   if (path === "/admin" || path === "/admin/") return { name: "admin" };
   if (path === "/login" || path === "/login/") return { name: "login" };
   if (path === "/ai" || path === "/ai/") return { name: "ai" };
+  if (path === "/ai/translate" || path === "/ai/translate/") return { name: "ai-translate" };
   if (path === "/editor" || path === "/editor/") return { name: "editor" };
   const match = path.match(resumeRoutePattern);
   if (match) return { name: "resume", resumeId: match[1].toLowerCase() };
@@ -16,6 +17,7 @@ export function parseAppRoute(pathname) {
 
 const knownRoutePatterns = [
   /^\/(templates|drafts|admin|login|ai|editor)\/?$/i,
+  /^\/ai\/translate\/?$/i,
   resumeRoutePattern
 ];
 
@@ -33,6 +35,7 @@ export function routePath(route) {
   if (route.name === "admin") return "/admin";
   if (route.name === "login") return "/login";
   if (route.name === "ai") return "/ai";
+  if (route.name === "ai-translate") return "/ai/translate";
   if (route.name === "resume" && route.resumeId) return `/resumes/${encodeURIComponent(route.resumeId)}/edit`;
   return "/editor";
 }

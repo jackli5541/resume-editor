@@ -5,42 +5,62 @@ const CONFIG_SCHEMA = Object.freeze({
     type: "boolean",
     defaultValue: false,
     label: "维护模式",
+    group: "system",
     description: "开启后，普通用户的写操作（创建/保存/导出等）将返回 503"
   }),
   registration_enabled: Object.freeze({
     type: "boolean",
     defaultValue: true,
     label: "开放注册",
+    group: "access",
     description: "关闭后，新用户将无法注册（环境变量 DISABLE_REGISTRATION 仍为硬开关）"
   }),
   captcha_enabled: Object.freeze({
     type: "boolean",
     defaultValue: false,
     label: "人机验证（阿里云验证码）",
+    group: "access",
     description: "开启且已配置阿里云验证码 AccessKey/场景ID 时，登录/注册/验证码登录需通过人机验证（默认关闭）"
   }),
   phone_code_login_enabled: Object.freeze({
     type: "boolean",
     defaultValue: false,
     label: "手机验证码登录",
+    group: "access",
     description: "开启后，手机号验证码登录/注册可用（短信通道由 ALIYUN_SMS_* 环境变量配置；默认关闭）"
   }),
   email_code_login_enabled: Object.freeze({
     type: "boolean",
     defaultValue: false,
     label: "邮箱验证码登录",
+    group: "access",
     description: "开启后，邮箱验证码登录/注册可用（SMTP 通道由 SMTP_* 环境变量配置；默认关闭）"
   }),
   preview_quality: Object.freeze({
     type: "enum",
     defaultValue: "balanced",
     label: "在线成品预览清晰度",
+    group: "document",
     description: "仅影响原生 Word 模板的在线预览，不影响 PDF / Word 导出；清晰度越高，生成时间、内存与流量开销越大",
     options: Object.freeze([
       Object.freeze({ value: "economy", label: "省资源（120 DPI）" }),
       Object.freeze({ value: "balanced", label: "均衡（160 DPI，推荐）" }),
       Object.freeze({ value: "high", label: "高清（192 DPI）" })
     ])
+  }),
+  ai_generate_enabled: Object.freeze({
+    type: "boolean",
+    defaultValue: true,
+    label: "AI 生成简历",
+    group: "ai",
+    description: "控制用户端 AI 生成简历入口与接口；模型服务总开关仍在 AI 配置中"
+  }),
+  ai_translate_enabled: Object.freeze({
+    type: "boolean",
+    defaultValue: true,
+    label: "AI 翻译简历",
+    group: "ai",
+    description: "控制用户端 DOCX 中英翻译入口与接口；关闭后不会消耗模型额度"
   })
 });
 

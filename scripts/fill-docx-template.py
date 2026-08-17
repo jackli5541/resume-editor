@@ -153,7 +153,11 @@ def fill_tree(root, resume, item=None):
 def apply_typography(root, resume):
     settings = resume.get("settings", {})
     font_size = max(12, min(18, int(settings.get("fontSize", 14))))
-    font_name = {"system": "Microsoft YaHei", "serif": "SimSun", "rounded": "Microsoft YaHei"}.get(settings.get("fontFamily"), "Microsoft YaHei")
+    font_name = {
+        "source-han-sans": "Source Han Sans SC", "source-han-serif": "Source Han Serif SC",
+        "lxgw-wenkai": "LXGW WenKai", "zhuque-fangsong": "Zhuque Fangsong (technical preview)",
+        "system": "Source Han Sans SC", "serif": "Source Han Serif SC", "rounded": "Source Han Sans SC",
+    }.get(settings.get("fontFamily"), "Source Han Sans SC")
     for run_properties in root.xpath(".//w:rPr", namespaces=NS):
         fonts = run_properties.find("./w:rFonts", NS)
         if fonts is None:

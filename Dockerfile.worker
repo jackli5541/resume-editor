@@ -17,6 +17,11 @@ ARG NPM_REGISTRY=https://registry.npmmirror.com
 RUN npm ci --omit=dev --registry=${NPM_REGISTRY}
 COPY . .
 
+# Keep LibreOffice/PDF rendering on the same bundled fonts used by the browser editor.
+RUN mkdir -p /usr/local/share/fonts/resume-editor \
+    && cp public/fonts/*.otf public/fonts/*.ttf /usr/local/share/fonts/resume-editor/ \
+    && fc-cache -f
+
 # 非 root 运行：Linux 宿主使用 bind-mount 时需先 chown 到 10001（见 compose.yaml 注释）。
 RUN groupadd --gid 10001 app \
     && useradd --uid 10001 --gid app --create-home app \
