@@ -6228,6 +6228,29 @@ body.export-document .resume-paper[data-template="resume-collection-cn-001"] .cn
   box-shadow: 0 18px 50px rgba(28, 39, 54, 0.09);
 }
 
+.admin-template-filters {
+  flex: 1;
+}
+
+.admin-bulk-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--brand-200);
+  border-radius: 9px;
+  background: var(--brand-50);
+  font-size: 12px;
+}
+
+.admin-bulk-bar[hidden] { display: none; }
+.admin-bulk-bar input { height: 32px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surface); }
+.admin-bulk-bar button { height: 32px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surface); color: var(--ink-soft); cursor: pointer; }
+.admin-check { width: 34px; text-align: center !important; }
+.admin-template-tag { display: inline-block; margin: 2px 4px 2px 0; padding: 2px 6px; border-radius: 999px; background: var(--surface-3); color: var(--ink-soft); white-space: nowrap; }
+
 .settings-password-form { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
 
 .ai-task-progress {

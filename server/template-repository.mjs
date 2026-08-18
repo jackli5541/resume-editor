@@ -8,6 +8,7 @@ const BUILTIN_TEMPLATE = {
   name: "极简轻",
   category: "通用",
   description: "系统内置的结构化单栏模板",
+  tags: [],
   version: 1,
   status: "ready",
   engine: "html-native",
@@ -44,6 +45,7 @@ function mapRow(row) {
     name: row.name,
     category: row.category,
     description: row.description,
+    tags: Array.isArray(row.tags) ? row.tags : [],
     version: row.version,
     status,
     engine: htmlAdapted ? "html-native" : row.engine,
@@ -80,7 +82,7 @@ export class TemplateRepository {
   async list() {
     if (this.database) {
       const result = await this.database.query(`
-        SELECT t.slug, t.name, t.category, t.description,
+        SELECT t.slug, t.name, t.category, t.description, t.tags,
                v.version, v.status, v.engine, v.preview_path,
                v.license_status, v.manifest, v.analysis
         FROM templates t
@@ -133,7 +135,7 @@ export class TemplateRepository {
   async get(slug, version) {
     if (this.database) {
       const result = await this.database.query(`
-        SELECT t.slug, t.name, t.category, t.description,
+        SELECT t.slug, t.name, t.category, t.description, t.tags,
                v.version, v.status, v.engine, v.source_path, v.preview_path,
                v.license_status, v.manifest, v.analysis, v.slot_map
         FROM templates t
@@ -562,5 +564,51 @@ export class TemplateRepository {
       [slug, version, status]
     );
     return result.rows[0] || null;
+  }
+
+  async updateTemplateMetadata(slug, metadata) {
+    if (!this.database) return null;
+    const result = await this.database.query(
+      `UPDATE templates
+       SET name = $2, description = $3, category = $4, tags = $5, updated_at = now()
+       WHERE slug = $1
+       RETURNING slug, name, description, category, tags`,
+      [slug, metadata.name, metadata.description, metadata.category, metadata.tags]
+    );
+    return result.rows[0] || null;
+  }
+
+  async bulkUpdateTemplates(items, changes) {
+    if (!this.database) return [];
+    const client = await this.database.connect();
+    try {
+      await client.query("BEGIN");
+      const updated = [];
+      for (const item of items) {
+        if (changes.status) {
+          const result = await client.query(
+            `UPDATE template_versions SET status = $3
+             WHERE template_slug = $1 AND version = $2
+             RETURNING template_slug, version, status`,
+            [item.slug, item.version, changes.status]
+          );
+          if (result.rows[0]) updated.push(result.rows[0]);
+        } else {
+          const result = await client.query(
+            `UPDATE templates SET category = $2, updated_at = now()
+             WHERE slug = $1 RETURNING slug, category`,
+            [item.slug, changes.category]
+          );
+          if (result.rows[0]) updated.push(result.rows[0]);
+        }
+      }
+      await client.query("COMMIT");
+      return updated;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }

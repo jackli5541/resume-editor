@@ -1580,6 +1580,63 @@ export function createAppServer(options = {}) {
       return;
     }
 
+    if (request.method === "PATCH" && pathname === "/api/admin/templates/bulk") {
+      try {
+        const admin = await requirePermission(request, "templates.write");
+        if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
+          throw new RequestValidationError("Content-Type 必须是 application/json", 415);
+        }
+        const payload = await readJson(request);
+        const items = Array.isArray(payload?.items) ? payload.items : [];
+        const status = String(payload?.status || "").trim();
+        const category = String(payload?.category || "").trim();
+        if (!items.length || items.length > 100 || items.some((item) => !/^[a-z0-9-]+$/i.test(item?.slug || "") || !Number.isSafeInteger(item?.version) || item.version < 1)) {
+          throw new RequestValidationError("请选择 1–100 个有效模板");
+        }
+        const hasStatus = ["ready", "blocked"].includes(status);
+        const hasCategory = Boolean(category);
+        if (hasStatus === hasCategory || (status && !hasStatus)) {
+          throw new RequestValidationError("批量操作必须且只能指定状态或分类");
+        }
+        if (category.length > 50) throw new RequestValidationError("分类不能超过 50 个字符");
+        const changes = hasStatus ? { status } : { category };
+        const updated = await templateRepository.bulkUpdateTemplates(items, changes);
+        await recordAudit(request, admin, "template.bulk_update", "template", "bulk", null, { items, ...changes, updated: updated.length });
+        sendJson(response, 200, { updated, count: updated.length });
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "批量更新模板失败" });
+      }
+      return;
+    }
+
+    const adminTemplateMatch = pathname.match(/^\/api\/admin\/templates\/([a-z0-9-]+)$/i);
+    if (request.method === "PATCH" && adminTemplateMatch) {
+      try {
+        const admin = await requirePermission(request, "templates.write");
+        if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
+          throw new RequestValidationError("Content-Type 必须是 application/json", 415);
+        }
+        const payload = await readJson(request);
+        const name = String(payload?.name || "").trim();
+        const description = String(payload?.description || "").trim();
+        const category = String(payload?.category || "").trim();
+        const tags = [...new Set((Array.isArray(payload?.tags) ? payload.tags : []).map((tag) => String(tag).trim()).filter(Boolean))];
+        if (!name || name.length > 100) throw new RequestValidationError("名称必填且不能超过 100 个字符");
+        if (!category || category.length > 50) throw new RequestValidationError("分类必填且不能超过 50 个字符");
+        if (description.length > 500) throw new RequestValidationError("描述不能超过 500 个字符");
+        if (tags.length > 20 || tags.some((tag) => tag.length > 30)) throw new RequestValidationError("标签最多 20 个，每个不超过 30 个字符");
+        const updated = await templateRepository.updateTemplateMetadata(adminTemplateMatch[1], { name, description, category, tags });
+        if (!updated) sendJson(response, 404, { error: "模板不存在" });
+        else {
+          await recordAudit(request, admin, "template.metadata", "template", updated.slug, null, updated);
+          sendJson(response, 200, { template: updated });
+        }
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "更新模板失败" });
+      }
+      return;
+    }
+
     const adminTemplateVersionMatch = pathname.match(/^\/api\/admin\/templates\/([a-z0-9-]+)\/versions\/(\d+)$/i);
     if (request.method === "PATCH" && adminTemplateVersionMatch) {
       try {
