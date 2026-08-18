@@ -45,6 +45,8 @@ test("配置中心：读取默认值并可热改", async (context) => {
   assert.equal(initial.config.preview_quality, "balanced");
   assert.equal(initial.config.ai_generate_enabled, true);
   assert.equal(initial.config.ai_translate_enabled, true);
+  assert.equal(initial.config.feedback_enabled, true);
+  assert.equal(initial.config.support_enabled, true);
   assert.ok(initial.schema.maintenance_mode);
   assert.ok(initial.schema.registration_enabled);
   assert.equal(initial.schema.ai_generate_enabled.group, "ai");
@@ -70,6 +72,54 @@ test("配置中心：读取默认值并可热改", async (context) => {
   })).json();
   assert.equal(independentlyUpdated.config.ai_generate_enabled, false);
   assert.equal(independentlyUpdated.config.ai_translate_enabled, false);
+});
+
+test("反馈与赞赏开关、赞赏码上传及安全校验", async (context) => {
+  const app = await startAdminServer();
+  context.after(() => new Promise((resolve) => app.server.close(resolve)));
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const user = await register(app, { identifier: "user@example.com", password: "Test1234!" });
+
+  let features = await (await fetch(`${app.origin}/api/public/features`)).json();
+  assert.equal(features.feedbackEnabled, true);
+  assert.equal(features.supportEnabled, false);
+
+  await patchConfig(app, admin.cookie, { feedback_enabled: false });
+  const blockedFeedback = await fetch(`${app.origin}/api/feedback`, {
+    method: "POST", headers: { "Content-Type": "application/json", Cookie: user.cookie },
+    body: JSON.stringify({ type: "suggestion", content: "should be blocked" })
+  });
+  assert.equal(blockedFeedback.status, 403);
+
+  const fakeImage = await fetch(`${app.origin}/api/admin/support-images`, {
+    method: "POST", headers: { "Content-Type": "image/png", "X-Image-Label": "fake", Cookie: admin.cookie }, body: Buffer.from("not an image")
+  });
+  assert.equal(fakeImage.status, 400);
+
+  const png = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), Buffer.from("safe-test-image")]);
+  const unauthorized = await fetch(`${app.origin}/api/admin/support-images`, {
+    method: "POST", headers: { "Content-Type": "image/png", Cookie: user.cookie }, body: png
+  });
+  assert.equal(unauthorized.status, 403);
+
+  const uploaded = await fetch(`${app.origin}/api/admin/support-images`, {
+    method: "POST", headers: { "Content-Type": "image/png", "X-Image-Label": encodeURIComponent("微信"), Cookie: admin.cookie }, body: png
+  });
+  assert.equal(uploaded.status, 201);
+  const image = (await uploaded.json()).image;
+  features = await (await fetch(`${app.origin}/api/public/features`)).json();
+  assert.equal(features.supportEnabled, true);
+  assert.equal(features.supportImages[0].label, "微信");
+
+  const imageResponse = await fetch(`${app.origin}${image.url}`);
+  assert.equal(imageResponse.status, 200);
+  assert.equal(imageResponse.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(imageResponse.headers.get("cross-origin-resource-policy"), "same-origin");
+
+  await fetch(`${app.origin}/api/admin/support-images/${image.id}`, {
+    method: "PATCH", headers: { "Content-Type": "application/json", Cookie: admin.cookie }, body: JSON.stringify({ enabled: false })
+  });
+  assert.equal((await fetch(`${app.origin}${image.url}`)).status, 404);
 });
 
 test("维护模式阻止普通用户写操作，管理员不受影响", async (context) => {

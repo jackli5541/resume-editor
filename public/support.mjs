@@ -1,50 +1,60 @@
-// 赞赏入口：右侧悬浮按钮，点击展开赞赏码卡片。
-// 独立模块，避免与编辑器主体逻辑（app.mjs）相互耦合。
 const supportFloat = document.querySelector("#supportFloat");
 const supportCard = document.querySelector("#supportCard");
 const supportTrigger = document.querySelector('[data-action="toggle-support"]');
+const feedbackTrigger = supportFloat?.querySelector('[data-action="open-feedback"]');
+const supportQrcode = document.querySelector("#supportQrcode");
+const supportTabs = document.querySelector("#supportTabs");
+let features = { feedbackEnabled: true, supportEnabled: false, supportImages: [] };
 
 if (supportFloat && supportCard && supportTrigger) {
-  function toggleSupport() {
-    const willOpen = supportCard.hidden;
-    supportCard.hidden = !willOpen;
-    supportTrigger.setAttribute("aria-expanded", String(!willOpen));
+  const closeSupport = () => { supportCard.hidden = true; supportTrigger.setAttribute("aria-expanded", "false"); };
+  function selectImage(index) {
+    const image = features.supportImages[index];
+    if (!image) return;
+    supportQrcode.src = image.url;
+    supportQrcode.alt = `${image.label}赞赏二维码`;
+    supportTabs.querySelectorAll("button").forEach((button, i) => {
+      button.setAttribute("aria-selected", String(i === index));
+      button.classList.toggle("is-active", i === index);
+    });
   }
-
-  function closeSupport() {
-    supportCard.hidden = true;
-    supportTrigger.setAttribute("aria-expanded", "false");
+  function renderImages() {
+    supportTabs.innerHTML = features.supportImages.length > 1
+      ? features.supportImages.map((image, index) => `<button type="button" role="tab" data-support-index="${index}" aria-selected="${index === 0}">${escapeText(image.label)}</button>`).join("") : "";
+    selectImage(0);
   }
-
-  // 登录页、管理页不展示赞赏入口；页面切换时同步可见性并收起卡片。
   function syncSupportEntry() {
-    const loginPage = document.querySelector("#loginPage");
-    const adminPage = document.querySelector("#adminPage");
-    const blocked = !loginPage.hidden || !adminPage.hidden;
-    supportFloat.hidden = blocked;
-    closeSupport();
+    const blocked = !document.querySelector("#loginPage").hidden || !document.querySelector("#adminPage").hidden;
+    supportTrigger.hidden = !features.supportEnabled;
+    if (feedbackTrigger) feedbackTrigger.hidden = !features.feedbackEnabled;
+    document.querySelectorAll('[data-action="open-feedback"]').forEach((button) => { button.hidden = !features.feedbackEnabled; });
+    supportFloat.hidden = blocked || (!features.feedbackEnabled && !features.supportEnabled);
+    if (blocked || !features.supportEnabled) closeSupport();
   }
-
+  fetch("/api/public/features", { cache: "no-store" })
+    .then((response) => response.ok ? response.json() : Promise.reject())
+    .then((payload) => { features = payload; renderImages(); syncSupportEntry(); })
+    .catch(() => syncSupportEntry());
   document.addEventListener("click", (event) => {
+    const tab = event.target.closest("[data-support-index]");
+    if (tab) { selectImage(Number(tab.dataset.supportIndex)); return; }
     if (event.target.closest('[data-action="toggle-support"]')) {
-      toggleSupport();
+      if (!features.supportEnabled) return;
+      const willOpen = supportCard.hidden;
+      supportCard.hidden = !willOpen;
+      supportTrigger.setAttribute("aria-expanded", String(willOpen));
       return;
     }
-    if (event.target.closest('[data-action="close-support"]')) {
-      closeSupport();
-      return;
-    }
-    if (!supportCard.hidden && !event.target.closest(".support-float")) closeSupport();
+    if (event.target.closest('[data-action="close-support"]') || (!supportCard.hidden && !event.target.closest(".support-float"))) closeSupport();
   });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !supportCard.hidden) closeSupport();
-  });
-
-  // 监听各页面可见性变化（SPA 切换通过 hidden 属性切换页面）。
-  const pageObserver = new MutationObserver(syncSupportEntry);
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeSupport(); });
+  const observer = new MutationObserver(syncSupportEntry);
   ["#homePage", "#templateLibrary", "#draftPage", "#aiPage", "#adminPage", "#loginPage", "#app"].forEach((selector) => {
-    const node = document.querySelector(selector);
-    if (node) pageObserver.observe(node, { attributes: true, attributeFilter: ["hidden"] });
+    const node = document.querySelector(selector); if (node) observer.observe(node, { attributes: true, attributeFilter: ["hidden"] });
   });
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
+function escapeText(value) {
+  return String(value || "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 }

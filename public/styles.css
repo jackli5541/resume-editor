@@ -6213,6 +6213,19 @@ body.export-document .resume-paper[data-template="resume-collection-cn-001"] .cn
 .admin-config-group__fields .admin-check-row,
 .admin-config-group__fields .admin-field { margin: 0; background: var(--surface); }
 
+.admin-support-manager { margin-top: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
+.admin-support-manager__head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.admin-support-manager__head h3 { margin: 0; font-size: 14px; }
+.admin-support-manager__head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+.admin-upload-button { display: inline-flex; cursor: pointer; }
+.admin-support-images { display: grid; gap: 10px; margin-top: 14px; }
+.admin-support-image { display: grid; grid-template-columns: 72px minmax(120px, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.admin-support-image > img { width: 72px; height: 72px; border: 1px solid var(--line); border-radius: 8px; object-fit: contain; background: #fff; }
+.admin-support-image > input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.admin-support-image__enabled { margin: 0; padding: 8px; }
+.admin-support-image__actions { display: flex; gap: 5px; }
+.admin-support-image__actions button { padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); cursor: pointer; }
+
 .ai-feature-notice {
   margin: 18px auto 0;
   max-width: 680px;
@@ -6240,6 +6253,8 @@ body.export-document .resume-paper[data-template="resume-collection-cn-001"] .cn
   background: var(--surface);
   box-shadow: 0 18px 50px rgba(28, 39, 54, 0.09);
 }
+
+.settings-password-form { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
 
 .ai-task-progress {
   margin: 16px 0 4px;
@@ -7064,6 +7079,11 @@ body.export-document .resume-paper[data-template="resume-collection-cn-001"] .cn
   background: var(--surface);
 }
 
+.support-card__tabs { display: flex; justify-content: center; gap: 6px; margin: 0 0 10px; }
+.support-card__tabs:empty { display: none; }
+.support-card__tabs button { padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--surface); cursor: pointer; font-size: 11px; }
+.support-card__tabs button.is-active, .support-card__tabs button[aria-selected="true"] { color: var(--brand-dark); border-color: var(--brand); background: var(--brand-25); }
+
 .support-card__hint {
   display: block;
   margin-top: 10px;
@@ -7072,6 +7092,9 @@ body.export-document .resume-paper[data-template="resume-collection-cn-001"] .cn
 }
 
 @media screen and (max-width: 720px) {
+  .admin-support-manager__head { align-items: flex-start; flex-direction: column; }
+  .admin-support-image { grid-template-columns: 64px 1fr; }
+  .admin-support-image__actions { grid-column: 1 / -1; }
   .support-float__stack {
     top: auto;
     right: 16px;

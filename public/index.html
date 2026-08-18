@@ -519,6 +519,14 @@
           <div class="admin-auth-status" id="adminAuthStatus"></div>
           <form id="adminConfigForm" novalidate>
             <div id="adminConfigFields" class="admin-form__grid"></div>
+            <section class="admin-support-manager">
+              <div class="admin-support-manager__head">
+                <div><h3>赞赏码图片</h3><p>最多 5 张；支持 PNG、JPEG、WebP，单张不超过 2 MB。</p></div>
+                <label class="admin-submit admin-upload-button">上传图片<input id="adminSupportUpload" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden /></label>
+              </div>
+              <div id="adminSupportImages" class="admin-support-images"></div>
+              <span id="adminSupportMsg" class="library-status" role="status"></span>
+            </section>
             <div class="admin-form__footer">
               <button type="submit" class="admin-submit">保存配置</button>
               <span id="adminConfigMsg" class="library-status" role="status"></span>
@@ -1042,6 +1050,16 @@
           <p class="auth-error" id="settingsError" role="alert" hidden></p>
           <button class="primary-button auth-submit" type="submit">保存设置</button>
         </form>
+        <form id="passwordForm" class="settings-password-form" novalidate>
+          <fieldset class="settings-group">
+            <legend id="passwordFormTitle">修改密码</legend>
+            <label class="form-field" id="currentPasswordField"><span>当前密码</span><input type="password" id="currentPassword" autocomplete="current-password" maxlength="128" /></label>
+            <label class="form-field"><span>新密码</span><input type="password" id="newPassword" autocomplete="new-password" minlength="8" maxlength="128" placeholder="至少 8 位，包含字母和数字" required /></label>
+            <label class="form-field"><span>再次输入新密码</span><input type="password" id="confirmNewPassword" autocomplete="new-password" minlength="8" maxlength="128" required /></label>
+          </fieldset>
+          <p class="auth-error" id="passwordError" role="alert" hidden></p>
+          <button class="secondary-button auth-submit" type="submit">保存新密码</button>
+        </form>
       </div>
     </div>
 
@@ -1105,7 +1123,8 @@
           <strong id="supportTitle">支持轻简历</strong>
           <p>独立开发不易，AI 调用也有成本。若它帮到了你，欢迎请我喝杯咖啡 ☕</p>
         </div>
-        <img class="support-card__qrcode" src="/support-qrcode.png" alt="赞赏二维码" width="168" height="168" loading="lazy" />
+        <div id="supportTabs" class="support-card__tabs" role="tablist"></div>
+        <img class="support-card__qrcode" id="supportQrcode" alt="赞赏二维码" width="168" height="168" loading="lazy" />
         <span class="support-card__hint">扫码赞赏 · 感谢支持</span>
       </section>
     </aside>

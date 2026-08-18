@@ -41,6 +41,7 @@ import { VerificationCodeService } from "./server/verification-codes.mjs";
 import { MailerService } from "./server/mailer.mjs";
 import { AppSecretsService } from "./server/app-secrets.mjs";
 import { createAuthChannels } from "./server/auth-channels.mjs";
+import { SupportImageRepository, MAX_SUPPORT_IMAGE_BYTES } from "./server/support-images.mjs";
 
 const publicRoot = fileURLToPath(new URL("./public/", import.meta.url));
 const projectRoot = dirname(fileURLToPath(import.meta.url));
@@ -145,6 +146,19 @@ async function readJson(request) {
   }
 }
 
+async function readBinary(request, limit = MAX_SUPPORT_IMAGE_BYTES) {
+  const declaredLength = Number.parseInt(request.headers["content-length"] || "0", 10);
+  if (declaredLength > limit) throw new RequestValidationError("图片超过 2 MB", 413);
+  const chunks = [];
+  let received = 0;
+  for await (const chunk of request) {
+    received += chunk.length;
+    if (received > limit) throw new RequestValidationError("图片超过 2 MB", 413);
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
 async function sendExportFile(response, job) {
   const encodedName = encodeURIComponent(job.fileName);
   const contentType = job.format === "docx"
@@ -205,6 +219,7 @@ export function createAppServer(options = {}) {
   const feedbacks = options.feedbacks || new FeedbackRepository({ database });
   const metrics = options.metrics || new MetricsService({ database });
   const configService = options.configService || new AppConfigService({ database });
+  const supportImages = options.supportImages || new SupportImageRepository({ database });
   const appSecretsService = options.appSecretsService || new AppSecretsService({ database });
   const authChannels = createAuthChannels({ secrets: appSecretsService, config: configService });
   const smsService = options.smsService || new SmsService({ getConfig: () => authChannels.aliyunSms() });
@@ -620,6 +635,30 @@ export function createAppServer(options = {}) {
         sendJson(response, 200, { user: user || null });
       } catch (error) {
         sendJson(response, 500, { error: error?.message || "读取会话失败" });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && pathname === "/api/auth/change-password") {
+      try {
+        const user = await currentUser(request);
+        if (!user) throw new AuthError("请先登录", 401);
+        if (await rejectIfLimited(response, apiLimiter, clientKey(user.id, "change-password"), { limit: 5, windowMs: 60 * 60 * 1000 })) return;
+        if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
+          throw new AuthError("Content-Type 必须是 application/json", 415);
+        }
+        const payload = await readJson(request);
+        if (String(payload?.newPassword || "") !== String(payload?.confirmPassword || "")) throw new AuthError("两次输入的新密码不一致", 400);
+        const cookies = parseCookies(request);
+        const updated = await authService.changePassword(user.id, {
+          currentPassword: payload?.currentPassword,
+          newPassword: payload?.newPassword,
+          currentToken: cookies[authService.cookieName]
+        });
+        await eventLog.record({ userId: user.id, event: "password_change" });
+        sendJson(response, 200, { user: updated });
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "修改密码失败" });
       }
       return;
     }
@@ -1079,6 +1118,39 @@ export function createAppServer(options = {}) {
       return;
     }
 
+    // —— 用户端公开功能配置与赞赏码 ——
+
+    if (request.method === "GET" && pathname === "/api/public/features") {
+      const [feedbackEnabled, supportEnabled, images] = await Promise.all([
+        configService.get("feedback_enabled"), configService.get("support_enabled"), supportImages.list({ enabledOnly: true })
+      ]);
+      sendJson(response, 200, {
+        feedbackEnabled: feedbackEnabled !== false,
+        supportEnabled: supportEnabled !== false && images.length > 0,
+        supportImages: supportEnabled !== false ? images : []
+      });
+      return;
+    }
+
+    const publicSupportImageMatch = pathname.match(/^\/api\/support\/images\/([0-9a-f-]{36})$/i);
+    if ((request.method === "GET" || request.method === "HEAD") && publicSupportImageMatch) {
+      let image = await supportImages.getData(publicSupportImageMatch[1], { enabledOnly: true });
+      if (!image) {
+        const user = await currentUser(request);
+        if (user?.isAdmin && can(user, "config.read")) image = await supportImages.getData(publicSupportImageMatch[1]);
+      }
+      if (!image) sendJson(response, 404, { error: "图片不存在" });
+      else {
+        response.writeHead(200, {
+          "Content-Type": image.mimeType, "Content-Length": String(image.data.length),
+          "Cache-Control": "public, max-age=300", "Content-Disposition": "inline",
+          "X-Content-Type-Options": "nosniff", "Cross-Origin-Resource-Policy": "same-origin"
+        });
+        response.end(request.method === "HEAD" ? undefined : image.data);
+      }
+      return;
+    }
+
     // —— 配置中心（Feature Flag） ——
 
     if (request.method === "GET" && pathname === "/api/admin/config") {
@@ -1435,6 +1507,7 @@ export function createAppServer(options = {}) {
 
     if (request.method === "POST" && pathname === "/api/feedback") {
       try {
+        if ((await configService.get("feedback_enabled")) === false) throw new AuthError("意见反馈功能已关闭", 403);
         // 防刷：同一 IP / 账号短时间仅允许少量反馈，避免被批量提交滥用
         const ip = getClientIp(request);
         if (await rejectIfLimited(response, apiLimiter, clientKey(ip, "feedback"), { limit: 5, windowMs: 60 * 60 * 1000 })) return;
@@ -1667,6 +1740,57 @@ export function createAppServer(options = {}) {
       } catch (error) {
         sendJson(response, errorStatusOf(error), { error: error?.message || "读取 AI 限制失败" });
       }
+      return;
+    }
+
+    if (request.method === "GET" && pathname === "/api/admin/support-images") {
+      try {
+        await requirePermission(request, "config.read");
+        sendJson(response, 200, { images: await supportImages.list() });
+      } catch (error) { sendJson(response, errorStatusOf(error), { error: error?.message || "读取赞赏码失败" }); }
+      return;
+    }
+
+    if (request.method === "POST" && pathname === "/api/admin/support-images") {
+      try {
+        const admin = await requirePermission(request, "config.write");
+        if (await rejectIfLimited(response, apiLimiter, clientKey(admin.id, "support-upload"), { limit: 10, windowMs: 60 * 60 * 1000 })) return;
+        const mimeType = String(request.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+        let label;
+        try { label = decodeURIComponent(String(request.headers["x-image-label"] || "赞赏码")); }
+        catch { throw new RequestValidationError("图片名称编码无效", 400); }
+        const image = await supportImages.create({ label, mimeType, data: await readBinary(request) });
+        await recordAudit(request, admin, "support_image.create", "support_image", image.id, null, { label: image.label, mimeType });
+        sendJson(response, 201, { image });
+      } catch (error) { sendJson(response, errorStatusOf(error), { error: error?.message || "上传赞赏码失败" }); }
+      return;
+    }
+
+    const adminSupportImageMatch = pathname.match(/^\/api\/admin\/support-images\/([0-9a-f-]{36})$/i);
+    if (request.method === "PATCH" && adminSupportImageMatch) {
+      try {
+        const admin = await requirePermission(request, "config.write");
+        if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) throw new RequestValidationError("Content-Type 必须是 application/json", 415);
+        const image = await supportImages.update(adminSupportImageMatch[1], await readJson(request));
+        if (!image) sendJson(response, 404, { error: "赞赏码不存在" });
+        else {
+          await recordAudit(request, admin, "support_image.update", "support_image", image.id, null, { label: image.label, enabled: image.enabled, sortOrder: image.sortOrder });
+          sendJson(response, 200, { image });
+        }
+      } catch (error) { sendJson(response, errorStatusOf(error), { error: error?.message || "更新赞赏码失败" }); }
+      return;
+    }
+
+    if (request.method === "DELETE" && adminSupportImageMatch) {
+      try {
+        const admin = await requirePermission(request, "config.write");
+        const deleted = await supportImages.remove(adminSupportImageMatch[1]);
+        if (!deleted) sendJson(response, 404, { error: "赞赏码不存在" });
+        else {
+          await recordAudit(request, admin, "support_image.delete", "support_image", adminSupportImageMatch[1]);
+          response.writeHead(204, { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }); response.end();
+        }
+      } catch (error) { sendJson(response, errorStatusOf(error), { error: error?.message || "删除赞赏码失败" }); }
       return;
     }
 
@@ -2064,7 +2188,7 @@ export function createAppServer(options = {}) {
     aiJobService.dispose?.();
     database?.end().catch(() => {});
   });
-  return { server, service, previewService, database, templateRepository, authService, aiService, aiJobService, aiJobRepository, aiConfigRepository, aiAuditLog, adminAuditLog, eventLog, announcements, messages, feedbacks, metrics, configService, alertService, deviceFingerprintService, smsService, mailerService, verificationCodeService, appSecretsService };
+  return { server, service, previewService, database, templateRepository, authService, aiService, aiJobService, aiJobRepository, aiConfigRepository, aiAuditLog, adminAuditLog, eventLog, announcements, messages, feedbacks, metrics, configService, supportImages, alertService, deviceFingerprintService, smsService, mailerService, verificationCodeService, appSecretsService };
 }
 
 export async function startServer(options = {}) {
