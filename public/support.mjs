@@ -5,6 +5,7 @@ const feedbackTrigger = supportFloat?.querySelector('[data-action="open-feedback
 const supportQrcode = document.querySelector("#supportQrcode");
 const supportTabs = document.querySelector("#supportTabs");
 let features = { feedbackEnabled: true, supportEnabled: false, supportImages: [] };
+let refreshPromise = null;
 
 if (supportFloat && supportCard && supportTrigger) {
   const closeSupport = () => { supportCard.hidden = true; supportTrigger.setAttribute("aria-expanded", "false"); };
@@ -31,10 +32,17 @@ if (supportFloat && supportCard && supportTrigger) {
     supportFloat.hidden = blocked || (!features.feedbackEnabled && !features.supportEnabled);
     if (blocked || !features.supportEnabled) closeSupport();
   }
-  fetch("/api/public/features", { cache: "no-store" })
-    .then((response) => response.ok ? response.json() : Promise.reject())
-    .then((payload) => { features = payload; renderImages(); syncSupportEntry(); })
-    .catch(() => syncSupportEntry());
+  function refreshFeatures() {
+    if (refreshPromise) return refreshPromise;
+    refreshPromise = fetch("/api/public/features", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then((payload) => { features = payload; renderImages(); syncSupportEntry(); })
+      .catch(() => syncSupportEntry())
+      .finally(() => { refreshPromise = null; });
+    return refreshPromise;
+  }
+  refreshFeatures();
+  document.addEventListener("public-features-changed", refreshFeatures);
   document.addEventListener("click", (event) => {
     const tab = event.target.closest("[data-support-index]");
     if (tab) { selectImage(Number(tab.dataset.supportIndex)); return; }
@@ -48,11 +56,12 @@ if (supportFloat && supportCard && supportTrigger) {
     if (event.target.closest('[data-action="close-support"]') || (!supportCard.hidden && !event.target.closest(".support-float"))) closeSupport();
   });
   document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeSupport(); });
-  const observer = new MutationObserver(syncSupportEntry);
+  const pageObserver = new MutationObserver(() => { syncSupportEntry(); refreshFeatures(); });
   ["#homePage", "#templateLibrary", "#draftPage", "#aiPage", "#adminPage", "#loginPage", "#app"].forEach((selector) => {
-    const node = document.querySelector(selector); if (node) observer.observe(node, { attributes: true, attributeFilter: ["hidden"] });
+    const node = document.querySelector(selector); if (node) pageObserver.observe(node, { attributes: true, attributeFilter: ["hidden"] });
   });
-  observer.observe(document.body, { childList: true, subtree: true });
+  const accountObserver = new MutationObserver(syncSupportEntry);
+  accountObserver.observe(document.body, { childList: true, subtree: true });
 }
 
 function escapeText(value) {
