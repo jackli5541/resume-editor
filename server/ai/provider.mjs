@@ -41,7 +41,7 @@ function extractBalancedJsonObject(text) {
   return "";
 }
 
-// DeepSeek OpenAI 兼容调用封装：SSRF 校验、超时、HTTP 错误映射与 JSON 解析。
+// OpenAI 兼容调用封装：SSRF 校验、超时、HTTP 错误映射与 JSON 解析。
 // fetchImpl 与 resolveBaseUrl 可注入，便于单元测试与本地 mock。
 export class AiProvider {
   constructor({ fetchImpl = fetch, resolveBaseUrl = assertSafeBaseUrlResolved } = {}) {
