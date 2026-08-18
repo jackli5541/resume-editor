@@ -21,16 +21,16 @@ const OPTIMIZE_BASE_SYSTEM_PROMPT = `你是专业的简历改写助手。用户�
   "summary": "一句话说明本次修改",
   "changes": [
     {"op":"set","field":"job","after":"新的字段值"},
-    {"op":"set","sectionId":"experience","itemIndex":0,"field":"content","after":"<ul><li>...</li></ul>"},
+    {"op":"set","sectionId":"experience","itemId":"稳定条目ID","field":"content","after":"<ul><li>...</li></ul>"},
     {"op":"set","sectionId":"objective","field":"city","after":"北京"},
     {"op":"set","sectionId":"summary","field":"content","after":"<p>...</p>"},
     {"op":"add","sectionId":"experience","item":{"start":"","end":"","organization":"","role":"","content":"<p>...</p>"}},
-    {"op":"remove","sectionId":"experience","itemIndex":1},
+    {"op":"remove","sectionId":"experience","itemId":"稳定条目ID"},
     {"op":"addModule","sectionId":"campus"},
     {"op":"removeModule","sectionId":"awards"}
   ]
 }
-定位说明：基本信息字段不带 sectionId；求职意向字段用 sectionId="objective"；工作/教育/项目等条目用 sectionId + itemIndex 定位；技能/自我评价等富文本用 sectionId + field="content"；addModule 启用一个当前隐藏的可选模块（校园经历/证书资质/荣誉奖项/语言能力/兴趣爱好等），removeModule 隐藏一个当前显示的模块。`;
+定位说明：基本信息字段不带 sectionId；求职意向字段用 sectionId="objective"；工作/教育/项目等条目必须优先使用 sectionId + itemId 定位；技能/自我评价等富文本用 sectionId + field="content"；addModule 启用一个当前隐藏的可选模块，removeModule 隐藏模块。`;
 
 function cleanStr(value, maxLen) {
   return String(value ?? "").trim().slice(0, maxLen);
@@ -77,11 +77,22 @@ function normalizeSetChange(change, resume) {
     const section = sectionById(resume, sectionId);
     if (!section) return null;
     out.sectionId = sectionId;
-    if (change.itemIndex !== undefined && change.itemIndex !== null) {
+    if (change.itemId) {
+      const itemId = cleanStr(change.itemId, MAX_FIELD_LEN);
+      const index = section.items?.findIndex((item) => item?.id === itemId) ?? -1;
+      if (index < 0) return null;
+      out.itemId = itemId;
+      out.before = String(section.items[index]?.[field] ?? "").slice(0, MAX_VALUE_LEN);
+    } else if (change.itemIndex !== undefined && change.itemIndex !== null) {
       const index = Number(change.itemIndex);
       if (!Number.isInteger(index) || index < 0 || !Array.isArray(section.items) || index >= section.items.length) return null;
       out.itemIndex = index;
+      out.itemId = section.items[index]?.id;
+      out.before = String(section.items[index]?.[field] ?? "").slice(0, MAX_VALUE_LEN);
     }
+    else out.before = String(section.type === "richtext" ? section.content ?? "" : section.data?.[field] ?? section[field] ?? "").slice(0, MAX_VALUE_LEN);
+  } else {
+    out.before = String(resume?.profile?.[field] ?? "").slice(0, MAX_VALUE_LEN);
   }
   return out;
 }
@@ -106,9 +117,10 @@ function normalizeRemoveChange(change, resume) {
   if (!sectionId) return null;
   const section = sectionById(resume, sectionId);
   if (!section || !Array.isArray(section.items)) return null;
-  const index = Number(change.itemIndex);
+  const requestedId = cleanStr(change.itemId, MAX_FIELD_LEN);
+  const index = requestedId ? section.items.findIndex((item) => item?.id === requestedId) : Number(change.itemIndex);
   if (!Number.isInteger(index) || index < 0 || index >= section.items.length) return null;
-  return { op: "remove", sectionId, itemIndex: index };
+  return { op: "remove", sectionId, itemId: section.items[index]?.id, itemIndex: index, before: section.items[index] };
 }
 
 function normalizeModuleChange(change, resume, op) {

@@ -23,6 +23,7 @@ import { AiAuditLog } from "./server/ai/audit.mjs";
 import { AiQuotaService } from "./server/ai/quota.mjs";
 import { AiJobRepository } from "./server/ai/job-repository.mjs";
 import { AiJobService } from "./server/ai/job-service.mjs";
+import { TargetAgentRepository } from "./server/ai/target-repository.mjs";
 import { assertSafeBaseUrl } from "./server/ai/url-guard.mjs";
 import { AdminAuditLog } from "./server/audit.mjs";
 import { can } from "./server/permissions.mjs";
@@ -268,6 +269,7 @@ export function createAppServer(options = {}) {
     templateRepository,
     eventLog
   });
+  const targetRepository = options.targetRepository || new TargetAgentRepository({ database });
 
   const requireAuth = options.requireAuth !== false;
   const authService = options.authService || new AuthService({
@@ -2019,6 +2021,145 @@ export function createAppServer(options = {}) {
         sendJson(response, 200, result);
       } catch (error) {
         sendJson(response, errorStatusOf(error), { error: error?.message || "AI 优化失败" });
+      }
+      return;
+    }
+
+    if (request.method === "GET" && pathname === "/api/ai/target/latest") {
+      try {
+        const user = await authorize(request);
+        const resumeId = requestUrl.searchParams.get("resumeId");
+        if (!resumeId) throw new RequestValidationError("缺少简历 ID");
+        sendJson(response, 200, { session: await targetRepository.latest(resumeId, user.id) });
+      } catch (error) { sendJson(response, errorStatusOf(error), { error: error?.message || "读取岗位任务失败" }); }
+      return;
+    }
+
+    const targetSessionMatch = pathname.match(/^\/api\/ai\/target\/sessions\/([0-9a-f-]{36})(?:\/(apply|evidence|cancel|restore))?$/i);
+    if (request.method === "GET" && targetSessionMatch && !targetSessionMatch[2]) {
+      try {
+        const user = await authorize(request);
+        const session = await targetRepository.getSession(targetSessionMatch[1], user.id);
+        if (!session) sendJson(response, 404, { error: "岗位任务不存在" }); else sendJson(response, 200, { session });
+      } catch (error) { sendJson(response, errorStatusOf(error), { error: error?.message || "读取岗位任务失败" }); }
+      return;
+    }
+
+    if (request.method === "POST" && targetSessionMatch?.[2] === "apply") {
+      try {
+        const user = await authorize(request);
+        const session = await targetRepository.getSession(targetSessionMatch[1], user.id);
+        if (!session) throw new RequestValidationError("岗位任务不存在", 404);
+        const payload = await readJson(request);
+        const draft = await templateRepository.getResume(session.resumeId, user.id);
+        if (!draft || draft.revision !== payload?.revision) throw new RequestValidationError("简历已在其他位置修改，请刷新后重试", 409);
+        const template = await templateRepository.get(draft.templateSlug, draft.templateVersion);
+        const data = validateExportPayload({ resume: payload?.data, template }).resume;
+        const updated = await templateRepository.updateResume({ id: draft.id, revision: draft.revision, data, ownerId: user.id });
+        if (!updated) throw new RequestValidationError("简历版本冲突", 409);
+        const plan = session.plan.map((item) => item.id === payload?.planItemId ? { ...item, status: "applied" } : item);
+        const complete = plan.length > 0 && plan.every((item) => ["applied", "skipped"].includes(item.status));
+        const nextStatus = complete ? "validating" : plan.some((item) => item.status === "blocked") ? "awaiting_user_evidence" : "executing";
+        await targetRepository.setChangeStatus(session.id, payload?.planItemId, "applied");
+        await targetRepository.updateSession(session.id, user.id, { plan, status: nextStatus });
+        await targetRepository.createVersion({ resumeId: draft.id, revision: updated.revision, sessionId: session.id, label: payload?.label || "岗位定制修改", createdBy: "agent", data, changeSet: payload?.patch || [] });
+        sendJson(response, 200, { revision: updated.revision, plan, status: nextStatus });
+      } catch (error) { sendJson(response, errorStatusOf(error), { error: error?.message || "应用岗位修改失败" }); }
+      return;
+    }
+
+    if (request.method === "POST" && targetSessionMatch?.[2] === "evidence") {
+      try {
+        const user = await authorize(request);
+        const session = await targetRepository.getSession(targetSessionMatch[1], user.id);
+        if (!session) throw new RequestValidationError("岗位任务不存在", 404);
+        const payload = await readJson(request);
+        const evidence = String(payload?.evidence || "").trim().slice(0, 4000);
+        if (!evidence) throw new RequestValidationError("请填写事实补充");
+        const plan = session.plan.map((item) => item.id === payload?.planItemId ? { ...item, status: "ready", userEvidence: evidence, risk: "low" } : item);
+        sendJson(response, 200, { session: await targetRepository.updateSession(session.id, user.id, { plan, status: "executing" }) });
+      } catch (error) { sendJson(response, errorStatusOf(error), { error: error?.message || "保存补充证据失败" }); }
+      return;
+    }
+
+    if (request.method === "POST" && targetSessionMatch?.[2] === "restore") {
+      try {
+        const user = await authorize(request);
+        const session = await targetRepository.getSession(targetSessionMatch[1], user.id);
+        if (!session) throw new RequestValidationError("岗位任务不存在", 404);
+        const payload = await readJson(request);
+        const draft = await templateRepository.getResume(session.resumeId, user.id);
+        if (!draft || draft.revision !== payload?.revision) throw new RequestValidationError("简历版本冲突", 409);
+        const versions = await targetRepository.listVersions(draft.id);
+        const baseline = versions.find((item) => item.sessionId === session.id && item.label === "JD 优化前");
+        if (!baseline) throw new RequestValidationError("未找到优化前版本", 404);
+        const template = await templateRepository.get(draft.templateSlug, draft.templateVersion);
+        const data = validateExportPayload({ resume: baseline.data, template }).resume;
+        const updated = await templateRepository.updateResume({ id: draft.id, revision: draft.revision, data, ownerId: user.id });
+        if (!updated) throw new RequestValidationError("简历版本冲突", 409);
+        const plan = session.plan.map((item) => ({ ...item, status: item.userEvidence ? "ready" : item.risk === "missing_evidence" ? "blocked" : "ready" }));
+        await targetRepository.updateSession(session.id, user.id, { plan, status: "executing" });
+        await targetRepository.createVersion({ resumeId: draft.id, revision: updated.revision, sessionId: session.id, label: "恢复至 JD 优化前", createdBy: "restore", data });
+        sendJson(response, 200, { data, revision: updated.revision, plan, status: "executing" });
+      } catch (error) { sendJson(response, errorStatusOf(error), { error: error?.message || "恢复版本失败" }); }
+      return;
+    }
+
+    if (request.method === "POST" && targetSessionMatch?.[2] === "cancel") {
+      try { const user = await authorize(request); const session = await targetRepository.updateSession(targetSessionMatch[1], user.id, { status: "cancelled" }); if (!session) throw new RequestValidationError("岗位任务不存在", 404); sendJson(response, 200, { session }); }
+      catch (error) { sendJson(response, errorStatusOf(error), { error: error?.message || "取消岗位任务失败" }); }
+      return;
+    }
+
+    const resumeVersionsMatch = pathname.match(/^\/api\/resumes\/([0-9a-f-]{36})\/versions$/i);
+    if (request.method === "GET" && resumeVersionsMatch) {
+      try { const user = await authorize(request); const draft = await templateRepository.getResume(resumeVersionsMatch[1], user.id); if (!draft) throw new RequestValidationError("简历不存在", 404); sendJson(response, 200, { versions: await targetRepository.listVersions(draft.id) }); }
+      catch (error) { sendJson(response, errorStatusOf(error), { error: error?.message || "读取版本历史失败" }); }
+      return;
+    }
+
+    if (request.method === "POST" && pathname === "/api/ai/target") {
+      try {
+        const user = await authorize(request);
+        if (await rejectIfLimited(response, apiLimiter, clientKey(user.id, "ai-target"), { limit: 30, windowMs: 60 * 60 * 1000 })) return;
+        if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
+          throw new RequestValidationError("Content-Type 必须是 application/json", 415);
+        }
+        const payload = await readJson(request);
+        let draft = null;
+        if (payload?.resumeId) {
+          draft = await templateRepository.getResume(payload.resumeId, user.id);
+          if (!draft) throw new RequestValidationError("简历不存在", 404);
+          if (payload.revision && draft.revision !== payload.revision) throw new RequestValidationError("简历版本已变化，请刷新后重试", 409);
+        }
+        const common = { userId: user.id, resume: draft?.data || payload?.resume, jobDescription: payload?.jobDescription, isAdmin: user.isAdmin, aiDailyLimit: user.aiDailyLimit };
+        let result;
+        if (payload?.action === "review") {
+          const session = payload?.sessionId ? await targetRepository.getSession(payload.sessionId, user.id) : null;
+          if (!session || !draft) throw new RequestValidationError("岗位任务不存在", 404);
+          const review = await aiService.targetDiagnose({ ...common, jobDescription: session.jobDescription });
+          review.plan = session.plan;
+          await targetRepository.updateSession(session.id, user.id, { diagnosis: review, plan: session.plan, status: "completed" });
+          await targetRepository.createVersion({ resumeId: draft.id, revision: draft.revision, sessionId: session.id, label: "岗位定制完成版", createdBy: "agent", data: draft.data });
+          result = { review, status: "completed" };
+        } else if (payload?.action === "execute") {
+          const session = payload?.sessionId ? await targetRepository.getSession(payload.sessionId, user.id) : null;
+          if (payload?.sessionId && !session) throw new RequestValidationError("岗位任务不存在", 404);
+          const planItem = session?.plan.find((item) => item.id === payload?.planItem?.id) || payload?.planItem;
+          result = await aiService.targetExecute({ ...common, jobDescription: session?.jobDescription || common.jobDescription, planItem, userEvidence: planItem?.userEvidence || payload?.userEvidence });
+          if (session) await targetRepository.recordChange({ sessionId: session.id, planItemId: planItem.id, patch: result.changes, evidenceRefs: planItem.requiredEvidence || [] });
+        } else {
+          const diagnosis = await aiService.targetDiagnose(common);
+          if (draft) {
+            const session = await targetRepository.createSession({ resumeId: draft.id, ownerId: user.id, baseRevision: draft.revision, jobDescription: payload?.jobDescription, diagnosis });
+            await targetRepository.createVersion({ resumeId: draft.id, revision: draft.revision, sessionId: session.id, label: "JD 优化前", createdBy: "agent", data: draft.data });
+            result = { ...diagnosis, session };
+          } else result = diagnosis;
+        }
+        await eventLog.record({ userId: user.id, event: payload?.action === "execute" ? "ai_target_execute" : "ai_target_diagnose" });
+        sendJson(response, 200, result);
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "岗位定制失败" });
       }
       return;
     }

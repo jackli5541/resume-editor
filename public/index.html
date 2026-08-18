@@ -832,9 +832,15 @@
               <span class="color-dot" id="themeDot"></span><span>主题</span>
               <input id="themeInput" type="color" value="#12a77d" aria-label="主题颜色" />
             </label>
-            <button class="tool-button" type="button" data-action="reset">
-              <span class="tool-button__icon">↺</span><span>重置</span>
-            </button>
+              <button class="tool-button" type="button" data-action="reset">
+                <span class="tool-button__icon">↺</span><span>重置</span>
+              </button>
+              <button class="tool-button" id="undoButton" type="button" data-action="undo" title="撤回 (Ctrl+Z)" disabled>
+                <span class="tool-button__icon">↶</span><span>撤回</span>
+              </button>
+              <button class="tool-button" id="redoButton" type="button" data-action="redo" title="重做 (Ctrl+Shift+Z)" disabled>
+                <span class="tool-button__icon">↷</span><span>重做</span>
+              </button>
             <span class="toolbar__divider" aria-hidden="true"></span>
             <button class="ai-toolbar-button" id="aiFloatBtn" type="button" data-action="toggle-ai-chat" aria-pressed="false" aria-label="打开 AI 优化" title="AI 优化">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
@@ -956,7 +962,22 @@
           <div><span class="eyebrow">AI ASSIST</span><strong>AI 优化</strong></div>
           <button class="ai-chat__close" type="button" data-action="close-ai-chat" aria-label="关闭 AI 优化">×</button>
         </div>
-        <div class="ai-chat__body" id="aiChatBody"></div>
+        <div class="ai-mode-tabs" role="tablist" aria-label="AI 助手模式">
+          <button type="button" class="is-active" data-action="ai-mode" data-ai-mode="optimize">日常优化</button>
+          <button type="button" data-action="ai-mode" data-ai-mode="target">岗位定制</button>
+        </div>
+        <div id="aiOptimizeView" class="ai-mode-view">
+          <div class="ai-chat__body" id="aiChatBody"></div>
+        </div>
+        <div id="aiTargetView" class="ai-mode-view ai-target" hidden>
+          <div id="aiTargetBody" class="ai-target__body">
+            <p class="ai-chat__hint">使用当前简历，或上传 DOCX 创建一份采用“极简轻”模板的新草稿。Agent 会先诊断并给出计划，确认后逐模块修改。</p>
+            <button type="button" class="ai-target__upload" data-action="target-upload">上传 DOCX 并替换当前工作草稿</button>
+            <input id="targetWordFile" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
+            <label class="ai-target__field"><span>目标岗位 JD</span><textarea id="targetJobDescription" rows="8" maxlength="12000" placeholder="粘贴完整职位描述…"></textarea></label>
+            <button id="targetDiagnoseButton" type="button" class="ai-proposal__apply" data-action="target-diagnose">开始岗位诊断</button>
+          </div>
+        </div>
         <form class="ai-chat__composer" id="aiChatForm">
           <textarea id="aiChatInput" rows="2" maxlength="2000" placeholder="例如：把工作经历写得更有量化成果；或：新增一条项目经历"></textarea>
           <button class="ai-chat__voice" type="button" id="aiChatVoiceBtn" data-action="ai-chat-voice" aria-label="语音输入修改要求" aria-pressed="false" title="语音输入">
