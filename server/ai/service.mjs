@@ -327,7 +327,7 @@ export class AiGenerationService {
   async runTargetCall({ userId, isAdmin, aiDailyLimit, inputChars, systemPrompt, userPrompt, map }) {
     const config = await this.configRepository.get();
     if (!config.enabled) throw new AiGenerationError("AI 服务未启用，请联系管理员", 503, "ai_disabled");
-    if (config.optimizeEnabled === false) throw new AiGenerationError("AI 优化已关闭，请联系管理员", 503, "ai_optimize_disabled");
+    if (config.targetAgentEnabled === false) throw new AiGenerationError("岗位定制功能正在维护中，请稍后再试", 503, "target_agent_disabled");
     const apiKey = await this.configRepository.getApiKey();
     if (!apiKey) throw new AiGenerationError("模型 API Key 未配置，请联系管理员", 503, "missing_api_key");
     const quota = await this.quota.check(userId, { isAdmin, limit: aiDailyLimit });

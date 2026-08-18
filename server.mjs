@@ -912,7 +912,7 @@ export function createAppServer(options = {}) {
         }
         const config = await aiConfigRepository.update(payload, { updatedBy: admin.id });
         await recordAudit(request, admin, "ai_config.update", "ai_config", "1", null, {
-          enabled: Boolean(config.enabled), optimizeEnabled: Boolean(config.optimizeEnabled), provider: config.provider, model: config.model, baseUrl: config.baseUrl
+          enabled: Boolean(config.enabled), optimizeEnabled: Boolean(config.optimizeEnabled), targetAgentEnabled: Boolean(config.targetAgentEnabled), provider: config.provider, model: config.model, baseUrl: config.baseUrl
         });
         sendJson(response, 200, { config });
       } catch (error) {
@@ -1790,7 +1790,9 @@ export function createAppServer(options = {}) {
           enabled: Boolean(config.enabled),
           features: {
             generate: (await configService.get("ai_generate_enabled")) !== false,
-            translate: (await configService.get("ai_translate_enabled")) !== false
+            translate: (await configService.get("ai_translate_enabled")) !== false,
+            optimize: config.optimizeEnabled !== false,
+            targetAgent: config.targetAgentEnabled !== false
           },
           maxInputChars: config.maxInputChars,
           model: config.model || null,
@@ -2048,6 +2050,8 @@ export function createAppServer(options = {}) {
     if (request.method === "POST" && targetSessionMatch?.[2] === "apply") {
       try {
         const user = await authorize(request);
+        const targetConfig = await aiConfigRepository.get();
+        if (!targetConfig.enabled || targetConfig.targetAgentEnabled === false) throw new RequestValidationError("岗位定制功能正在维护中", 503);
         const session = await targetRepository.getSession(targetSessionMatch[1], user.id);
         if (!session) throw new RequestValidationError("岗位任务不存在", 404);
         const payload = await readJson(request);
@@ -2071,6 +2075,8 @@ export function createAppServer(options = {}) {
     if (request.method === "POST" && targetSessionMatch?.[2] === "evidence") {
       try {
         const user = await authorize(request);
+        const targetConfig = await aiConfigRepository.get();
+        if (!targetConfig.enabled || targetConfig.targetAgentEnabled === false) throw new RequestValidationError("岗位定制功能正在维护中", 503);
         const session = await targetRepository.getSession(targetSessionMatch[1], user.id);
         if (!session) throw new RequestValidationError("岗位任务不存在", 404);
         const payload = await readJson(request);

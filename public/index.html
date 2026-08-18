@@ -324,7 +324,8 @@
                 <span class="admin-field__label">功能开关</span>
                 <label class="admin-check"><input type="checkbox" id="adminAiEnabled" /> 启用 AI（生成与优化总开关）</label>
                 <label class="admin-check"><input type="checkbox" id="adminAiOptimizeEnabled" /> 启用编辑器内「AI 优化」</label>
-                <small>总开关关闭后，AI 生成简历与 AI 优化接口均不可用；「AI 优化」开关仅控制编辑器内按指令修改简历的能力。</small>
+                <label class="admin-check"><input type="checkbox" id="adminAiTargetAgentEnabled" /> 启用「岗位定制 Agent」</label>
+                <small>总开关关闭后所有 AI 功能均不可用；日常优化与岗位定制可分别维护。关闭岗位定制不会影响普通编辑和已有版本恢复。</small>
               </div>
               <label class="admin-field">
                 <span class="admin-field__label">OpenAI 兼容 Base URL</span>
@@ -963,8 +964,8 @@
           <button class="ai-chat__close" type="button" data-action="close-ai-chat" aria-label="关闭 AI 优化">×</button>
         </div>
         <div class="ai-mode-tabs" role="tablist" aria-label="AI 助手模式">
-          <button type="button" class="is-active" data-action="ai-mode" data-ai-mode="optimize">日常优化</button>
-          <button type="button" data-action="ai-mode" data-ai-mode="target">岗位定制</button>
+          <button type="button" class="is-active" data-action="ai-mode" data-ai-mode="optimize" data-ai-feature-control="optimize">日常优化</button>
+          <button type="button" data-action="ai-mode" data-ai-mode="target" data-ai-feature-control="targetAgent">岗位定制</button>
         </div>
         <div id="aiOptimizeView" class="ai-mode-view">
           <div class="ai-chat__body" id="aiChatBody"></div>
