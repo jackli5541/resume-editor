@@ -1226,10 +1226,6 @@ select:focus-visible,
     grid-template-columns: 1fr;
   }
 
-  .template-card--featured {
-    max-width: none;
-  }
-
   .draft-item {
     grid-template-columns: 1fr auto;
     gap: 10px;
@@ -1260,11 +1256,26 @@ select:focus-visible,
   }
 }
 
+.template-library-hero {
+  position: relative;
+  min-height: 142px;
+  margin-bottom: 22px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background:
+    linear-gradient(90deg, rgba(18, 167, 125, 0.08), transparent 42%),
+    var(--surface);
+}
+
 .library-toolbar {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  margin-bottom: 22px;
+  min-height: 142px;
+  padding: 26px 28px 26px 250px;
 }
 
 .library-toolbar h1 {
@@ -1319,6 +1330,8 @@ select:focus-visible,
   border-bottom: 1px solid var(--line);
   background: var(--surface-2);
 }
+
+.library-toolbar p { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
 
 .template-preview img {
   width: 100%;
@@ -1383,32 +1396,17 @@ select:focus-visible,
   letter-spacing: 0.02em;
 }
 
-/* 推荐模板：单独一行，沿用卡片样式并适度放大 */
+/* 模板库背景动画：仅作氛围，不参与模板层级和交互。 */
 .template-featured {
-  margin-bottom: 22px;
-}
-
-.template-featured__grid {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 44px;
-  padding: 22px;
-  border: 1px solid var(--line-strong);
-  border-radius: 14px;
-  background:
-    radial-gradient(90% 120% at 10% -10%, rgba(18, 167, 125, 0.06), transparent 60%),
-    radial-gradient(80% 120% at 100% 115%, rgba(64, 148, 255, 0.05), transparent 60%),
-    var(--surface);
-}
-
-.template-card--featured {
-  flex: 0 0 380px;
-  max-width: 380px;
-}
-
-.template-featured__demo {
-  flex: 0 0 auto;
+  position: absolute;
+  top: -10px;
+  left: 20px;
+  width: 560px;
+  pointer-events: none;
+  opacity: 0.28;
+  transform: scale(0.56);
+  transform-origin: top left;
+  filter: saturate(0.75);
 }
 
 /* 推荐模板旁：模拟编辑器操作的迷你演示（简历纸 + 模块标签 + 字段输入） */
@@ -1420,6 +1418,17 @@ select:focus-visible,
   background: var(--surface-3);
   box-shadow: 0 14px 34px rgba(28, 39, 54, 0.1);
 }
+
+.template-featured__demo {
+  display: grid;
+  grid-template-columns: 1fr 1.08fr;
+  gap: 14px;
+  width: 560px;
+}
+
+.template-featured__demo .fed-paper { grid-row: 1 / span 2; }
+.template-featured__demo .fed-drawer { align-self: end; margin-top: 0; }
+.template-featured__demo .fed-status { align-self: start; margin-top: 0; }
 
 .fed-paper {
   padding: 18px 16px;
@@ -1596,50 +1605,15 @@ select:focus-visible,
 }
 
 @media screen and (max-width: 900px) {
-  .template-featured__grid {
-    flex-direction: column;
-    align-items: center;
-    gap: 26px;
-    padding: 18px;
-  }
-
-  .template-card--featured {
-    flex: 0 0 auto;
-    width: 100%;
-    max-width: 380px;
-  }
-
-  .template-featured__demo {
-    width: 100%;
-    max-width: 320px;
-  }
+  .template-library-hero, .library-toolbar { min-height: 124px; }
+  .library-toolbar { padding: 22px 20px 22px 180px; }
+  .template-featured { left: 12px; transform: scale(0.46); }
 }
 
-.template-card--featured .template-card__body {
-  padding: 18px;
-}
-
-.template-card--featured .template-card__body strong {
-  font-size: 17px;
-}
-
-.template-card--featured .template-card__body button {
-  height: 40px;
-  font-size: 13px;
-}
-
-.template-recommend-reason {
-  margin: -2px 0 14px;
-  padding: 9px 12px;
-  border-radius: 8px;
-  color: var(--brand-700);
-  background: var(--brand-50);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.template-recommend-reason strong {
-  color: var(--brand-600);
+@media screen and (max-width: 620px) {
+  .template-library-hero, .library-toolbar { min-height: auto; }
+  .library-toolbar { padding: 20px; }
+  .template-featured { display: none; }
 }
 
 .template-card__body {

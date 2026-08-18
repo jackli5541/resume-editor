@@ -1639,7 +1639,7 @@ function prefersReducedMotion() {
 function animateStaggeredContent(element) {
   if (prefersReducedMotion() || element.hidden) return;
   let selector = "";
-  if (element === elements.templateLibrary) selector = ".template-featured:not([hidden]) .template-card, #templateList .template-card";
+  if (element === elements.templateLibrary) selector = "#templateList .template-card";
   else if (element === elements.draftPage) selector = ".draft-item";
   if (!selector) return;
 
@@ -3288,6 +3288,7 @@ async function saveAdminConfig(event) {
       body: JSON.stringify(body)
     }));
     renderAdminConfig(adminConfigSchema, result.config || {});
+    document.dispatchEvent(new CustomEvent("public-features-changed"));
     elements.adminConfigMsg.textContent = "已保存";
     showToast("配置已保存", "success");
   } catch (error) {
@@ -3582,6 +3583,7 @@ async function uploadAdminSupportImages() {
     } catch (error) { showToast(error?.message || `${file.name} 上传失败`, "error"); break; }
   }
   await loadAdminSupportImages();
+  document.dispatchEvent(new CustomEvent("public-features-changed"));
 }
 
 async function updateAdminSupportImage(card, changes) {
@@ -3596,6 +3598,7 @@ async function handleAdminSupportChange(event) {
   try {
     await updateAdminSupportImage(card, event.target.type === "checkbox" ? { enabled: event.target.checked } : { label: event.target.value });
     showToast("赞赏码已更新", "success");
+    document.dispatchEvent(new CustomEvent("public-features-changed"));
   } catch (error) { showToast(error?.message || "更新失败", "error"); await loadAdminSupportImages(); }
 }
 
@@ -3616,6 +3619,7 @@ async function handleAdminSupportClick(event) {
       ]);
     }
     await loadAdminSupportImages();
+    document.dispatchEvent(new CustomEvent("public-features-changed"));
   } catch (error) { showToast(error?.message || "操作失败", "error"); }
 }
 
@@ -5642,22 +5646,8 @@ async function runFeaturedDemo() {
   }
 }
 
-function renderFeaturedTemplate(template) {
-  const ready = template.selectable === true;
-  const preview = template.previewUrl
-    ? `<img src="${escapeHtml(template.previewUrl)}" alt="${escapeHtml(template.name)}模板预览" />`
-    : `<div class="template-preview-placeholder"><span>${escapeHtml(template.name.slice(0, 1))}</span></div>`;
+function renderFeaturedDemo() {
   return `
-    <div class="template-featured__grid">
-      <article class="template-card is-ready is-recommended template-card--featured">
-        <div class="template-preview">${preview}<span class="template-badge">★ 推荐</span><span class="template-status">可使用</span></div>
-        <div class="template-card__body">
-          <div><strong>${escapeHtml(template.name)}</strong><span>${escapeHtml(template.category)} · v${template.version}</span></div>
-          <p>${escapeHtml("AI 快速生成的默认模板，极简清晰、ATS 友好。")}</p>
-          <div class="template-recommend-reason"><strong>推荐理由</strong>：无需整理个人信息，粘贴经历描述即可由 AI 自动生成结构化简历。</div>
-          <button type="button" data-action="select-template" data-template-slug="${escapeHtml(template.slug)}" data-template-version="${template.version}" ${ready ? "" : "disabled"}>快速开始</button>
-        </div>
-      </article>
       <div class="featured-editor-demo template-featured__demo" id="featuredDemo" aria-hidden="true">
         <div class="fed-paper">
           <div class="fed-paper__name" data-fed-name></div>
@@ -5691,8 +5681,7 @@ function renderFeaturedTemplate(template) {
           <span class="fed-status__score">完成度 <strong data-fed-score>0%</strong></span>
           <span class="fed-status__bar"><i data-fed-bar></i></span>
         </div>
-      </div>
-    </div>`;
+      </div>`;
 }
 
 function renderTemplateLibrary() {
@@ -5702,11 +5691,8 @@ function renderTemplateLibrary() {
     const bRecommended = b.slug === "clean-single" ? 1 : 0;
     return bRecommended - aRecommended; // 推荐模板置顶，其余保持原顺序
   });
-  const featured = ordered.find((item) => item.slug === "clean-single");
-  const grid = ordered.filter((item) => item.slug !== "clean-single");
-
-  if (featured) {
-    elements.templateFeatured.innerHTML = renderFeaturedTemplate(featured);
+  if (ordered.length) {
+    if (!elements.templateFeatured.firstElementChild) elements.templateFeatured.innerHTML = renderFeaturedDemo();
     elements.templateFeatured.hidden = false;
     runFeaturedDemo();
   } else {
@@ -5714,7 +5700,7 @@ function renderTemplateLibrary() {
     elements.templateFeatured.innerHTML = "";
   }
 
-  elements.templateList.innerHTML = grid.map(renderTemplateCard).join("");
+  elements.templateList.innerHTML = ordered.map(renderTemplateCard).join("");
   requestAnimationFrame(() => animateStaggeredContent(elements.templateLibrary));
 }
 
