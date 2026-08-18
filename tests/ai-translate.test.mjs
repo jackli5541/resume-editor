@@ -5,7 +5,7 @@ import { AiAuditLog } from "../server/ai/audit.mjs";
 import { AiConfigRepository } from "../server/ai/config-repository.mjs";
 import { AiProvider } from "../server/ai/provider.mjs";
 import { AiQuotaService } from "../server/ai/quota.mjs";
-import { AiGenerationError, AiGenerationService } from "../server/ai/service.mjs";
+import { AiGenerationError, AiGenerationService, translationOutputTokenBudget } from "../server/ai/service.mjs";
 import {
   buildTranslateSystemPrompt,
   buildTranslateUserPrompt,
@@ -75,6 +75,13 @@ test("翻译提示词明确目标语言并将上传文档视为数据", () => {
   assert.match(system, /不得新增、猜测或美化/);
   assert.match(user, /<target_language>英文<\/target_language>/);
   assert.match(user, /<document_structure>/);
+});
+
+test("翻译根据输入长度获得独立且有上限的输出预算", () => {
+  assert.equal(translationOutputTokenBudget(1600, 100), 4096);
+  assert.equal(translationOutputTokenBudget(5000, 100), 5000);
+  assert.equal(translationOutputTokenBudget(1600, 3000), 5500);
+  assert.equal(translationOutputTokenBudget(1600, 8000), 8000);
 });
 
 test("英文翻译结果使用英文模块标题并保留待确认字段", () => {

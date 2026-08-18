@@ -26,8 +26,8 @@ const key = Buffer.from(KEY_HEX, "hex");
 
 const identityResolve = async (value) => new URL(value);
 
-function okEnvelope(content) {
-  return { ok: true, status: 200, text: async () => JSON.stringify({ choices: [{ message: { content } }] }) };
+function okEnvelope(content, finishReason = "stop") {
+  return { ok: true, status: 200, text: async () => JSON.stringify({ choices: [{ message: { content }, finish_reason: finishReason }] }) };
 }
 
 // ---------- crypto ----------
@@ -185,19 +185,56 @@ test("Provider 解析 DeepSeek 响应", async () => {
   assert.equal(data.profile.name, "张三");
 });
 
+test("Provider 宽容解析 JSON 代码围栏与前后说明", async () => {
+  for (const content of [
+    '```json\n{"profile":{"name":"张三"}}\n```',
+    '以下是结果：\n{"profile":{"name":"张三"}}\n请查收'
+  ]) {
+    const provider = new AiProvider({
+      resolveBaseUrl: identityResolve,
+      fetchImpl: async () => okEnvelope(content)
+    });
+    const data = await provider.completeOnce({ baseUrl: "https://api.deepseek.com", apiKey: "sk-test", model: "deepseek-chat" });
+    assert.equal(data.profile.name, "张三");
+  }
+});
+
 test("JSON 解析失败自动重试一次", async () => {
   let calls = 0;
+  let retryBody;
   const provider = new AiProvider({
     resolveBaseUrl: identityResolve,
-    fetchImpl: async () => {
+    fetchImpl: async (_url, options) => {
       calls += 1;
       if (calls === 1) return okEnvelope("not-json");
+      retryBody = JSON.parse(options.body);
       return okEnvelope(JSON.stringify({ profile: { name: "张三" } }));
     }
   });
   const data = await provider.complete({ baseUrl: "https://api.deepseek.com", apiKey: "sk-test", model: "deepseek-chat" });
   assert.equal(data.profile.name, "张三");
   assert.equal(calls, 2);
+  assert.equal(retryBody.messages.at(-2).role, "assistant");
+  assert.equal(retryBody.messages.at(-2).content, "not-json");
+  assert.match(retryBody.messages.at(-1).content, /重新输出完整/);
+});
+
+test("输出截断时携带原输出重试并使用专用提示", async () => {
+  let calls = 0;
+  let retryBody;
+  const provider = new AiProvider({
+    resolveBaseUrl: identityResolve,
+    fetchImpl: async (_url, options) => {
+      calls += 1;
+      if (calls === 1) return okEnvelope('{"profile":', "length");
+      retryBody = JSON.parse(options.body);
+      return okEnvelope('{"profile":{"name":"张三"}}');
+    }
+  });
+  const data = await provider.complete({ baseUrl: "https://api.deepseek.com", apiKey: "sk-test", model: "deepseek-chat" });
+  assert.equal(data.profile.name, "张三");
+  assert.equal(retryBody.messages.at(-2).content, '{"profile":');
+  assert.match(retryBody.messages.at(-1).content, /长度限制被截断/);
 });
 
 test("重试后仍无效则抛出 invalid_json", async () => {
