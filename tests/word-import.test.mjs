@@ -51,3 +51,11 @@ test("AI 结果页要求逐项确认低置信度模块映射", async () => {
   assert.match(content, /aiModuleReviewConfirmed/);
   assert.match(content, /ai-confirm-modules/);
 });
+
+test("再次进入 AI 生成页前询问是否恢复已完成结果", async () => {
+  const content = await readFile(appPath, "utf8");
+  assert.match(content, /继续查看上次生成结果/);
+  assert.match(content, /开始新的生成/);
+  assert.match(content, /job\.status === "completed"/);
+  assert.match(content, /await consumeAiJob\(job\.id\)/);
+});

@@ -398,6 +398,7 @@ let aiVoicePrefix = "";
 let aiLimits = { maxInputChars: 8000, enabled: true, features: { generate: true, translate: true, optimize: true, targetAgent: true } };
 let aiInputSaveTimer = null;
 let aiDraftOfferPending = false;
+let aiResultOfferPending = false;
 const AI_MAX_WORD_BYTES = 5 * 1024 * 1024;
 const AI_FALLBACK_MAX_CHARS = 8000;
 const AI_INPUT_DRAFT_VERSION = 1;
@@ -3841,6 +3842,9 @@ function resetAiInputFlow() {
   elements.aiWorkspace.classList.remove("is-preview-mode");
   elements.aiProjectReview.innerHTML = "";
   elements.aiProjectReview.hidden = true;
+  elements.aiModuleReview.innerHTML = "";
+  elements.aiModuleReview.hidden = true;
+  updateAiReviewGate();
   elements.aiNotices.innerHTML = "";
   hideAiTaskProgress("generate");
   const professionalTone = elements.aiTone?.querySelector('input[value="professional"]');
@@ -4067,10 +4071,31 @@ async function restoreGenerateJob() {
   try {
     const job = await latestAiJob("generate");
     if (!job) return false;
+    if (job.status === "completed" && job.result?.resume) {
+      if (aiResultOfferPending) return true;
+      aiResultOfferPending = true;
+      const restore = await confirmAction({
+        title: "继续查看上次生成结果？",
+        message: "检测到一份已生成但尚未保存到草稿箱的简历。你可以继续核对并进入编辑器，或放弃该结果并开始新的生成。",
+        confirmLabel: "继续查看",
+        cancelLabel: "开始新的生成"
+      });
+      aiResultOfferPending = false;
+      if (parseAppRoute(window.location.pathname).name !== "ai") return true;
+      if (!restore) {
+        await consumeAiJob(job.id);
+        if (aiCurrentJobId === job.id) aiCurrentJobId = "";
+        clearAiInputDraft();
+        resetAiInputFlow();
+        showToast("已放弃上次生成结果，可以重新开始", "info");
+        return true;
+      }
+    }
     const draft = readAiInputDraft();
     if (draft) applyAiInputDraft(draft);
     return monitorGenerateJob(job);
   } catch {
+    aiResultOfferPending = false;
     return false;
   }
 }
