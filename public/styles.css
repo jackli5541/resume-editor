@@ -5715,6 +5715,24 @@ body.export-document .resume-paper[data-template="resume-collection-cn-001"] .cn
   accent-color: var(--brand);
 }
 
+.admin-ai-feature-switches {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.admin-ai-feature-switches .admin-check-row {
+  margin: 0;
+}
+
+.admin-ai-feature-switches .admin-check-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  flex: 0 0 auto;
+  accent-color: var(--brand);
+}
+
 .admin-key-row {
   display: flex;
   align-items: center;
@@ -6993,6 +7011,7 @@ body.export-document .resume-paper[data-template="resume-collection-cn-001"] .cn
 }
 
 @media screen and (max-width: 620px) {
+  .admin-ai-feature-switches { grid-template-columns: 1fr; }
   .translate-template-grid { grid-template-columns: 1fr; }
   .translate-template-overlay { padding: 12px; }
   .translate-template-dialog { padding: 16px; }

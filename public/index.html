@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="结构化简历编辑器 MVP" />
+    <meta name="description" content="AI 简历生成与在线编辑工具" />
     <meta name="theme-color" content="#12a77d" />
     <script src="/theme-init.js"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
@@ -322,9 +322,20 @@
             <div class="admin-form__grid">
               <div class="admin-field admin-field--wide">
                 <span class="admin-field__label">功能开关</span>
-                <label class="admin-check"><input type="checkbox" id="adminAiEnabled" /> 启用 AI（生成与优化总开关）</label>
-                <label class="admin-check"><input type="checkbox" id="adminAiOptimizeEnabled" /> 启用编辑器内「AI 优化」</label>
-                <label class="admin-check"><input type="checkbox" id="adminAiTargetAgentEnabled" /> 启用「岗位定制 Agent」</label>
+                <div class="admin-ai-feature-switches">
+                  <label class="admin-check-row">
+                    <input type="checkbox" id="adminAiEnabled" />
+                    <span><strong>启用 AI</strong><small>生成与优化功能的模型服务总开关</small></span>
+                  </label>
+                  <label class="admin-check-row">
+                    <input type="checkbox" id="adminAiOptimizeEnabled" />
+                    <span><strong>AI 优化</strong><small>控制编辑器内的日常简历优化功能</small></span>
+                  </label>
+                  <label class="admin-check-row">
+                    <input type="checkbox" id="adminAiTargetAgentEnabled" />
+                    <span><strong>岗位定制 Agent</strong><small>控制按目标岗位诊断和定制简历功能</small></span>
+                  </label>
+                </div>
                 <small>总开关关闭后所有 AI 功能均不可用；日常优化与岗位定制可分别维护。关闭岗位定制不会影响普通编辑和已有版本恢复。</small>
               </div>
               <label class="admin-field">
@@ -783,7 +794,7 @@
           <a class="brand" href="/" aria-label="轻简历首页">
             <span class="brand__mark"><img src="/logo.png" alt="" width="24" height="24" /></span>
             <span class="brand__text">轻简历</span>
-            <span class="brand__badge">MVP</span>
+            <span class="brand__badge">编辑器</span>
           </a>
           <nav class="editor-nav" aria-label="编辑器导航">
             <a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 简历工具</a><a href="/admin" data-admin-link hidden>管理端</a>
