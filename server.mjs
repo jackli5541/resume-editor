@@ -21,6 +21,8 @@ import { AiConfigRepository } from "./server/ai/config-repository.mjs";
 import { AiProvider } from "./server/ai/provider.mjs";
 import { AiAuditLog } from "./server/ai/audit.mjs";
 import { AiQuotaService } from "./server/ai/quota.mjs";
+import { AiJobRepository } from "./server/ai/job-repository.mjs";
+import { AiJobService } from "./server/ai/job-service.mjs";
 import { assertSafeBaseUrl } from "./server/ai/url-guard.mjs";
 import { AdminAuditLog } from "./server/audit.mjs";
 import { can } from "./server/permissions.mjs";
@@ -242,6 +244,13 @@ export function createAppServer(options = {}) {
       dailyLimit: Number.parseInt(process.env.AI_USER_DAILY_LIMIT || "8", 10)
     }),
     maxConcurrency: Number.parseInt(process.env.AI_MAX_CONCURRENCY || "2", 10)
+  });
+  const aiJobRepository = options.aiJobRepository || new AiJobRepository({ database });
+  const aiJobService = options.aiJobService || new AiJobService({
+    repository: aiJobRepository,
+    aiService,
+    templateRepository,
+    eventLog
   });
 
   const requireAuth = options.requireAuth !== false;
@@ -1660,6 +1669,83 @@ export function createAppServer(options = {}) {
       return;
     }
 
+    if (request.method === "POST" && pathname === "/api/ai/jobs") {
+      try {
+        const user = await authorize(request);
+        if (!user?.id) throw new AuthError("请先登录", 401);
+        if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
+          throw new RequestValidationError("Content-Type 必须是 application/json", 415);
+        }
+        const body = await readJson(request);
+        const type = String(body?.type || "");
+        if (!new Set(["generate", "translate"]).has(type)) throw new RequestValidationError("AI 任务类型无效");
+        if (type === "generate" && (await configService.get("ai_generate_enabled")) === false) {
+          throw new RequestValidationError("AI 生成简历功能维护中", 503);
+        }
+        if (type === "translate" && (await configService.get("ai_translate_enabled")) === false) {
+          throw new RequestValidationError("AI 翻译简历功能维护中", 503);
+        }
+        if (type === "translate") {
+          const template = await templateRepository.get(body?.payload?.templateSlug, Number(body?.payload?.templateVersion) || 1);
+          if (!template) throw new RequestValidationError("翻译模板不存在", 404);
+          if ((template.status || "ready") !== "ready") throw new RequestValidationError("翻译模板暂不可用", 409);
+        }
+        if (await rejectIfLimited(response, apiLimiter, clientKey(user.id, "ai"), { limit: 30, windowMs: 60 * 60 * 1000 })) return;
+        if (await rejectIfLimited(response, apiLimiter, clientKey(getClientIp(request), "ai-daily"), { limit: Number.parseInt(process.env.AI_IP_DAILY_LIMIT || "24", 10), windowMs: 24 * 60 * 60 * 1000 })) return;
+        const created = await aiJobService.create({
+          userId: user.id,
+          type,
+          payload: body?.payload || {},
+          isAdmin: user.isAdmin,
+          aiDailyLimit: user.aiDailyLimit
+        });
+        sendJson(response, created.reused ? 200 : 202, created);
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "创建 AI 任务失败" });
+      }
+      return;
+    }
+
+    if (request.method === "GET" && pathname === "/api/ai/jobs/latest") {
+      try {
+        const user = await authorize(request);
+        if (!user?.id) throw new AuthError("请先登录", 401);
+        const type = requestUrl.searchParams.get("type") || "";
+        sendJson(response, 200, { job: await aiJobService.latest(user.id, type) });
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "读取 AI 任务失败" });
+      }
+      return;
+    }
+
+    const aiJobMatch = pathname.match(/^\/api\/ai\/jobs\/([0-9a-f-]{36})$/i);
+    if (request.method === "GET" && aiJobMatch) {
+      try {
+        const user = await authorize(request);
+        if (!user?.id) throw new AuthError("请先登录", 401);
+        const job = await aiJobService.get(aiJobMatch[1], user.id);
+        if (!job) sendJson(response, 404, { error: "AI 任务不存在或已过期" });
+        else sendJson(response, 200, { job });
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "读取 AI 任务失败" });
+      }
+      return;
+    }
+
+    const aiJobConsumeMatch = pathname.match(/^\/api\/ai\/jobs\/([0-9a-f-]{36})\/consume$/i);
+    if (request.method === "POST" && aiJobConsumeMatch) {
+      try {
+        const user = await authorize(request);
+        if (!user?.id) throw new AuthError("请先登录", 401);
+        const job = await aiJobService.consume(aiJobConsumeMatch[1], user.id);
+        if (!job) sendJson(response, 404, { error: "AI 任务不存在或已过期" });
+        else sendJson(response, 200, { job });
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "更新 AI 任务失败" });
+      }
+      return;
+    }
+
     if (request.method === "POST" && pathname === "/api/ai/generate") {
       try {
         const user = await authorize(request);
@@ -1964,15 +2050,17 @@ export function createAppServer(options = {}) {
     registerLimiter.dispose();
     apiLimiter.dispose();
     codeLimiter.dispose();
+    aiJobService.dispose?.();
     database?.end().catch(() => {});
   });
-  return { server, service, previewService, database, templateRepository, authService, aiService, aiConfigRepository, aiAuditLog, adminAuditLog, eventLog, announcements, messages, feedbacks, metrics, configService, alertService, deviceFingerprintService, smsService, mailerService, verificationCodeService, appSecretsService };
+  return { server, service, previewService, database, templateRepository, authService, aiService, aiJobService, aiJobRepository, aiConfigRepository, aiAuditLog, adminAuditLog, eventLog, announcements, messages, feedbacks, metrics, configService, alertService, deviceFingerprintService, smsService, mailerService, verificationCodeService, appSecretsService };
 }
 
 export async function startServer(options = {}) {
   const listenPort = options.port ?? defaultPort;
   const listenHost = options.host ?? defaultHost;
   const app = createAppServer(options);
+  app.aiJobService.start?.();
 
   if (options.seedTestUsers ?? process.env.SEED_TEST_USERS === "true") {
     try {

@@ -655,6 +655,11 @@
               <span class="ai-blank-resume-hint" id="blankResumeHint">不使用以上内容，从空白简历开始填写</span>
             </div>
             <p id="aiStatus" class="library-status" role="status"></p>
+            <div id="aiTaskProgress" class="ai-task-progress" role="status" aria-live="polite" hidden>
+              <div class="ai-task-progress__head"><strong id="aiTaskProgressLabel">正在准备</strong><span id="aiTaskProgressValue">5%</span></div>
+              <div class="ai-task-progress__track" role="progressbar" aria-label="AI 生成进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="5"><span id="aiTaskProgressBar"></span></div>
+              <p id="aiTaskProgressDetail">任务已保存，可以暂时离开此页面。</p>
+            </div>
             <p class="ai-privacy">描述或导入的 Word 文本将发送至第三方大模型服务用于生成，请勿填写身份证号、银行卡号等无关敏感信息。</p>
           </section>
           <aside class="ai-context-card" id="aiContextCard">
@@ -706,6 +711,11 @@
           <button type="button" class="translate-dropzone" data-action="translate-upload" data-ai-feature-control="translate"><strong>上传 Word 简历</strong><span>支持 .docx，文件最大 5 MB</span></button>
           <input type="file" id="translateWordFile" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
           <p id="translateStatus" class="library-status" role="status"></p>
+          <div id="translateTaskProgress" class="ai-task-progress" role="status" aria-live="polite" hidden>
+            <div class="ai-task-progress__head"><strong id="translateTaskProgressLabel">正在准备</strong><span id="translateTaskProgressValue">5%</span></div>
+            <div class="ai-task-progress__track" role="progressbar" aria-label="AI 翻译进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="5"><span id="translateTaskProgressBar"></span></div>
+            <p id="translateTaskProgressDetail">任务已保存，可以暂时离开此页面。</p>
+          </div>
           <p class="ai-privacy">文档文字将发送至已配置的第三方大模型完成翻译；请勿上传与求职无关的敏感信息。</p>
         </section>
       </main>

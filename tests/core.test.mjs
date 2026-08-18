@@ -10,7 +10,8 @@ import {
   formatRange,
   moveItem,
   normalizeResume,
-  pageCountForHeight
+  pageCountForHeight,
+  resumeForTemplate
 } from "../public/core.mjs";
 import { parseAppRoute, routePath } from "../public/router.mjs";
 
@@ -79,6 +80,22 @@ test("DOCX 模板使用自身默认内容且不混入通用演示数据", () => 
   assert.equal(resume.profile.email, "");
   assert.equal(resume.sections[0].content, "原模板正文");
   assert.equal(resume.sections.some((section) => section.id === "projects"), false);
+});
+
+test("翻译结果投影到模板时不混入模板示例内容", () => {
+  const source = createInitialResume();
+  source.profile.name = "张三";
+  source.sections.find((section) => section.id === "summary").content = "Translated summary";
+  const mapped = resumeForTemplate(source, {
+    slug: "native-defaults",
+    editorSchema: { sections: [{ id: "summary", title: "Summary", type: "richtext" }] },
+    defaultResume: {
+      profile: { name: "模板示例姓名" },
+      sections: [{ id: "summary", type: "richtext", title: "Summary", visible: true, content: "模板示例正文" }]
+    }
+  });
+  assert.equal(mapped.profile.name, "张三");
+  assert.equal(mapped.sections[0].content, "Translated summary");
 });
 
 test("normalizeResume 合并缺省字段并限制排版参数", () => {
