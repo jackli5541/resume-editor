@@ -4,6 +4,7 @@ import { buildOptimizeSystemPrompt, buildOptimizeUserPrompt, mapOptimizeOutput }
 import { AiProviderError } from "./provider.mjs";
 import { parseProjectCandidates } from "./project-parser.mjs";
 import { buildTranslateSystemPrompt, buildTranslateUserPrompt, mapTranslationOutput, translationLanguageLabel } from "./translate.mjs";
+import { TARGET_SYSTEM_PROMPT, EXECUTE_SYSTEM_PROMPT, validateTargetInput, buildTargetPrompt, mapTargetDiagnosis, buildTargetExecutionPrompt, mapTargetExecution } from "./target-agent.mjs";
 
 export class AiGenerationError extends Error {
   constructor(message, statusCode = 400, code = "ai_generation_error") {
@@ -299,6 +300,64 @@ export class AiGenerationService {
         latencyMs: Date.now() - startedAt,
         errorCode
       });
+    }
+  }
+
+  async targetDiagnose({ userId, resume, jobDescription, isAdmin = false, aiDailyLimit = null }) {
+    const jd = validateTargetInput(jobDescription);
+    return this.runTargetCall({
+      userId, isAdmin, aiDailyLimit, inputChars: jd.length,
+      systemPrompt: TARGET_SYSTEM_PROMPT,
+      userPrompt: buildTargetPrompt(resume, jd),
+      map: mapTargetDiagnosis
+    });
+  }
+
+  async targetExecute({ userId, resume, jobDescription, planItem, userEvidence = "", isAdmin = false, aiDailyLimit = null }) {
+    const jd = validateTargetInput(jobDescription);
+    if (!planItem || typeof planItem !== "object") throw new AiGenerationError("计划项无效", 400, "invalid_plan_item");
+    return this.runTargetCall({
+      userId, isAdmin, aiDailyLimit, inputChars: jd.length + String(userEvidence || "").length,
+      systemPrompt: EXECUTE_SYSTEM_PROMPT,
+      userPrompt: buildTargetExecutionPrompt(resume, jd, planItem, userEvidence),
+      map: (raw) => mapTargetExecution(raw, resume)
+    });
+  }
+
+  async runTargetCall({ userId, isAdmin, aiDailyLimit, inputChars, systemPrompt, userPrompt, map }) {
+    const config = await this.configRepository.get();
+    if (!config.enabled) throw new AiGenerationError("AI 服务未启用，请联系管理员", 503, "ai_disabled");
+    if (config.optimizeEnabled === false) throw new AiGenerationError("AI 优化已关闭，请联系管理员", 503, "ai_optimize_disabled");
+    const apiKey = await this.configRepository.getApiKey();
+    if (!apiKey) throw new AiGenerationError("模型 API Key 未配置，请联系管理员", 503, "missing_api_key");
+    const quota = await this.quota.check(userId, { isAdmin, limit: aiDailyLimit });
+    if (!quota.allowed) throw new AiGenerationError(`今日 AI 调用次数已用完（${quota.limit} 次/天）`, 429, "quota_exceeded");
+    const startedAt = Date.now();
+    let status = "ok";
+    let errorCode = null;
+    let outputChars = 0;
+    await this.acquire();
+    try {
+      let raw;
+      try {
+        raw = await this.provider.complete({
+          baseUrl: config.baseUrl, apiKey, model: config.model,
+          temperature: Math.min(config.temperature, 0.3), maxOutputTokens: Math.max(config.maxOutputTokens, 3000),
+          timeoutMs: config.timeoutMs, systemPrompt, userPrompt
+        });
+        outputChars = JSON.stringify(raw).length;
+      } catch (error) {
+        status = auditStatusFor(error?.code);
+        errorCode = error?.code || "provider_error";
+        if (error instanceof AiProviderError) throw this.toClientError(error);
+        throw new AiGenerationError("模型服务异常，请稍后再试", 502, errorCode);
+      }
+      const result = map(raw);
+      this.quota.increment(userId);
+      return { ...result, usage: { model: config.model } };
+    } finally {
+      this.release();
+      await this.auditLog.record({ userId, provider: config.provider, model: config.model, status, inputChars, outputChars, latencyMs: Date.now() - startedAt, errorCode });
     }
   }
 

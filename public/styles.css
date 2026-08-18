@@ -4742,6 +4742,31 @@ select:focus-visible,
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
 }
+.ai-mode-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.ai-mode-tabs button { padding: 8px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.ai-mode-tabs button.is-active { color: var(--brand-dark); background: var(--surface); box-shadow: 0 1px 4px rgba(28,39,54,.1); }
+.ai-mode-view { display: flex; min-height: 0; flex: 1; flex-direction: column; }
+.ai-target__body { overflow-y: auto; padding: 16px; }
+.ai-target__upload { width: 100%; margin: 8px 0 16px; padding: 10px; border: 1px dashed var(--brand-300); border-radius: 9px; color: var(--brand-dark); background: var(--brand-50); font: inherit; cursor: pointer; }
+.ai-target__field { display: grid; gap: 7px; margin-bottom: 12px; color: var(--ink); font-size: 13px; font-weight: 700; }
+.ai-target__field textarea { resize: vertical; padding: 10px; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--ink); background: var(--surface); font: inherit; line-height: 1.55; }
+.ai-target .ai-proposal__apply { width: 100%; padding: 10px; }
+.target-head h3 { margin: 4px 0; color: var(--ink); }
+.target-head p { margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.target-scores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 14px; }
+.target-score { display: grid; padding: 9px 4px; border-radius: 8px; background: var(--surface-2); text-align: center; }
+.target-score strong { color: var(--brand-dark); font-size: 20px; }.target-score span { color: var(--muted); font-size: 10px; }
+.target-matrix { margin-bottom: 14px; font-size: 12px; }.target-matrix summary { cursor: pointer; font-weight: 700; }
+.target-matrix__item { display: grid; gap: 3px; margin-top: 8px; padding: 9px; border-left: 3px solid var(--line-strong); background: var(--surface-2); }
+.target-matrix__item.is-matched { border-color: var(--brand); }.target-matrix__item.is-missing { border-color: var(--danger); }.target-matrix__item span,.target-matrix__item small { color: var(--muted); }
+.target-questions { margin-bottom: 14px; padding: 10px; border-radius: 8px; background: var(--warning-soft, #fff8e6); font-size: 12px; }.target-questions ul { margin: 7px 0 0; padding-left: 18px; }
+.target-plan__title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }.target-plan__title button { border: 0; color: var(--danger); background: none; font: inherit; font-size: 11px; cursor: pointer; }
+.target-plan__item { display: grid; grid-template-columns: 1fr auto; gap: 7px; margin-bottom: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 9px; }
+.target-plan__item > div { display: grid; grid-template-columns: 22px 1fr; }.target-plan__item > div span { grid-row: 1 / 3; color: var(--brand); font-weight: 800; }.target-plan__item small { color: var(--muted); line-height: 1.4; }
+.target-plan__item em { color: var(--muted); font-size: 10px; font-style: normal; }.target-plan__item em.is-applied { color: var(--brand); }.target-plan__item em.is-blocked { color: var(--danger); }
+.target-plan__item button { grid-column: 1 / -1; padding: 7px; border: 0; border-radius: 7px; color: #fff; background: var(--brand); font: inherit; cursor: pointer; }.target-plan__item button:disabled { opacity: .5; cursor: default; }
+.target-pending { margin-bottom: 12px; padding: 12px; border: 1px solid var(--brand-300); border-radius: 10px; background: var(--brand-50); font-size: 12px; }.target-pending > p { color: var(--muted); }.target-pending > div { display: grid; gap: 4px; margin: 8px 0; padding: 8px; border-radius: 7px; background: var(--surface); }.target-pending del { color: var(--danger); }.target-pending ins { color: var(--brand-dark); text-decoration: none; }.target-pending footer { display: flex; justify-content: flex-end; gap: 7px; }.target-pending button { padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); cursor: pointer; }.target-pending button:last-child { color: #fff; border-color: var(--brand); background: var(--brand); }
+.target-review-button { width: 100%; padding: 10px; border: 0; border-radius: 8px; color: #fff; background: var(--brand-dark); font: inherit; font-weight: 700; cursor: pointer; }.target-complete { padding: 10px; border-radius: 8px; color: var(--brand-dark); background: var(--brand-50); text-align: center; font-size: 12px; font-weight: 700; }
 
 /* cn-001 high-fidelity HTML adapter. It deliberately owns the complete page
    composition so the live editor and browser PDF share the source layout. */

@@ -86,6 +86,14 @@ const elements = {
   aiChatInput: document.querySelector("#aiChatInput"),
   aiChatVoiceBtn: document.querySelector("#aiChatVoiceBtn"),
   aiChatSend: document.querySelector("#aiChatSend"),
+  aiOptimizeView: document.querySelector("#aiOptimizeView"),
+  aiTargetView: document.querySelector("#aiTargetView"),
+  aiTargetBody: document.querySelector("#aiTargetBody"),
+  targetWordFile: document.querySelector("#targetWordFile"),
+  targetJobDescription: document.querySelector("#targetJobDescription"),
+  targetDiagnoseButton: document.querySelector("#targetDiagnoseButton"),
+  undoButton: document.querySelector("#undoButton"),
+  redoButton: document.querySelector("#redoButton"),
   saveState: document.querySelector("#saveState"),
   pageCount: document.querySelector("#pageCountBadge"),
   sidePageCount: document.querySelector("#sidePageCount"),
@@ -398,6 +406,12 @@ let mammothPromise = null;
 let aiWordDocumentStructure = "";
 let aiOptimizePending = null;
 let aiOptimizing = false;
+let aiMode = "optimize";
+let targetState = { diagnosis: null, jobDescription: "", baseline: null, applied: [] };
+let targetPending = null;
+const undoStack = [];
+const redoStack = [];
+let editFocusSnapshot = null;
 let aiRecognition = null;
 let aiVoiceActive = false;
 let aiChatRecognition = null;
@@ -611,6 +625,7 @@ function toggleAddModuleMenu() {
 function addModule(sectionId) {
   const definition = visibleSectionSchemas().find((section) => section.id === sectionId);
   if (!definition?.optional) return;
+  const before = cloneResumeState();
   const blank = blankSection(definition);
   const index = resume.sections.findIndex((section) => section.id === sectionId);
   if (index === -1) resume.sections.push(blank);
@@ -621,6 +636,7 @@ function addModule(sectionId) {
   elements.addModuleMenu.hidden = true;
   renderAll();
   scheduleSave();
+  recordResumeChange(before, `新增模块：${definition.title}`);
   elements.drawer.classList.add("is-open");
 }
 
@@ -4870,6 +4886,219 @@ async function saveAiDraft() {
 
 // —— AI 优化：左侧聊天框 → 结构化提案 → 用户确认后应用到当前简历 ——
 
+function cloneResumeState(value = resume) {
+  return structuredClone(value);
+}
+
+function refreshUndoButtons() {
+  if (elements.undoButton) {
+    elements.undoButton.disabled = undoStack.length === 0;
+    elements.undoButton.title = undoStack.length ? `撤回：${undoStack.at(-1).label} (Ctrl+Z)` : "没有可撤回的修改";
+  }
+  if (elements.redoButton) {
+    elements.redoButton.disabled = redoStack.length === 0;
+    elements.redoButton.title = redoStack.length ? `重做：${redoStack.at(-1).label} (Ctrl+Shift+Z)` : "没有可重做的修改";
+  }
+}
+
+function recordResumeChange(before, label, after = cloneResumeState()) {
+  if (!before || JSON.stringify(before) === JSON.stringify(after)) return;
+  undoStack.push({ before, after, label });
+  if (undoStack.length > 80) undoStack.shift();
+  redoStack.length = 0;
+  refreshUndoButtons();
+}
+
+function restoreEditorState(snapshot) {
+  resume = cloneResumeState(snapshot);
+  renderAll();
+  scheduleSave(0);
+}
+
+function undoResumeChange() {
+  const command = undoStack.pop();
+  if (!command) return;
+  redoStack.push(command);
+  restoreEditorState(command.before);
+  refreshUndoButtons();
+  showToast(`已撤回：${command.label}`, "info");
+}
+
+function redoResumeChange() {
+  const command = redoStack.pop();
+  if (!command) return;
+  undoStack.push(command);
+  restoreEditorState(command.after);
+  refreshUndoButtons();
+  showToast(`已重做：${command.label}`, "info");
+}
+
+function setAiMode(mode) {
+  aiMode = mode === "target" ? "target" : "optimize";
+  elements.aiOptimizeView.hidden = aiMode !== "optimize";
+  elements.aiTargetView.hidden = aiMode !== "target";
+  elements.aiChatForm.hidden = aiMode !== "optimize";
+  document.querySelectorAll("[data-ai-mode]").forEach((button) => button.classList.toggle("is-active", button.dataset.aiMode === aiMode));
+  if (aiMode === "target") recoverTargetSession();
+}
+
+async function recoverTargetSession() {
+  if (!resume.remoteId || !currentUser || targetState.sessionId) return;
+  try {
+    const payload = await readApiResponse(await fetch(`/api/ai/target/latest?resumeId=${encodeURIComponent(resume.remoteId)}`, { cache: "no-store" }));
+    if (!payload.session) return;
+    const session = payload.session;
+    targetState = { diagnosis: { ...session.diagnosis, plan: session.plan }, jobDescription: session.jobDescription, baseline: null, applied: session.plan.filter((item) => item.status === "applied"), sessionId: session.id, status: session.status };
+    const versions = await readApiResponse(await fetch(`/api/resumes/${encodeURIComponent(resume.remoteId)}/versions`, { cache: "no-store" }));
+    targetState.baseline = versions.versions?.find((item) => item.sessionId === session.id && item.label === "JD 优化前")?.data || null;
+    elements.targetJobDescription.value = session.jobDescription;
+    renderTargetDiagnosis();
+  } catch { /* 恢复失败不阻断普通编辑 */ }
+}
+
+function targetStatusLabel(status) {
+  return { ready: "可执行", blocked: "待补充证据", applied: "已应用", skipped: "已跳过" }[status] || status;
+}
+
+function renderTargetDiagnosis() {
+  const diagnosis = targetState.diagnosis;
+  if (!diagnosis) return;
+  const score = (label, value) => `<div class="target-score"><strong>${value}</strong><span>${label}</span></div>`;
+  elements.aiTargetBody.innerHTML = `
+    <div class="target-head"><span class="eyebrow">TARGET ROLE</span><h3>${escapeHtml(diagnosis.target?.role || "目标岗位")}</h3><p>${escapeHtml(diagnosis.summary || "已完成岗位诊断")}</p></div>
+    <div class="target-scores">${score("要求覆盖", diagnosis.scores?.requirementCoverage || 0)}${score("证据强度", diagnosis.scores?.evidenceStrength || 0)}${score("成果量化", diagnosis.scores?.quantification || 0)}</div>
+    <details class="target-matrix"><summary>查看岗位要求与简历证据</summary>${(diagnosis.matrix || []).map((item) => `<div class="target-matrix__item is-${item.status}"><strong>${escapeHtml(item.requirement)}</strong><span>${escapeHtml(item.evidence?.join("；") || "暂无简历证据")}</span><small>${escapeHtml(item.suggestion)}</small></div>`).join("")}</details>
+    ${(diagnosis.questions || []).length ? `<div class="target-questions"><strong>建议先补充</strong><ul>${diagnosis.questions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
+    <div class="target-plan"><div class="target-plan__title"><strong>改造计划</strong><button type="button" data-action="target-restore">恢复至优化前</button></div>${(diagnosis.plan || []).map((item, index) => `<article class="target-plan__item"><div><span>${index + 1}</span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.reason)}</small></div><em class="is-${item.status}">${targetStatusLabel(item.status)}</em><button type="button" data-action="${item.status === "blocked" ? "target-evidence" : "target-execute"}" data-plan-index="${index}" ${item.status === "applied" ? "disabled" : ""}>${item.status === "applied" ? "已应用" : item.status === "blocked" ? "补充事实证据" : "生成修改"}</button></article>`).join("")}${targetState.status === "validating" ? '<button type="button" class="target-review-button" data-action="target-review">完成并重新验收</button>' : targetState.status === "completed" ? '<p class="target-complete">✓ 岗位定制已完成并保存最终版本</p>' : ""}</div>`;
+}
+
+async function diagnoseTarget() {
+  const jd = elements.targetJobDescription.value.trim();
+  if (!jd) return showToast("请先粘贴目标岗位 JD", "warning");
+  if (!currentUser) { showToast("登录后才能使用岗位定制", "info"); openLogin("/editor"); return; }
+  elements.targetDiagnoseButton.disabled = true;
+  elements.targetDiagnoseButton.textContent = "正在诊断…";
+  try {
+    if (!resume.remoteId) await createRemoteDraft();
+    const diagnosis = await readApiResponse(await fetch("/api/ai/target", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "diagnose", resumeId: resume.remoteId, revision: resume.remoteRevision, resume, jobDescription: jd }) }));
+    targetState = { diagnosis, jobDescription: jd, baseline: cloneResumeState(), applied: [], sessionId: diagnosis.session?.id || null, status: diagnosis.session?.status };
+    renderTargetDiagnosis();
+  } catch (error) { showToast(error?.message || "岗位诊断失败", "warning"); }
+  finally { if (elements.targetDiagnoseButton) { elements.targetDiagnoseButton.disabled = false; elements.targetDiagnoseButton.textContent = "开始岗位诊断"; } }
+}
+
+async function executeTargetPlan(index, button) {
+  const item = targetState.diagnosis?.plan?.[index];
+  if (!item || item.status !== "ready") return;
+  button.disabled = true; button.textContent = "生成中…";
+  try {
+    const proposal = await readApiResponse(await fetch("/api/ai/target", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "execute", sessionId: targetState.sessionId, resumeId: resume.remoteId, revision: resume.remoteRevision, resume, jobDescription: targetState.jobDescription, planItem: item }) }));
+    if (!proposal.changes?.length) { item.status = "blocked"; showToast(proposal.summary || "需要补充事实证据", "warning"); renderTargetDiagnosis(); return; }
+    targetPending = { proposal, item, index };
+    renderTargetDiagnosis();
+    const card = document.createElement("div");
+    card.className = "target-pending";
+    card.innerHTML = `<strong>修改预览 · ${escapeHtml(item.title)}</strong><p>${escapeHtml(proposal.summary || "请确认后应用")}</p>${proposal.changes.map((change) => `<div><small>${escapeHtml(aiChangeTargetLabel(change))}</small>${change.op === "set" ? `<del>${escapeHtml(aiChangeBeforeText(change) || "（空）")}</del><ins>${escapeHtml(plainText(change.after) || "（空）")}</ins>` : `<ins>${escapeHtml(change.op === "remove" ? "将删除该内容" : "将新增或调整该内容")}</ins>`}</div>`).join("")}<footer><button type="button" data-action="target-cancel-change">取消</button><button type="button" data-action="target-apply-change">确认应用</button></footer>`;
+    elements.aiTargetBody.prepend(card);
+  } catch (error) { showToast(error?.message || "生成修改失败", "warning"); button.disabled = false; button.textContent = "生成修改"; }
+}
+
+async function applyTargetPending() {
+  if (!targetPending) return;
+  const { proposal, item } = targetPending;
+  const before = cloneResumeState();
+  proposal.changes.forEach(aiApplyChange);
+  try {
+    if (targetState.sessionId && resume.remoteId) {
+      const result = await readApiResponse(await fetch(`/api/ai/target/sessions/${encodeURIComponent(targetState.sessionId)}/apply`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: resume.remoteRevision, data: resume, planItemId: item.id, label: item.title, patch: proposal.changes }) }));
+      resume.remoteRevision = result.revision;
+      targetState.diagnosis.plan = result.plan;
+      targetState.status = result.status;
+      saveLocalResume();
+    } else item.status = "applied";
+    recordResumeChange(before, `岗位定制：${item.title}`);
+    targetState.applied.push({ id: item.id, label: item.title });
+    targetPending = null;
+    renderAll(); renderTargetDiagnosis();
+    showToast(`已应用：${item.title}，可使用顶部撤回`, "success");
+  } catch (error) {
+    resume = before;
+    renderAll();
+    showToast(error?.message || "应用修改失败", "warning");
+  }
+}
+
+async function provideTargetEvidence(index) {
+  const item = targetState.diagnosis?.plan?.[index];
+  if (!item) return;
+  const evidence = await promptValue({ title: "补充事实证据", message: `${item.title}：请只填写真实发生的职责、数据或结果。`, confirmLabel: "保存并解锁", placeholder: "例如：实际负责的工作、项目规模、可核实的结果…" });
+  if (!evidence) return;
+  try {
+    if (targetState.sessionId) {
+      const result = await readApiResponse(await fetch(`/api/ai/target/sessions/${encodeURIComponent(targetState.sessionId)}/evidence`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ planItemId: item.id, evidence }) }));
+      targetState.diagnosis.plan = result.session.plan;
+    } else Object.assign(item, { status: "ready", risk: "low", userEvidence: evidence });
+    renderTargetDiagnosis();
+    showToast("事实证据已保存，该计划项可以执行", "success");
+  } catch (error) { showToast(error?.message || "保存证据失败", "warning"); }
+}
+
+async function reviewTargetResult(button) {
+  button.disabled = true; button.textContent = "正在复核…";
+  try {
+    const result = await readApiResponse(await fetch("/api/ai/target", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "review", sessionId: targetState.sessionId, resumeId: resume.remoteId, revision: resume.remoteRevision }) }));
+    targetState.diagnosis = result.review;
+    targetState.status = result.status;
+    renderTargetDiagnosis();
+    showToast("岗位定制已完成，最终版本已保存", "success");
+  } catch (error) { button.disabled = false; button.textContent = "完成并重新验收"; showToast(error?.message || "复核失败", "warning"); }
+}
+
+function cancelTargetPending() {
+  targetPending = null;
+  renderTargetDiagnosis();
+  showToast("已取消本次修改", "info");
+}
+
+async function restoreTargetBaseline() {
+  if (!targetState.baseline) return;
+  const before = cloneResumeState();
+  try {
+    if (targetState.sessionId && resume.remoteId) {
+      const result = await readApiResponse(await fetch(`/api/ai/target/sessions/${encodeURIComponent(targetState.sessionId)}/restore`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: resume.remoteRevision }) }));
+      resume = normalizeResume(result.data);
+      resume.remoteId = before.remoteId;
+      resume.remoteRevision = result.revision;
+      resume.template = before.template;
+      targetState.diagnosis.plan = result.plan;
+      targetState.status = result.status;
+      saveLocalResume();
+    } else restoreEditorState(targetState.baseline);
+    recordResumeChange(before, "恢复至 JD 优化前", cloneResumeState());
+    targetState.applied = [];
+    renderAll(); renderTargetDiagnosis();
+    showToast("已恢复至 JD 优化前版本", "success");
+  } catch (error) { showToast(error?.message || "恢复版本失败", "warning"); }
+}
+
+async function importTargetWord(file) {
+  try {
+    const { text, structure } = await extractWordText(file);
+    showToast("正在把 Word 简历转换为极简轻模板…", "info");
+    const generated = await readApiResponse(await fetch("/api/ai/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ templateSlug: "clean-single", templateVersion: 1, description: text, documentStructure: structure }) }));
+    const before = cloneResumeState();
+    resume = normalizeResume(generated.resume);
+    const template = availableTemplates.find((item) => item.slug === "clean-single") || { slug: "clean-single", version: 1, name: "极简轻", engine: "html-native", editorSchema: getTemplateSchema("clean-single") };
+    resume.template = { slug: "clean-single", version: template.version || 1, name: "极简轻", engine: template.engine || "html-native", editorSchema: template.editorSchema };
+    delete resume.remoteId; delete resume.remoteRevision;
+    await createRemoteDraft();
+    recordResumeChange(before, "导入 Word 简历");
+    renderAll();
+    showToast("已创建极简轻模板草稿，请校对后粘贴 JD", "success");
+  } catch (error) { showToast(error?.message || "Word 导入失败", "warning"); }
+  finally { elements.targetWordFile.value = ""; }
+}
+
 const AI_FIELD_LABELS = {
   name: "姓名", job: "求职岗位", mobile: "联系电话", email: "联系邮箱", city: "城市",
   workYears: "工作年限", birthday: "出生年月", gender: "性别", start: "开始时间", end: "结束时间",
@@ -4896,21 +5125,28 @@ function aiChangeTargetLabel(change) {
   if (change.op === "add") return `${aiSectionTitle(change.sectionId)} · 新增条目`;
   if (change.op === "remove") {
     const section = sectionById(change.sectionId);
-    const item = section?.items?.[change.itemIndex];
+    const item = section?.items?.[aiChangeItemIndex(change, section)];
     const summary = plainText([item?.organization, item?.role, item?.name, item?.content].filter(Boolean).join(" "));
     return `${aiSectionTitle(change.sectionId)} · 删除条目${summary ? `（${summary.slice(0, 24)}）` : ""}`;
   }
   if (!change.sectionId) return `基本信息 · ${aiFieldLabel(null, change.field)}`;
   const base = aiSectionTitle(change.sectionId);
   const label = aiFieldLabel(sectionById(change.sectionId), change.field);
-  return change.itemIndex !== undefined ? `${base} · 第 ${change.itemIndex + 1} 条 · ${label}` : `${base} · ${label}`;
+  const itemIndex = aiChangeItemIndex(change, sectionById(change.sectionId));
+  return itemIndex >= 0 ? `${base} · 第 ${itemIndex + 1} 条 · ${label}` : `${base} · ${label}`;
+}
+
+function aiChangeItemIndex(change, section = sectionById(change.sectionId)) {
+  if (change.itemId) return section?.items?.findIndex((item) => item.id === change.itemId) ?? -1;
+  return change.itemIndex !== undefined ? Number(change.itemIndex) : -1;
 }
 
 function aiReadField(change) {
   if (!change.sectionId) return resume.profile?.[change.field];
   const section = sectionById(change.sectionId);
   if (!section) return "";
-  if (change.itemIndex !== undefined) return section.items?.[change.itemIndex]?.[change.field];
+  const itemIndex = aiChangeItemIndex(change, section);
+  if (itemIndex >= 0) return section.items?.[itemIndex]?.[change.field];
   if (section.type === "richtext" && change.field === "content") return section.content;
   if (section.data && change.field in section.data) return section.data[change.field];
   return section[change.field];
@@ -4926,7 +5162,7 @@ function aiChangeBeforeText(change) {
   }
   if (change.op === "remove") {
     const section = sectionById(change.sectionId);
-    const item = section?.items?.[change.itemIndex];
+    const item = section?.items?.[aiChangeItemIndex(change, section)];
     return plainText([item?.organization, item?.role, item?.name, item?.level, item?.date, item?.content].filter(Boolean).join(" "));
   }
   return plainText(aiReadField(change));
@@ -4945,7 +5181,8 @@ function aiApplyChange(change) {
   }
   if (change.op === "remove") {
     const section = sectionById(change.sectionId);
-    if (section?.items) section.items.splice(change.itemIndex, 1);
+    const index = aiChangeItemIndex(change, section);
+    if (section?.items && index >= 0) section.items.splice(index, 1);
     return;
   }
   if (change.op === "add") {
@@ -4968,8 +5205,9 @@ function aiApplyChange(change) {
   }
   const section = sectionById(change.sectionId);
   if (!section) return;
-  if (change.itemIndex !== undefined) {
-    const item = section.items?.[change.itemIndex];
+  const itemIndex = aiChangeItemIndex(change, section);
+  if (itemIndex >= 0) {
+    const item = section.items?.[itemIndex];
     if (item) item[change.field] = change.after;
   } else if (section.type === "richtext" && change.field === "content") {
     section.content = change.after;
@@ -5181,7 +5419,9 @@ async function handleAiChatSubmit(event) {
 
 function applyAiOptimize() {
   if (!aiOptimizePending) return;
+  const before = cloneResumeState();
   for (const change of (aiOptimizePending.changes || [])) aiApplyChange(change);
+  recordResumeChange(before, aiOptimizePending.summary || "AI 优化");
   aiOptimizePending = null;
   clearAiChat();
   renderAll();
@@ -5490,6 +5730,11 @@ async function loadRemoteResume(id) {
     && Number(localDraft.remoteRevision) === Number(draft.revision)
     && Number(localDraft.revision || 0) > Number(draft.data?.revision || 0);
   resume = normalizeResume(canRestoreLocal ? localDraft : (draft.data || {}));
+  targetState = { diagnosis: null, jobDescription: "", baseline: null, applied: [], sessionId: null, status: null };
+  targetPending = null;
+  undoStack.length = 0;
+  redoStack.length = 0;
+  refreshUndoButtons();
   resume.remoteId = draft.id;
   resume.remoteRevision = draft.revision;
   resume.template = {
@@ -5503,6 +5748,7 @@ async function loadRemoteResume(id) {
   applyTemplateEditorSchema(resume, resume.template.editorSchema);
   hasUnsavedChanges = canRestoreLocal;
   saveLocalResume();
+  if (aiMode === "target") recoverTargetSession();
 }
 
 async function applyCurrentRoute({ replaceInvalid = false } = {}) {
@@ -5950,11 +6196,13 @@ function fitOnePage() {
     showToast("当前已经是一页简历", "info");
     return;
   }
+  const before = cloneResumeState();
   const tryFit = () => {
     if (currentPages <= 1 || resume.settings.sectionGap <= 8) {
       scheduleSave(0);
       showToast(currentPages <= 1 ? "已压缩模块间距并调整为一页" : "已达到最小间距，请适当删减内容", currentPages <= 1 ? "success" : "warning");
       renderEditor();
+      recordResumeChange(before, "适配一页排版");
       return;
     }
     resume.settings.sectionGap = Math.max(8, resume.settings.sectionGap - 2);
@@ -6009,6 +6257,8 @@ document.addEventListener("click", async (event) => {
 
   if (action === "account") { if (currentUser) toggleAccountMenu(actionTarget); else openLogin(window.location.pathname || "/"); }
   else if (action === "toggle-theme") toggleTheme();
+  else if (action === "undo") undoResumeChange();
+  else if (action === "redo") redoResumeChange();
   else if (action === "toggle-ai-tools") toggleAiToolMenu(actionTarget);
   else if (action === "open-settings") openSettings();
   else if (action === "close-settings") closeSettings();
@@ -6088,6 +6338,15 @@ document.addEventListener("click", async (event) => {
   else if (action === "ai-save") saveAiDraft();
   else if (action === "ai-confirm-projects") confirmAiProjects();
   else if (action === "ai-import-word") elements.aiWordFile.click();
+  else if (action === "ai-mode") setAiMode(actionTarget.dataset.aiMode);
+  else if (action === "target-upload") elements.targetWordFile.click();
+  else if (action === "target-diagnose") diagnoseTarget();
+  else if (action === "target-execute") executeTargetPlan(Number(actionTarget.dataset.planIndex), actionTarget);
+  else if (action === "target-evidence") provideTargetEvidence(Number(actionTarget.dataset.planIndex));
+  else if (action === "target-review") reviewTargetResult(actionTarget);
+  else if (action === "target-apply-change") applyTargetPending();
+  else if (action === "target-cancel-change") cancelTargetPending();
+  else if (action === "target-restore") restoreTargetBaseline();
   else if (action === "translate-upload") elements.translateWordFile.click();
   else if (action === "ai-close-templates") closeAiGenerateTemplateChooser();
   else if (action === "ai-select-template") generateAiWithTemplate(actionTarget);
@@ -6110,12 +6369,15 @@ document.addEventListener("click", async (event) => {
     elements.drawer.classList.add("is-open");
   } else if (action === "toggle-module") {
     event.stopPropagation();
+    const before = cloneResumeState();
     const section = sectionById(actionTarget.dataset.moduleId);
     section.visible = !section.visible;
     renderAll();
     scheduleSave();
+    recordResumeChange(before, `${section.visible ? "显示" : "隐藏"}模块：${section.title}`);
   } else if (action === "move-module") {
     event.stopPropagation();
+    const before = cloneResumeState();
     const index = resume.sections.findIndex((section) => section.id === actionTarget.dataset.moduleId);
     const direction = Number(actionTarget.dataset.direction);
     const schemaById = new Map(renderableSectionSchemas().map((value) => [value.id, value]));
@@ -6125,6 +6387,7 @@ document.addEventListener("click", async (event) => {
     resume.sections = moveItem(resume.sections, index, targetIndex);
     renderAll();
     scheduleSave();
+    recordResumeChange(before, "调整模块顺序");
   } else if (action === "toggle-drawer") {
     drawerOpen = !drawerOpen;
     elements.drawer.classList.toggle("is-open", drawerOpen);
@@ -6142,6 +6405,7 @@ document.addEventListener("click", async (event) => {
     activeItemBySection.set(actionTarget.dataset.sectionId, actionTarget.dataset.itemId);
     renderEditor();
   } else if (action === "add-entry") {
+    const before = cloneResumeState();
     const section = sectionById(actionTarget.dataset.sectionId);
     const definition = renderableSectionSchemas().find((value) => value.id === section.id);
     const item = definition?.type === "timeline"
@@ -6155,6 +6419,7 @@ document.addEventListener("click", async (event) => {
     renderEditor();
     renderPreview();
     scheduleSave();
+    recordResumeChange(before, `新增${section.title}条目`);
   } else if (action === "toggle-field") {
     const section = sectionById(actionTarget.dataset.sectionId);
     const fieldItem = (section?.fields || []).find((item) => item.key === actionTarget.dataset.fieldKey);
@@ -6224,15 +6489,18 @@ document.addEventListener("click", async (event) => {
     const section = sectionById(actionTarget.dataset.sectionId);
     if (!section) return;
     if (!(await confirmAction({ title: "恢复默认字段", message: "恢复该模块的默认字段？自定义字段声明将被移除（已填内容仍保留在数据中）。", confirmLabel: "恢复" }))) return;
+    const before = cloneResumeState();
     section.fields = defaultFieldsFor(section.id);
     renderEditor();
     renderPreview();
     scheduleSave();
+    recordResumeChange(before, `恢复${section.title}默认字段`);
   } else if (action === "delete-entry") {
     const section = sectionById(actionTarget.dataset.sectionId);
     if (!section?.items?.length) return;
     const index = section.items.findIndex((item) => item.id === actionTarget.dataset.itemId);
     if (index === -1) return;
+    const before = cloneResumeState();
     section.items.splice(index, 1);
     if (section.items.length) {
       activeItemBySection.set(section.id, section.items[Math.max(0, index - 1)].id);
@@ -6242,6 +6510,7 @@ document.addEventListener("click", async (event) => {
     renderEditor();
     renderPreview();
     scheduleSave();
+    recordResumeChange(before, `删除${section.title}条目`);
   } else if (action === "fit-one-page") fitOnePage();
   else if (action === "export-resume") exportResume();
   else if (action === "download-json") {
@@ -6287,7 +6556,17 @@ document.addEventListener("input", (event) => {
   else updateStandardField(target);
 });
 
+document.addEventListener("focusin", (event) => {
+  if (event.target.closest("#editorDrawer") && event.target.matches("input, textarea, select, [contenteditable]")) {
+    editFocusSnapshot = cloneResumeState();
+  }
+});
+
 document.addEventListener("focusout", (event) => {
+  if (editFocusSnapshot && event.target.closest("#editorDrawer")) {
+    recordResumeChange(editFocusSnapshot, "编辑简历内容");
+    editFocusSnapshot = null;
+  }
   if (event.target.matches("[data-rich-section-id]")) {
     clearTimeout(saveTimer);
     saveNow();
@@ -6579,6 +6858,22 @@ elements.aiGuideCard?.addEventListener("keydown", (event) => {
 });
 
 elements.aiChatForm.addEventListener("submit", handleAiChatSubmit);
+elements.targetWordFile?.addEventListener("change", () => {
+  const file = elements.targetWordFile.files?.[0];
+  if (file) importTargetWord(file);
+});
+
+document.addEventListener("keydown", (event) => {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+  const key = event.key.toLowerCase();
+  if (key === "z") {
+    event.preventDefault();
+    if (event.shiftKey) redoResumeChange(); else undoResumeChange();
+  } else if (key === "y") {
+    event.preventDefault();
+    redoResumeChange();
+  }
+});
 
 if (elements.aiInputCard) {
   elements.aiInputCard.addEventListener("dragover", (event) => {
