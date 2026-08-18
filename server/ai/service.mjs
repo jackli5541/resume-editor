@@ -20,6 +20,7 @@ const CLIENT_ERRORS = {
   timeout: [504, "模型服务响应超时，请稍后再试"],
   network: [502, "无法连接模型服务，请稍后再试"],
   invalid_json: [502, "模型返回了无效结果，请重试"],
+  output_truncated: [502, "简历内容较长，模型输出被截断，请精简内容后重试"],
   provider_error: [502, "模型服务异常，请稍后再试"],
   unsafe_base_url: [500, "模型服务地址配置有误，请联系管理员"]
 };
@@ -27,8 +28,14 @@ const CLIENT_ERRORS = {
 function auditStatusFor(code) {
   if (code === "timeout") return "timeout";
   if (code === "rate_limited") return "rate_limited";
-  if (code === "invalid_json") return "invalid_json";
+  if (code === "invalid_json" || code === "output_truncated") return "invalid_json";
   return "provider_error";
+}
+
+export function translationOutputTokenBudget(configuredTokens, inputChars) {
+  const configured = Number.isFinite(Number(configuredTokens)) ? Number(configuredTokens) : 1600;
+  const estimated = 1000 + Math.ceil(Math.max(0, Number(inputChars) || 0) * 1.5);
+  return Math.min(8000, Math.max(4096, configured, estimated));
 }
 
 // AI 生成编排：模板白名单 → 配置/启用/Key → 输入校验 → 配额 → 并发 → 调用 → 映射 → 规范化 → 审计。
@@ -192,7 +199,7 @@ export class AiGenerationService {
         modelJson = await this.provider.complete({
           baseUrl: config.baseUrl, apiKey, model: config.model,
           temperature: Math.min(config.temperature, 0.3),
-          maxOutputTokens: config.maxOutputTokens, timeoutMs: config.timeoutMs,
+          maxOutputTokens: translationOutputTokenBudget(config.maxOutputTokens, text.length), timeoutMs: config.timeoutMs,
           systemPrompt: buildTranslateSystemPrompt(targetLanguage, config.systemPrompt),
           userPrompt: buildTranslateUserPrompt(text, structure, targetLanguage)
         });
