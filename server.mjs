@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs";
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
-import { dirname, extname, join, normalize, sep } from "node:path";
+import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { checkDatabase, createDatabase } from "./server/database.mjs";
@@ -43,6 +43,10 @@ import { MailerService } from "./server/mailer.mjs";
 import { AppSecretsService } from "./server/app-secrets.mjs";
 import { createAuthChannels } from "./server/auth-channels.mjs";
 import { SupportImageRepository, MAX_SUPPORT_IMAGE_BYTES } from "./server/support-images.mjs";
+import { contentTypes, isPathWithin, readBinary as readBinaryBody, readJson as readJsonBody, resolveStaticPath as resolvePublicPath, sendJson } from "./server/http.mjs";
+import { createPublicRoutes } from "./server/routes/public.mjs";
+import { createResumeRoutes } from "./server/routes/resumes.mjs";
+import { createAccountRoutes } from "./server/routes/account.mjs";
 
 const publicRoot = fileURLToPath(new URL("./public/", import.meta.url));
 const projectRoot = dirname(fileURLToPath(import.meta.url));
@@ -91,73 +95,16 @@ async function rejectIfLimited(response, limiter, key, options) {
   return true;
 }
 
-const contentTypes = {
-  ".html": "text/html; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".mjs": "text/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".webp": "image/webp",
-  ".otf": "font/otf",
-  ".ttf": "font/ttf",
-  ".woff2": "font/woff2"
-};
-
-function isPathWithin(root, candidate) {
-  const base = normalize(root);
-  const target = normalize(candidate);
-  if (target === base) return true;
-  const prefix = base.endsWith(sep) ? base : base + sep;
-  return target.startsWith(prefix);
-}
-
 function resolveStaticPath(urlPath) {
-  const requested = urlPath === "/" ? "index.html" : urlPath.replace(/^\/+/, "");
-  const resolved = normalize(join(publicRoot, requested));
-  return isPathWithin(publicRoot, resolved) ? resolved : null;
-}
-
-function sendJson(response, statusCode, value) {
-  response.writeHead(statusCode, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store",
-    "X-Content-Type-Options": "nosniff"
-  });
-  response.end(JSON.stringify(value));
+  return resolvePublicPath(publicRoot, urlPath);
 }
 
 async function readJson(request) {
-  const declaredLength = Number.parseInt(request.headers["content-length"] || "0", 10);
-  if (declaredLength > maxRequestBytes) throw new RequestValidationError("请求体超过 4 MB", 413);
-  const chunks = [];
-  let received = 0;
-  for await (const chunk of request) {
-    received += chunk.length;
-    if (received > maxRequestBytes) throw new RequestValidationError("请求体超过 4 MB", 413);
-    chunks.push(chunk);
-  }
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
-  } catch {
-    throw new RequestValidationError("请求体不是有效 JSON");
-  }
+  return readJsonBody(request, maxRequestBytes);
 }
 
 async function readBinary(request, limit = MAX_SUPPORT_IMAGE_BYTES) {
-  const declaredLength = Number.parseInt(request.headers["content-length"] || "0", 10);
-  if (declaredLength > limit) throw new RequestValidationError("图片超过 2 MB", 413);
-  const chunks = [];
-  let received = 0;
-  for await (const chunk of request) {
-    received += chunk.length;
-    if (received > limit) throw new RequestValidationError("图片超过 2 MB", 413);
-    chunks.push(chunk);
-  }
-  return Buffer.concat(chunks);
+  return readBinaryBody(request, limit);
 }
 
 async function sendExportFile(response, job) {
@@ -283,6 +230,7 @@ export function createAppServer(options = {}) {
   const disableRegistration = options.disableRegistration ?? process.env.DISABLE_REGISTRATION === "true";
   const disableDeviceFingerprint = options.disableDeviceFingerprint ?? process.env.DISABLE_DEVICE_FINGERPRINT === "true";
   const deviceFingerprintService = options.deviceFingerprintService || new DeviceFingerprintService({ database });
+  const handlePublicRoute = createPublicRoutes({ database, aiConfigRepository, templateRepository });
   const redisConnection = redisEnabled ? service.connection : null;
   const loginLimiter = redisConnection ? new RedisRateLimiter(redisConnection) : new RateLimiter();
   const registerLimiter = redisConnection ? new RedisRateLimiter(redisConnection) : new RateLimiter();
@@ -349,6 +297,9 @@ export function createAppServer(options = {}) {
     if (requireAuth && !user) throw new AuthError("请先登录", 401);
     return user;
   }
+
+  const handleResumeRoute = createResumeRoutes({ templateRepository, eventLog, authorize, errorStatusOf, readJson });
+  const handleAccountRoute = createAccountRoutes({ authService, eventLog, currentUser, clearSessionCookie, rejectIfLimited, apiLimiter, errorStatusOf, readJson });
 
   async function requireAdmin(request) {
     const user = await authorize(request);
@@ -421,33 +372,7 @@ export function createAppServer(options = {}) {
       }
     }
 
-    if (request.method === "GET" && pathname === "/health") {
-      const databaseStatus = await checkDatabase(database);
-      let ai = { configured: false, enabled: false };
-      try {
-        const config = await aiConfigRepository.get();
-        ai = { configured: Boolean(config.apiKeySet), enabled: Boolean(config.enabled), model: config.model || null };
-      } catch {
-        // AI 状态读取失败不影响健康检查主结果。
-      }
-      sendJson(response, databaseStatus.configured && !databaseStatus.ok ? 503 : 200, {
-        ok: !databaseStatus.configured || databaseStatus.ok,
-        service: "resume-editor-mvp",
-        exportWorker: "ready",
-        database: databaseStatus,
-        ai
-      });
-      return;
-    }
-
-    if (request.method === "GET" && pathname === "/api/templates") {
-      try {
-        sendJson(response, 200, { templates: await templateRepository.list() });
-      } catch (error) {
-        sendJson(response, 503, { error: error?.message || "模板库不可用" });
-      }
-      return;
-    }
+    if (await handlePublicRoute({ request, response, pathname })) return;
 
     if (request.method === "GET" && pathname === "/api/auth/captcha-config") {
       const captcha = await authChannels.aliyunCaptcha();
@@ -619,70 +544,7 @@ export function createAppServer(options = {}) {
       return;
     }
 
-    if (request.method === "POST" && pathname === "/api/auth/logout") {
-      try {
-        const cookies = parseCookies(request);
-        await authService.destroySession(cookies[authService.cookieName]);
-        clearSessionCookie(response, secure);
-        sendJson(response, 200, { ok: true });
-      } catch (error) {
-        sendJson(response, errorStatusOf(error), { error: error?.message || "退出失败" });
-      }
-      return;
-    }
-
-    if (request.method === "GET" && pathname === "/api/auth/session") {
-      try {
-        const user = await currentUser(request);
-        sendJson(response, 200, { user: user || null });
-      } catch (error) {
-        sendJson(response, 500, { error: error?.message || "读取会话失败" });
-      }
-      return;
-    }
-
-    if (request.method === "POST" && pathname === "/api/auth/change-password") {
-      try {
-        const user = await currentUser(request);
-        if (!user) throw new AuthError("请先登录", 401);
-        if (await rejectIfLimited(response, apiLimiter, clientKey(user.id, "change-password"), { limit: 5, windowMs: 60 * 60 * 1000 })) return;
-        if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
-          throw new AuthError("Content-Type 必须是 application/json", 415);
-        }
-        const payload = await readJson(request);
-        if (String(payload?.newPassword || "") !== String(payload?.confirmPassword || "")) throw new AuthError("两次输入的新密码不一致", 400);
-        const cookies = parseCookies(request);
-        const updated = await authService.changePassword(user.id, {
-          currentPassword: payload?.currentPassword,
-          newPassword: payload?.newPassword,
-          currentToken: cookies[authService.cookieName]
-        });
-        await eventLog.record({ userId: user.id, event: "password_change" });
-        sendJson(response, 200, { user: updated });
-      } catch (error) {
-        sendJson(response, errorStatusOf(error), { error: error?.message || "修改密码失败" });
-      }
-      return;
-    }
-
-    if (request.method === "PATCH" && pathname === "/api/me") {
-      try {
-        const user = await currentUser(request);
-        if (!user) throw new AuthError("请先登录", 401);
-        if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
-          throw new AuthError("Content-Type 必须是 application/json", 415);
-        }
-        const payload = await readJson(request);
-        const updated = await authService.updateUser(user.id, {
-          displayName: payload?.displayName,
-          settings: payload?.settings
-        });
-        sendJson(response, 200, { user: updated });
-      } catch (error) {
-        sendJson(response, errorStatusOf(error), { error: error?.message || "更新设置失败" });
-      }
-      return;
-    }
+    if (await handleAccountRoute({ request, response, pathname, secure })) return;
 
     if (request.method === "GET" && pathname === "/api/admin/users") {
       try {
@@ -1663,122 +1525,7 @@ export function createAppServer(options = {}) {
       return;
     }
 
-    const templateMatch = pathname.match(/^\/api\/templates\/([a-z0-9-]+)$/i);
-    if (request.method === "GET" && templateMatch) {
-      const template = await templateRepository.get(templateMatch[1], Number(requestUrl.searchParams.get("version")) || null);
-      if (!template) sendJson(response, 404, { error: "模板不存在" });
-      else sendJson(response, 200, { template });
-      return;
-    }
-
-    if (request.method === "POST" && pathname === "/api/resumes") {
-      try {
-        const user = await authorize(request);
-        if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
-          throw new RequestValidationError("Content-Type 必须是 application/json", 415);
-        }
-        const payload = await readJson(request);
-        const template = await templateRepository.get(payload.templateSlug, Number(payload.templateVersion) || 1);
-        if (!template) throw new RequestValidationError("模板不存在", 404);
-        if ((template.status || "ready") !== "ready") throw new RequestValidationError("模板尚未完成字段映射，暂不能使用", 409);
-        const data = validateExportPayload({ resume: payload.data || {}, template }).resume;
-        const created = await templateRepository.createResume({
-          templateSlug: template.slug,
-          templateVersion: template.version,
-          data,
-          ownerId: user?.id
-        });
-        await eventLog.record({ userId: user?.id, event: "draft_created" });
-        sendJson(response, 201, created);
-      } catch (error) {
-        sendJson(response, errorStatusOf(error), { error: error?.message || "创建简历失败" });
-      }
-      return;
-    }
-
-    if (request.method === "GET" && pathname === "/api/resumes") {
-      try {
-        const user = await authorize(request);
-        const requestedLimit = Number.parseInt(requestUrl.searchParams.get("limit") || "20", 10);
-        const resumes = await templateRepository.listResumes({
-          limit: Number.isSafeInteger(requestedLimit) ? requestedLimit : 20,
-          ownerId: user?.id
-        });
-        sendJson(response, 200, { resumes });
-      } catch (error) {
-        sendJson(response, errorStatusOf(error), { error: error?.message || "草稿列表暂不可用" });
-      }
-      return;
-    }
-
-    const resumeMatch = pathname.match(/^\/api\/resumes\/([0-9a-f-]{36})$/i);
-    if (request.method === "GET" && resumeMatch) {
-      try {
-        const user = await authorize(request);
-        const draft = await templateRepository.getResume(resumeMatch[1], user?.id);
-        if (!draft) sendJson(response, 404, { error: "简历草稿不存在" });
-        else {
-          const template = typeof templateRepository.get === "function"
-            ? await templateRepository.get(draft.templateSlug, draft.templateVersion)
-            : null;
-          sendJson(response, 200, { resume: { ...draft, editorSchema: template?.editorSchema || null } });
-        }
-      } catch (error) {
-        sendJson(response, errorStatusOf(error), { error: error?.message || "简历草稿暂不可用" });
-      }
-      return;
-    }
-
-    if (request.method === "PATCH" && resumeMatch) {
-      try {
-        const user = await authorize(request);
-        if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
-          throw new RequestValidationError("Content-Type 必须是 application/json", 415);
-        }
-        const payload = await readJson(request);
-        if (!Number.isSafeInteger(payload.revision) || payload.revision < 1) {
-          throw new RequestValidationError("缺少有效的草稿版本号");
-        }
-        const existingDraft = await templateRepository.getResume(resumeMatch[1], user?.id);
-        if (!existingDraft) throw new RequestValidationError("简历草稿不存在", 404);
-        const canonical = validateExportPayload({
-          resume: payload.data,
-          template: { slug: existingDraft.templateSlug, version: existingDraft.templateVersion }
-        }).resume;
-        const updated = await templateRepository.updateResume({
-          id: resumeMatch[1],
-          revision: payload.revision,
-          data: canonical,
-          ownerId: user?.id
-        });
-        if (!updated) {
-          const existing = await templateRepository.getResume(resumeMatch[1], user?.id);
-          throw new RequestValidationError(existing ? "草稿已在其他位置更新，请刷新后继续" : "简历草稿不存在", existing ? 409 : 404);
-        }
-        sendJson(response, 200, { revision: updated.revision, updatedAt: updated.updated_at });
-      } catch (error) {
-        sendJson(response, errorStatusOf(error), { error: error?.message || "保存简历失败" });
-      }
-      return;
-    }
-
-    if (request.method === "DELETE" && resumeMatch) {
-      try {
-        const user = await authorize(request);
-        const deleted = await templateRepository.deleteResume(resumeMatch[1], user?.id);
-        if (!deleted) sendJson(response, 404, { error: "简历草稿不存在" });
-        else {
-          response.writeHead(204, {
-            "Cache-Control": "no-store",
-            "X-Content-Type-Options": "nosniff"
-          });
-          response.end();
-        }
-      } catch (error) {
-        sendJson(response, errorStatusOf(error), { error: error?.message || "删除简历失败" });
-      }
-      return;
-    }
+    if (await handleResumeRoute({ request, response, requestUrl, pathname })) return;
 
     if (request.method === "GET" && pathname === "/api/ai/limits") {
       try {

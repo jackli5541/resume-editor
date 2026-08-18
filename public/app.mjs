@@ -24,39 +24,10 @@ import {
 } from "./resume-renderer.mjs";
 import { isAppPath, parseAppRoute, routePath } from "./router.mjs";
 import { getDeviceId } from "./fingerprint.mjs";
-
-// —— 外观主题（暗色模式）——
-const THEME_STORAGE_KEY = "qingjianli.theme";
-
-function currentTheme() {
-  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
-}
-
-function applyTheme(theme) {
-  const dark = theme === "dark";
-  document.documentElement.dataset.theme = dark ? "dark" : "light";
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", dark ? "#0e1116" : "#12a77d");
-  try { localStorage.setItem(THEME_STORAGE_KEY, theme); } catch (e) { /* 忽略隐私模式下的写入失败 */ }
-  refreshThemeButtons();
-}
-
-function toggleTheme() {
-  applyTheme(currentTheme() === "dark" ? "light" : "dark");
-}
-
-function refreshThemeButtons() {
-  const dark = currentTheme() === "dark";
-  document.querySelectorAll('[data-action="toggle-theme"]').forEach((button) => {
-    const label = dark ? "切换为浅色模式" : "切换为深色模式";
-    button.innerHTML = dark
-      ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>'
-      : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>';
-    button.setAttribute("aria-label", label);
-    button.title = label;
-    button.setAttribute("aria-pressed", String(dark));
-  });
-}
+import { readApiResponse as parseApiResponse } from "./api-client.mjs";
+import { createAdminApi } from "./admin-api.mjs";
+import { createResumeApi } from "./resume-api.mjs";
+import { applyTheme, currentTheme, refreshThemeButtons, toggleTheme } from "./theme.mjs";
 
 const elements = {
   app: document.querySelector("#app"),
@@ -1308,18 +1279,18 @@ function setExportState(active, label = "") {
 }
 
 async function readApiResponse(response) {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    if (response.status === 401 && currentUser) {
+  return parseApiResponse(response, {
+    onUnauthorized() {
+      if (currentUser) {
       currentUser = null;
       updateAccountUi();
+      }
     }
-    const error = new Error(payload.error || `服务请求失败 (${response.status})`);
-    error.status = response.status;
-    throw error;
-  }
-  return payload;
+  });
 }
+
+const adminApi = createAdminApi({ readResponse: readApiResponse });
+const resumeApi = createResumeApi({ readResponse: readApiResponse });
 
 async function refreshSession() {
   try {
@@ -3228,7 +3199,7 @@ async function loadAdminConfig() {
   elements.adminConfigMsg.hidden = false;
   elements.adminConfigMsg.textContent = "正在加载配置…";
   try {
-    const payload = await readApiResponse(await fetch("/api/admin/config", { cache: "no-store" }));
+    const payload = await adminApi.loadConfig();
     renderAdminConfig(payload.schema || {}, payload.config || {});
     await loadAdminSupportImages();
     elements.adminConfigMsg.hidden = true;
@@ -3240,7 +3211,7 @@ async function loadAdminConfig() {
 
 async function loadAdminAuthStatus() {
   try {
-    const payload = await readApiResponse(await fetch("/api/admin/auth-status", { cache: "no-store" }));
+    const payload = await adminApi.loadAuthStatus();
     const badge = (configured, offText = "未配置（开发模式）") => configured
       ? '<span class="auth-status-badge is-on">已配置</span>'
       : `<span class="auth-status-badge is-off">${offText}</span>`;
@@ -3300,7 +3271,7 @@ function renderAdminAuthSecrets(secrets) {
 
 async function loadAdminAuthSecrets() {
   try {
-    const payload = await readApiResponse(await fetch("/api/admin/auth-secrets", { cache: "no-store" }));
+    const payload = await adminApi.loadAuthSecrets();
     renderAdminAuthSecrets(payload.secrets || {});
   } catch {
     renderAdminAuthSecrets({});
@@ -3317,11 +3288,7 @@ async function saveAdminAuthSecrets(event) {
   elements.adminAuthSecretMsg.hidden = false;
   elements.adminAuthSecretMsg.textContent = "正在保存…";
   try {
-    const result = await readApiResponse(await fetch("/api/admin/auth-secrets", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    }));
+    const result = await adminApi.saveAuthSecrets(body);
     renderAdminAuthSecrets(result.secrets || {});
     elements.adminAuthSecretMsg.textContent = "已保存";
     showToast("密钥已保存", "success");
@@ -3337,11 +3304,7 @@ async function clearAdminSecret(target) {
   elements.adminAuthSecretMsg.hidden = false;
   elements.adminAuthSecretMsg.textContent = "正在清除…";
   try {
-    const result = await readApiResponse(await fetch("/api/admin/auth-secrets", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [key]: "" })
-    }));
+    const result = await adminApi.saveAuthSecrets({ [key]: "" });
     renderAdminAuthSecrets(result.secrets || {});
     elements.adminAuthSecretMsg.textContent = "已清除";
     loadAdminAuthStatus();
@@ -3389,11 +3352,7 @@ async function saveAdminConfig(event) {
   elements.adminConfigMsg.hidden = false;
   elements.adminConfigMsg.textContent = "正在保存…";
   try {
-    const result = await readApiResponse(await fetch("/api/admin/config", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    }));
+    const result = await adminApi.saveConfig(body);
     renderAdminConfig(adminConfigSchema, result.config || {});
     document.dispatchEvent(new CustomEvent("public-features-changed"));
     elements.adminConfigMsg.textContent = "已保存";
@@ -4871,11 +4830,7 @@ async function saveAiDraft() {
   delete data.template;
   const template = aiTemplateRef();
   try {
-    const draft = await readApiResponse(await fetch("/api/resumes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ templateSlug: template.slug, templateVersion: template.version, data })
-    }));
+    const draft = await resumeApi.createResume({ templateSlug: template.slug, templateVersion: template.version, data });
     await consumeAiJob(aiCurrentJobId);
     aiCurrentJobId = "";
     clearAiInputDraft();
@@ -4961,7 +4916,7 @@ async function recoverTargetSession() {
     if (!payload.session) return;
     const session = payload.session;
     targetState = { diagnosis: { ...session.diagnosis, plan: session.plan }, jobDescription: session.jobDescription, baseline: null, applied: session.plan.filter((item) => item.status === "applied"), sessionId: session.id, status: session.status };
-    const versions = await readApiResponse(await fetch(`/api/resumes/${encodeURIComponent(resume.remoteId)}/versions`, { cache: "no-store" }));
+    const versions = await resumeApi.getResumeVersions(resume.remoteId);
     targetState.baseline = versions.versions?.find((item) => item.sessionId === session.id && item.label === "JD 优化前")?.data || null;
     elements.targetJobDescription.value = session.jobDescription;
     renderTargetDiagnosis();
@@ -5450,11 +5405,7 @@ function cancelAiOptimize() {
 
 async function createRemoteDraft() {
   const template = resume.template || { slug: "clean-single", version: 1 };
-  const draft = await readApiResponse(await fetch("/api/resumes", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ templateSlug: template.slug, templateVersion: template.version, data: resume })
-  }));
+  const draft = await resumeApi.createResume({ templateSlug: template.slug, templateVersion: template.version, data: resume });
   resume.remoteId = draft.id;
   resume.remoteRevision = draft.revision;
   saveLocalResume();
@@ -5468,11 +5419,7 @@ async function persistRemoteDraft() {
   }
 
   try {
-    const result = await readApiResponse(await fetch(`/api/resumes/${encodeURIComponent(resume.remoteId)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ revision: resume.remoteRevision || 1, data: resume })
-    }));
+    const result = await resumeApi.updateResume(resume.remoteId, { revision: resume.remoteRevision || 1, data: resume });
     resume.remoteRevision = result.revision;
   } catch (error) {
     if (error?.status !== 404) throw error;
@@ -5665,7 +5612,7 @@ async function loadDrafts() {
     return;
   }
   try {
-    const payload = await readApiResponse(await fetch("/api/resumes?limit=20", { cache: "no-store" }));
+    const payload = await resumeApi.listResumes(20);
     availableDrafts = payload.resumes || [];
     renderDrafts();
   } catch (error) {
@@ -5730,7 +5677,7 @@ function updateBrowserRoute(route, mode = "push") {
 }
 
 async function loadRemoteResume(id) {
-  const payload = await readApiResponse(await fetch(`/api/resumes/${encodeURIComponent(id)}`, { cache: "no-store" }));
+  const payload = await resumeApi.getResume(id);
   const draft = payload.resume;
   let localDraft = null;
   try {
@@ -6076,7 +6023,7 @@ function renderTemplateLibrary() {
 
 async function loadTemplates() {
   try {
-    const payload = await readApiResponse(await fetch("/api/templates", { cache: "no-store" }));
+    const payload = await resumeApi.listTemplates();
     availableTemplates = payload.templates || [];
     // 引擎迁移不改变模板 slug。旧的本地草稿可能仍缓存 docx-native，
     // 加载目录后以服务端发布信息为准并补齐新的结构化编辑 Schema。
@@ -6114,8 +6061,7 @@ async function deleteDraft(id) {
   if (!draft) return;
   if (!(await confirmAction({ title: "删除草稿", message: `确定删除「${draft.candidateName} - ${draft.title}」？删除后无法恢复。`, confirmLabel: "删除", danger: true }))) return;
   try {
-    const response = await fetch(`/api/resumes/${encodeURIComponent(id)}`, { method: "DELETE" });
-    if (!response.ok) await readApiResponse(response);
+    await resumeApi.deleteResume(id);
     if (resume.remoteId === id) {
       resume = createInitialResume();
       localStorage.removeItem(STORAGE_KEY);
