@@ -247,6 +247,12 @@ const elements = {
   translateWordFile: document.querySelector("#translateWordFile"),
   translateTargetLanguage: document.querySelector("#translateTargetLanguage"),
   translateStatus: document.querySelector("#translateStatus"),
+  translateDropzone: document.querySelector(".translate-dropzone"),
+  translateTaskProgress: document.querySelector("#translateTaskProgress"),
+  translateTaskProgressLabel: document.querySelector("#translateTaskProgressLabel"),
+  translateTaskProgressValue: document.querySelector("#translateTaskProgressValue"),
+  translateTaskProgressBar: document.querySelector("#translateTaskProgressBar"),
+  translateTaskProgressDetail: document.querySelector("#translateTaskProgressDetail"),
   translateTemplateOverlay: document.querySelector("#translateTemplateOverlay"),
   translateTemplateList: document.querySelector("#translateTemplateList"),
   aiOnboarding: document.querySelector("#aiOnboarding"),
@@ -260,6 +266,11 @@ const elements = {
   aiDescription: document.querySelector("#aiDescription"),
   aiTone: document.querySelector("#aiTone"),
   aiStatus: document.querySelector("#aiStatus"),
+  aiTaskProgress: document.querySelector("#aiTaskProgress"),
+  aiTaskProgressLabel: document.querySelector("#aiTaskProgressLabel"),
+  aiTaskProgressValue: document.querySelector("#aiTaskProgressValue"),
+  aiTaskProgressBar: document.querySelector("#aiTaskProgressBar"),
+  aiTaskProgressDetail: document.querySelector("#aiTaskProgressDetail"),
   aiResult: document.querySelector("#aiResult"),
   aiNotices: document.querySelector("#aiNotices"),
   aiProjectReview: document.querySelector("#aiProjectReview"),
@@ -301,6 +312,8 @@ let fidelityResumeId = "";
 let fidelityRequestKey = "";
 let translateDocument = null;
 let translateProcessing = false;
+let translateJobMonitoring = false;
+let translateCurrentJobId = "";
 let previewMode = resume.template?.engine === "docx-native" ? "final" : "instant";
 const activeItemBySection = new Map();
 
@@ -346,6 +359,8 @@ let adminConfigSchema = {};
 let aiResult = null;
 let aiProjectReviewConfirmed = true;
 let aiGenerating = false;
+let aiJobMonitoring = false;
+let aiCurrentJobId = "";
 let aiGuideStep = "role";
 const aiJobContext = { targetRole: "", jobStage: "", jobDescription: "" };
 let aiWordImporting = false;
@@ -367,6 +382,7 @@ let aiDraftOfferPending = false;
 const AI_MAX_WORD_BYTES = 5 * 1024 * 1024;
 const AI_FALLBACK_MAX_CHARS = 8000;
 const AI_INPUT_DRAFT_VERSION = 1;
+const AI_JOB_POLL_MS = 1000;
 
 function loadResume() {
   try {
@@ -1776,6 +1792,12 @@ async function handleLogout() {
     // 退出时网络错误可忽略
   }
   currentUser = null;
+  aiResult = null;
+  aiCurrentJobId = "";
+  translateCurrentJobId = "";
+  translateDocument = null;
+  hideAiTaskProgress("generate");
+  hideAiTaskProgress("translate");
   updateAccountUi();
   refreshUnreadCount();
   closeAllAccountMenus();
@@ -3620,6 +3642,7 @@ function resetAiInputFlow() {
   elements.aiProjectReview.innerHTML = "";
   elements.aiProjectReview.hidden = true;
   elements.aiNotices.innerHTML = "";
+  hideAiTaskProgress("generate");
   const professionalTone = elements.aiTone?.querySelector('input[value="professional"]');
   if (professionalTone) professionalTone.checked = true;
   elements.aiImportStatus.textContent = "";
@@ -3674,10 +3697,229 @@ async function confirmClearAiInput() {
     danger: true
   });
   if (!confirmed) return;
+  await consumeAiJob(aiCurrentJobId);
+  aiCurrentJobId = "";
   clearAiInputDraft();
   resetAiInputFlow();
   showToast("个人经历内容已清空", "info");
   elements.aiDescription.focus();
+}
+
+function aiTaskUi(type) {
+  const prefix = type === "translate" ? "translate" : "ai";
+  return {
+    container: elements[`${prefix}TaskProgress`],
+    label: elements[`${prefix}TaskProgressLabel`],
+    value: elements[`${prefix}TaskProgressValue`],
+    bar: elements[`${prefix}TaskProgressBar`],
+    detail: elements[`${prefix}TaskProgressDetail`]
+  };
+}
+
+function aiTaskCopy(type, job) {
+  if (job.status === "failed") return {
+    label: type === "translate" ? "翻译失败" : "生成失败",
+    detail: job.error || "AI 任务失败，请稍后重试"
+  };
+  if (job.status === "completed") return {
+    label: type === "translate" ? "翻译完成，草稿已保存" : "生成完成",
+    detail: type === "translate" ? "正在打开新草稿…" : "结果已恢复，可以继续检查并进入编辑器。"
+  };
+  if (job.stage === "saving") return {
+    label: "正在校验并保存草稿",
+    detail: "AI 已处理完成，正在把结果安全保存到你的草稿箱。"
+  };
+  if (job.stage === "finalizing") return {
+    label: "正在校验生成结果",
+    detail: "AI 已处理完成，正在进行格式校验和预览准备。"
+  };
+  if (job.stage === "model" || job.status === "processing") return {
+    label: type === "translate" ? "AI 正在翻译并识别模块" : "AI 正在整理并生成简历",
+    detail: "任务已保存在服务端，可以离开页面；稍后回来会自动恢复。"
+  };
+  return {
+    label: "任务已提交，正在排队",
+    detail: "任务已保存在服务端，可以离开页面；稍后回来会自动恢复。"
+  };
+}
+
+function renderAiTaskProgress(type, job) {
+  const ui = aiTaskUi(type);
+  if (!ui.container || !job) return;
+  const progress = Math.min(100, Math.max(0, Number(job.progress) || 0));
+  const copy = aiTaskCopy(type, job);
+  ui.container.hidden = false;
+  ui.container.classList.toggle("is-failed", job.status === "failed");
+  ui.label.textContent = copy.label;
+  ui.value.textContent = `${progress}%`;
+  ui.bar.style.width = `${progress}%`;
+  ui.bar.parentElement?.setAttribute("aria-valuenow", String(progress));
+  ui.detail.textContent = copy.detail;
+}
+
+function hideAiTaskProgress(type) {
+  const ui = aiTaskUi(type);
+  if (ui.container) ui.container.hidden = true;
+}
+
+function setAiTaskBusy(type, busy) {
+  const featureEnabled = aiLimits.enabled !== false && aiLimits.features?.[type] !== false;
+  if (type === "generate") elements.aiGenerateButton.disabled = busy || !featureEnabled;
+  else {
+    const translateEnabled = aiLimits.enabled !== false && aiLimits.features?.translate !== false;
+    elements.translateDropzone.disabled = busy || !translateEnabled;
+    elements.translateTargetLanguage.disabled = busy;
+  }
+}
+
+function ensureAiWorkspaceVisible() {
+  if (!elements.aiWorkspace.hidden) return;
+  elements.aiOnboarding.hidden = true;
+  elements.aiOnboarding.classList.add("is-complete");
+  elements.aiWorkspace.hidden = false;
+  elements.aiWorkspace.classList.add("is-entering");
+  renderAiContextSummary();
+}
+
+async function submitAiJob(type, payload) {
+  return readApiResponse(await fetch("/api/ai/jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type, payload })
+  }));
+}
+
+async function readAiJob(id) {
+  return (await readApiResponse(await fetch(`/api/ai/jobs/${encodeURIComponent(id)}`, { cache: "no-store" }))).job;
+}
+
+async function latestAiJob(type) {
+  return (await readApiResponse(await fetch(`/api/ai/jobs/latest?type=${encodeURIComponent(type)}`, { cache: "no-store" }))).job;
+}
+
+async function consumeAiJob(id) {
+  if (!id) return;
+  await fetch(`/api/ai/jobs/${encodeURIComponent(id)}/consume`, { method: "POST" }).catch(() => {});
+}
+
+function aiJobRouteIsActive(type) {
+  const route = parseAppRoute(window.location.pathname).name;
+  return route === (type === "translate" ? "ai-translate" : "ai");
+}
+
+async function pollAiJob(initialJob, type) {
+  let job = initialJob;
+  while (job && ["queued", "processing"].includes(job.status)) {
+    renderAiTaskProgress(type, job);
+    setAiTaskBusy(type, true);
+    await new Promise((resolve) => window.setTimeout(resolve, AI_JOB_POLL_MS));
+    if (!aiJobRouteIsActive(type)) return null;
+    job = await readAiJob(job.id);
+  }
+  if (job) renderAiTaskProgress(type, job);
+  return job;
+}
+
+async function monitorGenerateJob(initialJob) {
+  if (!initialJob || aiJobMonitoring) return Boolean(initialJob);
+  aiJobMonitoring = true;
+  aiGenerating = true;
+  aiCurrentJobId = initialJob.id;
+  ensureAiWorkspaceVisible();
+  setAiTaskBusy("generate", true);
+  elements.aiStatus.textContent = "";
+  try {
+    const job = await pollAiJob(initialJob, "generate");
+    if (!job) return true;
+    if (job.status === "completed" && job.result?.resume) {
+      aiResult = job.result;
+      renderAiPreview();
+      renderAiProjectReview();
+      renderAiNotices();
+      elements.aiStatus.textContent = "";
+      elements.aiStatus.hidden = true;
+      openAiPreview();
+      return true;
+    }
+    if (job.status === "failed") {
+      elements.aiStatus.hidden = false;
+      elements.aiStatus.textContent = job.error || "AI 生成简历失败，请稍后重试";
+      showToast(elements.aiStatus.textContent, "warning");
+      await consumeAiJob(job.id);
+      aiCurrentJobId = "";
+      return true;
+    }
+    return true;
+  } catch {
+    elements.aiStatus.hidden = false;
+    elements.aiStatus.textContent = "网络暂时中断，任务仍在服务端处理，稍后回来可继续查看";
+    return true;
+  } finally {
+    aiGenerating = false;
+    aiJobMonitoring = false;
+    setAiTaskBusy("generate", false);
+  }
+}
+
+async function restoreGenerateJob() {
+  if (aiJobMonitoring) return true;
+  try {
+    const job = await latestAiJob("generate");
+    if (!job) return false;
+    const draft = readAiInputDraft();
+    if (draft) applyAiInputDraft(draft);
+    return monitorGenerateJob(job);
+  } catch {
+    return false;
+  }
+}
+
+async function monitorTranslateJob(initialJob) {
+  if (!initialJob || translateJobMonitoring) return Boolean(initialJob);
+  translateJobMonitoring = true;
+  translateProcessing = true;
+  translateCurrentJobId = initialJob.id;
+  setAiTaskBusy("translate", true);
+  elements.translateStatus.textContent = "";
+  try {
+    const job = await pollAiJob(initialJob, "translate");
+    if (!job) return true;
+    if (job.status === "completed" && job.result?.resumeId) {
+      await consumeAiJob(job.id);
+      translateCurrentJobId = "";
+      translateDocument = null;
+      showToast("翻译完成，草稿已保存", "success");
+      updateBrowserRoute({ name: "resume", resumeId: job.result.resumeId });
+      await applyCurrentRoute();
+      return true;
+    }
+    if (job.status === "failed") {
+      elements.translateStatus.textContent = job.error || "AI 翻译失败，请重试";
+      showToast(elements.translateStatus.textContent, "warning");
+      await consumeAiJob(job.id);
+      translateCurrentJobId = "";
+      return true;
+    }
+    return true;
+  } catch {
+    elements.translateStatus.textContent = "网络暂时中断，任务仍在服务端处理，稍后回来可继续查看";
+    return true;
+  } finally {
+    translateProcessing = false;
+    translateJobMonitoring = false;
+    setAiTaskBusy("translate", false);
+  }
+}
+
+async function restoreTranslateJob() {
+  if (translateJobMonitoring) return true;
+  try {
+    const job = await latestAiJob("translate");
+    if (!job) return false;
+    return monitorTranslateJob(job);
+  } catch {
+    return false;
+  }
 }
 
 function openAiPreview() {
@@ -3710,7 +3952,9 @@ function showAiPage() {
   }
   updateAiCharCount();
   loadAiLimits().catch(() => {});
-  offerAiInputDraft().catch(() => {});
+  restoreGenerateJob().then((restored) => {
+    if (!restored) offerAiInputDraft().catch(() => {});
+  }).catch(() => {});
   window.scrollTo({ top: 0, behavior: "auto" });
 }
 
@@ -3791,34 +4035,10 @@ function showAiTranslatePage() {
   elements.loginPage.hidden = true;
   elements.aiPage.hidden = true;
   revealView(elements.aiTranslatePage);
-  elements.translateStatus.textContent = "";
+  if (!translateProcessing) elements.translateStatus.textContent = "";
   loadAiLimits().catch(() => {});
+  restoreTranslateJob().catch(() => {});
   window.scrollTo({ top: 0, behavior: "auto" });
-}
-
-function translatedResumeForTemplate(sourceResume, template) {
-  const translated = normalizeResume(sourceResume);
-  const target = createResumeForTemplate({
-    slug: template.slug, version: template.version, name: template.name,
-    engine: template.engine, previewUrl: template.previewUrl,
-    editorSchema: template.editorSchema || getTemplateSchema(template.slug),
-    defaultResume: null
-  });
-  target.title = translated.title;
-  target.settings = { ...target.settings, ...translated.settings };
-  for (const field of Object.keys(target.profile)) {
-    if (translated.profile[field] != null) target.profile[field] = translated.profile[field];
-  }
-  target.sections = target.sections.map((section) => {
-    const source = translated.sections.find((item) => item.id === section.id);
-    if (!source) return section;
-    const next = { ...section, title: source.title || section.title, visible: source.visible !== false };
-    if (Array.isArray(section.items) && Array.isArray(source.items)) next.items = source.items.map((item) => ({ ...item, id: makeId(section.id) }));
-    if ("content" in section && source.content != null) next.content = source.content;
-    if (section.data && source.data) next.data = { ...section.data, ...source.data };
-    return next;
-  });
-  return target;
 }
 
 async function handleTranslateWord(file) {
@@ -3847,23 +4067,19 @@ async function translateWithTemplate(button) {
   if (!template) return;
   translateProcessing = true;
   closeTranslateTemplateChooser();
-  elements.translateStatus.textContent = "AI 正在翻译、识别模块并生成草稿…";
+  elements.translateStatus.textContent = "正在提交可恢复的翻译任务…";
   try {
-    const result = await readApiResponse(await fetch("/api/ai/translate", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ description: translateDocument.text, documentStructure: translateDocument.structure, targetLanguage: elements.translateTargetLanguage.value })
-    }));
-    const mapped = translatedResumeForTemplate(result.resume, template);
-    const data = { ...mapped };
-    delete data.template;
-    const draft = await readApiResponse(await fetch("/api/resumes", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ templateSlug: template.slug, templateVersion: template.version, data })
-    }));
+    const created = await submitAiJob("translate", {
+      description: translateDocument.text,
+      documentStructure: translateDocument.structure,
+      targetLanguage: elements.translateTargetLanguage.value,
+      templateSlug: template.slug,
+      templateVersion: template.version
+    });
+    translateCurrentJobId = created.job.id;
     translateDocument = null;
-    showToast("翻译完成，草稿已保存", "success");
-    updateBrowserRoute({ name: "resume", resumeId: draft.id });
-    await applyCurrentRoute();
+    translateProcessing = false;
+    await monitorTranslateJob(created.job);
   } catch (error) {
     elements.translateStatus.textContent = error?.message || "AI 翻译失败，请重试";
     showToast(error?.message || "AI 翻译失败", "warning");
@@ -4343,12 +4559,9 @@ async function generateAi() {
   }
   aiGenerating = true;
   elements.aiStatus.hidden = false;
-  elements.aiStatus.textContent = "AI 正在生成，请稍候…";
+  elements.aiStatus.textContent = "正在提交可恢复的生成任务…";
   try {
-    aiResult = await readApiResponse(await fetch("/api/ai/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    const created = await submitAiJob("generate", {
         templateSlug: "clean-single",
         description,
         documentStructure: aiWordDocumentStructure,
@@ -4356,14 +4569,10 @@ async function generateAi() {
         targetRole: aiJobContext.targetRole,
         jobStage: aiJobContext.jobStage,
         jobDescription: aiJobContext.jobDescription
-      })
-    }));
-    renderAiPreview();
-    renderAiProjectReview();
-    renderAiNotices();
-    elements.aiStatus.textContent = "";
-    elements.aiStatus.hidden = true;
-    openAiPreview();
+    });
+    aiCurrentJobId = created.job.id;
+    aiGenerating = false;
+    await monitorGenerateJob(created.job);
   } catch (error) {
     elements.aiStatus.textContent = error?.message || "AI 生成简历失败，请稍后重试";
     showToast(error?.message || "AI 生成简历失败", "warning");
@@ -4387,6 +4596,8 @@ async function saveAiDraft() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ templateSlug: "clean-single", templateVersion: 1, data })
     }));
+    await consumeAiJob(aiCurrentJobId);
+    aiCurrentJobId = "";
     clearAiInputDraft();
     resetAiInputFlow();
     showToast("草稿已保存，正在打开编辑器", "success");

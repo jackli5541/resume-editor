@@ -259,6 +259,34 @@ export function normalizeResume(input) {
   return resume;
 }
 
+// 将一份规范化简历投影到目标模板。浏览器预览与服务端后台翻译任务共用，
+// 避免用户离开页面后只能依赖前端完成最后的草稿组装。
+export function resumeForTemplate(sourceResume, template) {
+  const source = normalizeResume(sourceResume);
+  const target = createResumeForTemplate({ ...template, defaultResume: null });
+  target.title = source.title;
+  target.settings = { ...target.settings, ...source.settings };
+  for (const field of Object.keys(target.profile)) {
+    if (source.profile[field] != null) target.profile[field] = source.profile[field];
+  }
+  target.sections = target.sections.map((section) => {
+    const sourceSection = source.sections.find((item) => item.id === section.id);
+    if (!sourceSection) return section;
+    const next = {
+      ...section,
+      title: sourceSection.title || section.title,
+      visible: sourceSection.visible !== false
+    };
+    if (Array.isArray(section.items) && Array.isArray(sourceSection.items)) {
+      next.items = sourceSection.items.map((item) => ({ ...item, id: makeId(section.id) }));
+    }
+    if ("content" in section && sourceSection.content != null) next.content = sourceSection.content;
+    if (section.data && sourceSection.data) next.data = { ...section.data, ...sourceSection.data };
+    return next;
+  });
+  return target;
+}
+
 export function clamp(value, min, max) {
   const number = Number.isFinite(value) ? value : min;
   return Math.min(max, Math.max(min, number));

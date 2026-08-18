@@ -5818,6 +5818,72 @@ select:focus-visible,
   box-shadow: 0 18px 50px rgba(28, 39, 54, 0.09);
 }
 
+.ai-task-progress {
+  margin: 16px 0 4px;
+  padding: 16px;
+  border: 1px solid var(--brand-200);
+  border-radius: 12px;
+  background: var(--brand-25);
+}
+
+.ai-task-progress__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.ai-task-progress__head span {
+  color: var(--brand-dark);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.ai-task-progress__track {
+  height: 8px;
+  margin-top: 11px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--brand-100);
+}
+
+.ai-task-progress__track span {
+  display: block;
+  width: 5%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--brand-400), var(--brand-600));
+  transition: width 0.35s ease;
+}
+
+.ai-task-progress p {
+  margin: 9px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ai-task-progress.is-failed {
+  border-color: var(--danger-line, #efb8b8);
+  background: var(--danger-soft, #fff3f3);
+}
+
+.ai-task-progress.is-failed .ai-task-progress__track span {
+  background: #d65b5b;
+}
+
+.ai-input-card > .library-status,
+.translate-upload-card > .library-status {
+  padding: 12px 0;
+}
+
+.ai-input-card > .library-status:empty,
+.translate-upload-card > .library-status:empty {
+  display: none;
+}
+
 .translate-steps {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
