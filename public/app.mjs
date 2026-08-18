@@ -105,6 +105,8 @@ const elements = {
   exportFormat: document.querySelector("#exportFormat"),
   toastRegion: document.querySelector("#toastRegion"),
   loginPage: document.querySelector("#loginPage"),
+  legalPage: document.querySelector("#legalPage"),
+  trustFooter: document.querySelector("#trustFooter"),
   settingsOverlay: document.querySelector("#settingsOverlay"),
   loginForm: document.querySelector("#loginForm"),
   loginTitle: document.querySelector("#loginTitle"),
@@ -5505,7 +5507,28 @@ async function loadRemoteResume(id) {
 
 async function applyCurrentRoute({ replaceInvalid = false } = {}) {
   const route = parseAppRoute(window.location.pathname);
+  elements.legalPage.hidden = true;
+  elements.trustFooter.hidden = ["editor", "resume", "admin"].includes(route.name);
+  if (!["privacy", "terms", "ai-notice", "data-deletion", "contact"].includes(route.name)) document.title = "轻简历 · 免费在线简历编辑器";
   refreshAiToolMenuState();
+  if (["privacy", "terms", "ai-notice", "data-deletion", "contact"].includes(route.name)) {
+    elements.app.hidden = true;
+    elements.homePage.hidden = true;
+    elements.templateLibrary.hidden = true;
+    elements.draftPage.hidden = true;
+    elements.adminPage.hidden = true;
+    elements.loginPage.hidden = true;
+    elements.aiPage.hidden = true;
+    elements.aiTranslatePage.hidden = true;
+    elements.legalPage.hidden = false;
+    document.documentElement.classList.remove("home-page-mode", "template-library-mode");
+    document.querySelectorAll("[data-legal-article]").forEach((article) => { article.hidden = article.dataset.legalArticle !== route.name; });
+    document.querySelectorAll("[data-legal-link]").forEach((link) => link.classList.toggle("is-active", link.dataset.legalLink === route.name));
+    const heading = document.querySelector(`[data-legal-article="${route.name}"] h1`)?.textContent || "信任中心";
+    document.title = `${heading} · 轻简历`;
+    window.scrollTo({ top: 0, behavior: "auto" });
+    return;
+  }
   if (route.name === "home") {
     showHomePage();
     return;

@@ -10,13 +10,18 @@ export function parseAppRoute(pathname) {
   if (path === "/ai" || path === "/ai/") return { name: "ai" };
   if (path === "/ai/translate" || path === "/ai/translate/") return { name: "ai-translate" };
   if (path === "/editor" || path === "/editor/") return { name: "editor" };
+  if (path === "/privacy" || path === "/privacy/") return { name: "privacy" };
+  if (path === "/terms" || path === "/terms/") return { name: "terms" };
+  if (path === "/ai-notice" || path === "/ai-notice/") return { name: "ai-notice" };
+  if (path === "/data-deletion" || path === "/data-deletion/") return { name: "data-deletion" };
+  if (path === "/contact" || path === "/contact/") return { name: "contact" };
   const match = path.match(resumeRoutePattern);
   if (match) return { name: "resume", resumeId: match[1].toLowerCase() };
   return { name: "home" };
 }
 
 const knownRoutePatterns = [
-  /^\/(templates|drafts|admin|login|ai|editor)\/?$/i,
+  /^\/(templates|drafts|admin|login|ai|editor|privacy|terms|ai-notice|data-deletion|contact)\/?$/i,
   /^\/ai\/translate\/?$/i,
   resumeRoutePattern
 ];
@@ -36,6 +41,7 @@ export function routePath(route) {
   if (route.name === "login") return "/login";
   if (route.name === "ai") return "/ai";
   if (route.name === "ai-translate") return "/ai/translate";
+  if (["privacy", "terms", "ai-notice", "data-deletion", "contact"].includes(route.name)) return `/${route.name}`;
   if (route.name === "resume" && route.resumeId) return `/resumes/${encodeURIComponent(route.resumeId)}/edit`;
   return "/editor";
 }
