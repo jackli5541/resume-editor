@@ -109,13 +109,14 @@ export class AiGenerationService {
           apiKey,
           model: config.model,
           temperature: config.temperature,
-          maxOutputTokens: config.maxOutputTokens,
+          maxOutputTokens: Math.max(config.maxOutputTokens, 3000),
           timeoutMs: config.timeoutMs,
           systemPrompt: buildSystemPrompt(config.systemPrompt),
           userPrompt: buildUserPrompt(text, tone, { targetRole: role, jobStage: stage, jobDescription: jd, documentStructure: structure, projectCandidates })
         });
         outputChars = JSON.stringify(modelJson).length;
       } catch (error) {
+        outputChars = Number.isSafeInteger(error?.outputChars) ? error.outputChars : 0;
         const code = error?.code;
         status = auditStatusFor(code);
         errorCode = code || "provider_error";

@@ -246,6 +246,40 @@ test("输出截断时携带原输出重试并使用专用提示", async () => {
   assert.match(retryBody.messages.at(-1).content, /长度限制被截断/);
 });
 
+test("兼容数组式消息正文", async () => {
+  const provider = new AiProvider({
+    resolveBaseUrl: identityResolve,
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ choices: [{ message: { content: [{ type: "text", text: '{"profile":{"name":"张三"}}' }] }, finish_reason: "stop" }] })
+    })
+  });
+  const data = await provider.complete({ baseUrl: "https://api.deepseek.com", apiKey: "sk-test", model: "deepseek-chat" });
+  assert.equal(data.profile.name, "张三");
+});
+
+test("推理内容耗尽预算时按截断重试", async () => {
+  let calls = 0;
+  const provider = new AiProvider({
+    resolveBaseUrl: identityResolve,
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ choices: [{ message: { content: "", reasoning_content: "分析中" }, finish_reason: "length" }] })
+        };
+      }
+      return okEnvelope('{"profile":{"name":"张三"}}');
+    }
+  });
+  const data = await provider.complete({ baseUrl: "https://api.deepseek.com", apiKey: "sk-test", model: "deepseek-chat" });
+  assert.equal(data.profile.name, "张三");
+  assert.equal(calls, 2);
+});
+
 test("重试后仍无效则抛出 invalid_json", async () => {
   const provider = new AiProvider({
     resolveBaseUrl: identityResolve,
