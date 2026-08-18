@@ -165,6 +165,7 @@ const elements = {
   adminAiForm: document.querySelector("#adminAiForm"),
   adminAiEnabled: document.querySelector("#adminAiEnabled"),
   adminAiOptimizeEnabled: document.querySelector("#adminAiOptimizeEnabled"),
+  adminAiTargetAgentEnabled: document.querySelector("#adminAiTargetAgentEnabled"),
   adminAiBaseUrl: document.querySelector("#adminAiBaseUrl"),
   adminAiModel: document.querySelector("#adminAiModel"),
   adminAiTemperature: document.querySelector("#adminAiTemperature"),
@@ -420,7 +421,7 @@ let aiChatVoiceBase = "";
 let aiChatVoicePrefix = "";
 let aiVoiceBase = "";
 let aiVoicePrefix = "";
-let aiLimits = { maxInputChars: 8000, enabled: true };
+let aiLimits = { maxInputChars: 8000, enabled: true, features: { generate: true, translate: true, optimize: true, targetAgent: true } };
 let aiInputSaveTimer = null;
 let aiDraftOfferPending = false;
 const AI_MAX_WORD_BYTES = 5 * 1024 * 1024;
@@ -3549,6 +3550,7 @@ async function loadAdminAiConfig() {
 function renderAdminAiConfig(config) {
   elements.adminAiEnabled.checked = Boolean(config.enabled);
   elements.adminAiOptimizeEnabled.checked = config.optimizeEnabled !== false;
+  elements.adminAiTargetAgentEnabled.checked = config.targetAgentEnabled !== false;
   elements.adminAiBaseUrl.value = config.baseUrl || "";
   elements.adminAiModel.value = config.model || "";
   elements.adminAiTemperature.value = config.temperature ?? 0.2;
@@ -3570,6 +3572,7 @@ async function saveAdminAiConfig(event) {
   const payload = {
     enabled: elements.adminAiEnabled.checked,
     optimizeEnabled: elements.adminAiOptimizeEnabled.checked,
+    targetAgentEnabled: elements.adminAiTargetAgentEnabled.checked,
     baseUrl: elements.adminAiBaseUrl.value.trim(),
     model: elements.adminAiModel.value.trim(),
     temperature: Number(elements.adminAiTemperature.value),
@@ -4762,11 +4765,11 @@ async function loadAiLimits() {
     aiLimits = {
       maxInputChars: Number.isFinite(payload.maxInputChars) ? payload.maxInputChars : AI_FALLBACK_MAX_CHARS,
       enabled: payload.enabled !== false,
-      features: payload.features || { generate: true, translate: true },
+      features: payload.features || { generate: true, translate: true, optimize: true, targetAgent: true },
       daily: payload.daily || null
     };
   } catch {
-    aiLimits = { maxInputChars: AI_FALLBACK_MAX_CHARS, enabled: true, features: { generate: true, translate: true }, daily: null };
+    aiLimits = { maxInputChars: AI_FALLBACK_MAX_CHARS, enabled: true, features: { generate: true, translate: true, optimize: true, targetAgent: true }, daily: null };
   }
   const isFeatureEnabled = (feature) => aiLimits.enabled !== false && aiLimits.features?.[feature] !== false;
   document.querySelectorAll("[data-ai-feature]").forEach((link) => {
@@ -4778,6 +4781,7 @@ async function loadAiLimits() {
   });
   document.querySelectorAll("[data-ai-feature-control]").forEach((control) => {
     control.disabled = !isFeatureEnabled(control.dataset.aiFeatureControl);
+    control.title = control.disabled ? "功能维护中" : "";
   });
   elements.aiGenerateFeatureNotice.hidden = isFeatureEnabled("generate");
   elements.aiTranslateFeatureNotice.hidden = isFeatureEnabled("translate");
@@ -4934,6 +4938,14 @@ function redoResumeChange() {
 }
 
 function setAiMode(mode) {
+  if (mode === "target" && (aiLimits.enabled === false || aiLimits.features?.targetAgent === false)) {
+    showToast("岗位定制功能正在维护中", "info");
+    return;
+  }
+  if (mode === "optimize" && (aiLimits.enabled === false || aiLimits.features?.optimize === false)) {
+    showToast("AI 优化功能正在维护中", "info");
+    return;
+  }
   aiMode = mode === "target" ? "target" : "optimize";
   elements.aiOptimizeView.hidden = aiMode !== "optimize";
   elements.aiTargetView.hidden = aiMode !== "target";
@@ -5240,6 +5252,7 @@ function toggleAiChat() {
   const open = !elements.aiChatPanel.classList.contains("is-open");
   setAiChatOpen(open);
   if (open) {
+    loadAiLimits().catch(() => {});
     ensureAiChatHint();
     elements.aiChatInput.focus();
   }

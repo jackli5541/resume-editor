@@ -145,6 +145,15 @@ test("配置输入白名单与范围约束", () => {
   assert.equal(out.apiKey, "sk-abc");
 });
 
+test("岗位定制开关可独立配置", async () => {
+  const repo = new AiConfigRepository({ encryptionKey: key });
+  assert.equal((await repo.get()).targetAgentEnabled, true);
+  const updated = await repo.update({ targetAgentEnabled: false, optimizeEnabled: true });
+  assert.equal(updated.targetAgentEnabled, false);
+  assert.equal(updated.optimizeEnabled, true);
+  assert.equal(sanitizeConfigInput({ targetAgentEnabled: 0 }).targetAgentEnabled, false);
+});
+
 // ---------- audit ----------
 
 test("审计只写元数据，无库时静默", async () => {
