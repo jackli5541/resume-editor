@@ -1,12 +1,14 @@
 import { assertSafeBaseUrlResolved } from "./url-guard.mjs";
 
 export class AiProviderError extends Error {
-  constructor(message, code, { modelOutput = "" } = {}) {
+  constructor(message, code, { modelOutput = "", outputChars = null } = {}) {
     super(message);
     this.name = "AiProviderError";
     this.code = code;
     // 仅在进程内用于把错误输出交还给模型修复；不得写入审计或返回客户端。
     this.modelOutput = String(modelOutput || "");
+    // 仅记录长度用于审计诊断，不记录模型正文。
+    this.outputChars = Number.isSafeInteger(outputChars) ? outputChars : this.modelOutput.length;
   }
 }
 
@@ -38,6 +40,21 @@ function extractBalancedJsonObject(text) {
       }
     }
   }
+  return "";
+}
+
+function messageText(content) {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content.map((part) => {
+      if (typeof part === "string") return part;
+      if (part && typeof part.text === "string") return part.text;
+      if (part?.text && typeof part.text.value === "string") return part.text.value;
+      return "";
+    }).join("");
+  }
+  if (content && typeof content.text === "string") return content.text;
+  if (content?.text && typeof content.text.value === "string") return content.text.value;
   return "";
 }
 
@@ -144,11 +161,13 @@ export class AiProvider {
     const raw = await response.text();
     const envelope = this.parseJson(raw);
     const choice = envelope?.choices?.[0];
-    const content = choice?.message?.content;
-    if (typeof content !== "string" || !content.trim()) {
-      throw new AiProviderError("模型未返回有效内容", "invalid_json");
+    const content = messageText(choice?.message?.content);
+    const reasoningChars = messageText(choice?.message?.reasoning_content).length;
+    if (!content.trim()) {
+      const code = reasoningChars > 0 ? "output_truncated" : "invalid_json";
+      throw new AiProviderError("模型未返回有效内容", code, { outputChars: reasoningChars });
     }
-    if (choice?.finish_reason === "length") {
+    if (["length", "max_tokens", "max_output_tokens"].includes(choice?.finish_reason)) {
       throw new AiProviderError("模型输出因长度限制被截断", "output_truncated", { modelOutput: content });
     }
     const data = this.parseJson(content);

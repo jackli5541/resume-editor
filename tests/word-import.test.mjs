@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { normalizeWordText } from "../public/word-import.mjs";
 
 const vendorPath = fileURLToPath(new URL("../public/vendor/mammoth.browser.min.js", import.meta.url));
 const appPath = fileURLToPath(new URL("../public/app.mjs", import.meta.url));
@@ -21,6 +22,15 @@ test("Word 导入同时提交纯文本与安全结构信息", async () => {
   assert.match(content, /wordHtmlToStructure/);
   assert.match(content, /documentStructure:\s*aiWordDocumentStructure/);
   assert.match(content, /PARAGRAPH emphasis=/);
+});
+
+test("Word 文本清理连续空行并保留段落边界", () => {
+  const source = "  姓名  \r\n\t\r\n\r\n\r\n工作经历\t  \r\n公司 A\u00a0\r\n\r\n职责描述  ";
+  assert.equal(normalizeWordText(source), "姓名\n\n工作经历\n公司 A\n\n职责描述");
+});
+
+test("Word 文本清理不合并正常内容行", () => {
+  assert.equal(normalizeWordText("项目一\n要点一\n要点二"), "项目一\n要点一\n要点二");
 });
 
 test("AI 结果页含项目识别确认面板（名称/角色/时间/技术栈可编辑）", async () => {

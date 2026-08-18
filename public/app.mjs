@@ -27,6 +27,7 @@ import { getDeviceId } from "./fingerprint.mjs";
 import { readApiResponse as parseApiResponse } from "./api-client.mjs";
 import { createAdminApi } from "./admin-api.mjs";
 import { createResumeApi } from "./resume-api.mjs";
+import { normalizeWordText } from "./word-import.mjs";
 import { applyTheme, currentTheme, refreshThemeButtons, toggleTheme } from "./theme.mjs";
 
 const elements = {
@@ -4567,7 +4568,7 @@ async function extractWordText(file) {
       ]
     })
   ]);
-  const text = String(rawResult?.value || "").replace(/\u00a0/g, " ").trim();
+  const text = normalizeWordText(rawResult?.value);
   if (!text) throw new Error("未能提取到文字，该文件可能是图片/扫描件简历");
   return { text, structure: wordHtmlToStructure(htmlResult?.value) };
 }

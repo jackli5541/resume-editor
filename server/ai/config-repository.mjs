@@ -6,10 +6,10 @@ export const AI_CONFIG_DEFAULTS = Object.freeze({
   model: "deepseek-chat",
   temperature: 0.2,
   maxInputChars: 8000,
-  maxOutputTokens: 1600,
+  maxOutputTokens: 4000,
   systemPrompt: "",
   enabled: false,
-  timeoutMs: 30000,
+  timeoutMs: 60000,
   optimizeEnabled: true,
   targetAgentEnabled: true
 });
