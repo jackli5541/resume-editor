@@ -134,6 +134,31 @@ test("登录拒绝错误密码并给出统一提示", async (context) => {
   assert.equal(bad.body.error, "账号或密码不正确");
 });
 
+test("用户修改密码后旧密码失效、其他会话退出且当前会话保留", async (context) => {
+  const app = await startAuthServer();
+  context.after(() => new Promise((resolve) => app.server.close(resolve)));
+  const created = await register(app, { identifier: "password@example.com", password: "Test1234!" });
+  const other = await login(app, { identifier: "password@example.com", password: "Test1234!" });
+
+  const wrong = await fetch(`${app.origin}/api/auth/change-password`, {
+    method: "POST", headers: { "Content-Type": "application/json", Cookie: created.cookie },
+    body: JSON.stringify({ currentPassword: "Wrong123!", newPassword: "NewPass5678!", confirmPassword: "NewPass5678!" })
+  });
+  assert.equal(wrong.status, 401);
+
+  const changed = await fetch(`${app.origin}/api/auth/change-password`, {
+    method: "POST", headers: { "Content-Type": "application/json", Cookie: created.cookie },
+    body: JSON.stringify({ currentPassword: "Test1234!", newPassword: "NewPass5678!", confirmPassword: "NewPass5678!" })
+  });
+  assert.equal(changed.status, 200);
+  assert.equal((await changed.json()).user.hasPassword, true);
+
+  assert.ok((await (await fetch(`${app.origin}/api/auth/session`, { headers: authHeaders(created.cookie) })).json()).user);
+  assert.equal((await (await fetch(`${app.origin}/api/auth/session`, { headers: authHeaders(other.cookie) })).json()).user, null);
+  assert.equal((await login(app, { identifier: "password@example.com", password: "Test1234!" })).status, 401);
+  assert.equal((await login(app, { identifier: "password@example.com", password: "NewPass5678!" })).status, 200);
+});
+
 test("未登录访问草稿与导出接口返回 401", async (context) => {
   const app = await startAuthServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));

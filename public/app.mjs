@@ -136,6 +136,13 @@ const elements = {
   settingsAiRole: document.querySelector("#settingsAiRole"),
   settingsAiTone: document.querySelector("#settingsAiTone"),
   settingsError: document.querySelector("#settingsError"),
+  passwordForm: document.querySelector("#passwordForm"),
+  passwordFormTitle: document.querySelector("#passwordFormTitle"),
+  currentPasswordField: document.querySelector("#currentPasswordField"),
+  currentPassword: document.querySelector("#currentPassword"),
+  newPassword: document.querySelector("#newPassword"),
+  confirmNewPassword: document.querySelector("#confirmNewPassword"),
+  passwordError: document.querySelector("#passwordError"),
   adminPage: document.querySelector("#adminPage"),
   adminUserSearch: document.querySelector("#adminUserSearch"),
   adminUserTotal: document.querySelector("#adminUserTotal"),
@@ -229,6 +236,9 @@ const elements = {
   adminConfigForm: document.querySelector("#adminConfigForm"),
   adminConfigFields: document.querySelector("#adminConfigFields"),
   adminConfigMsg: document.querySelector("#adminConfigMsg"),
+  adminSupportUpload: document.querySelector("#adminSupportUpload"),
+  adminSupportImages: document.querySelector("#adminSupportImages"),
+  adminSupportMsg: document.querySelector("#adminSupportMsg"),
   adminAuthStatus: document.querySelector("#adminAuthStatus"),
   adminAuthSecretForm: document.querySelector("#adminAuthSecretForm"),
   adminAuthSecretFields: document.querySelector("#adminAuthSecretFields"),
@@ -1737,12 +1747,18 @@ function openSettings() {
   elements.settingsAiRole.value = ai.targetRole || "";
   elements.settingsAiTone.value = ai.tone || "professional";
   elements.settingsError.hidden = true;
+  elements.passwordForm.reset();
+  elements.passwordError.hidden = true;
+  elements.currentPasswordField.hidden = !currentUser.hasPassword;
+  elements.currentPassword.required = Boolean(currentUser.hasPassword);
+  elements.passwordFormTitle.textContent = currentUser.hasPassword ? "修改密码" : "设置登录密码";
   elements.settingsOverlay.hidden = false;
 }
 
 function closeSettings() {
   elements.settingsOverlay.hidden = true;
   elements.settingsError.hidden = true;
+  elements.passwordError.hidden = true;
 }
 
 async function handleLoginSubmit(event) {
@@ -3107,6 +3123,7 @@ async function loadAdminConfig() {
   try {
     const payload = await readApiResponse(await fetch("/api/admin/config", { cache: "no-store" }));
     renderAdminConfig(payload.schema || {}, payload.config || {});
+    await loadAdminSupportImages();
     elements.adminConfigMsg.hidden = true;
     elements.adminConfigMsg.textContent = "";
   } catch (error) {
@@ -3229,8 +3246,8 @@ async function clearAdminSecret(target) {
 function renderAdminConfig(schema, values) {
   adminConfigSchema = schema;
   const canWrite = hasAdminPermission("config.write");
-  const groupLabels = { ai: "AI 用户功能", access: "账号与访问", document: "文档与预览", system: "系统运行" };
-  const groupOrder = ["ai", "access", "document", "system"];
+  const groupLabels = { ai: "AI 用户功能", engagement: "反馈与赞赏", access: "账号与访问", document: "文档与预览", system: "系统运行" };
+  const groupOrder = ["ai", "engagement", "access", "document", "system"];
   const groups = {};
   for (const [key, meta] of Object.entries(schema)) (groups[meta.group || "system"] ||= []).push([key, meta]);
   const renderControl = ([key, meta]) => {
@@ -3499,6 +3516,107 @@ function aiTemplateRef() {
     engine: template?.engine || selected.engine || "html-native",
     editorSchema: template?.editorSchema || selected.editorSchema || getTemplateSchema(slug)
   };
+}
+
+async function handlePasswordSubmit(event) {
+  event.preventDefault();
+  elements.passwordError.hidden = true;
+  if (elements.newPassword.value !== elements.confirmNewPassword.value) {
+    elements.passwordError.textContent = "两次输入的新密码不一致";
+    elements.passwordError.hidden = false;
+    return;
+  }
+  const submit = elements.passwordForm.querySelector("button[type='submit']");
+  submit.disabled = true;
+  try {
+    const payload = await readApiResponse(await fetch("/api/auth/change-password", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword: elements.currentPassword.value, newPassword: elements.newPassword.value, confirmPassword: elements.confirmNewPassword.value })
+    }));
+    currentUser = payload.user;
+    elements.passwordForm.reset();
+    elements.currentPasswordField.hidden = false;
+    elements.currentPassword.required = true;
+    elements.passwordFormTitle.textContent = "修改密码";
+    showToast("密码已更新，其他设备已退出登录", "success");
+  } catch (error) {
+    elements.passwordError.textContent = error?.message || "修改密码失败";
+    elements.passwordError.hidden = false;
+  } finally { submit.disabled = false; }
+}
+
+async function loadAdminSupportImages() {
+  if (!elements.adminSupportImages) return;
+  try {
+    const payload = await readApiResponse(await fetch("/api/admin/support-images", { cache: "no-store" }));
+    const images = payload.images || [];
+    const canWrite = hasAdminPermission("config.write");
+    elements.adminSupportImages.innerHTML = images.length ? images.map((item, index) => `
+      <article class="admin-support-image" data-support-id="${escapeHtml(item.id)}" data-sort-order="${item.sortOrder}">
+        <img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.label)}" loading="lazy" />
+        <input type="text" value="${escapeHtml(item.label)}" maxlength="30" aria-label="赞赏码名称" ${canWrite ? "" : "disabled"} />
+        <label class="admin-check-row admin-support-image__enabled"><input type="checkbox" ${item.enabled ? "checked" : ""} ${canWrite ? "" : "disabled"} /><span>启用</span></label>
+        <div class="admin-support-image__actions">
+          <button type="button" data-support-action="up" ${!canWrite || index === 0 ? "disabled" : ""}>上移</button>
+          <button type="button" data-support-action="down" ${!canWrite || index === images.length - 1 ? "disabled" : ""}>下移</button>
+          <button type="button" data-support-action="delete" ${canWrite ? "" : "disabled"}>删除</button>
+        </div>
+      </article>`).join("") : '<p class="admin-empty">尚未上传赞赏码，用户端不会展示赞赏入口。</p>';
+    elements.adminSupportUpload.disabled = !canWrite || images.length >= 5;
+    elements.adminSupportMsg.textContent = images.length ? `${images.length}/5 张` : "";
+  } catch (error) { elements.adminSupportMsg.textContent = error?.message || "读取赞赏码失败"; }
+}
+
+async function uploadAdminSupportImages() {
+  const files = [...(elements.adminSupportUpload.files || [])];
+  elements.adminSupportUpload.value = "";
+  for (const file of files) {
+    if (file.size > 2 * 1024 * 1024) { showToast(`${file.name} 超过 2 MB`, "error"); continue; }
+    try {
+      elements.adminSupportMsg.textContent = `正在上传 ${file.name}…`;
+      await readApiResponse(await fetch("/api/admin/support-images", {
+        method: "POST",
+        headers: { "Content-Type": file.type, "X-Image-Label": encodeURIComponent(file.name.replace(/\.[^.]+$/, "")) },
+        body: file
+      }));
+    } catch (error) { showToast(error?.message || `${file.name} 上传失败`, "error"); break; }
+  }
+  await loadAdminSupportImages();
+}
+
+async function updateAdminSupportImage(card, changes) {
+  await readApiResponse(await fetch(`/api/admin/support-images/${encodeURIComponent(card.dataset.supportId)}`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes)
+  }));
+}
+
+async function handleAdminSupportChange(event) {
+  const card = event.target.closest("[data-support-id]");
+  if (!card) return;
+  try {
+    await updateAdminSupportImage(card, event.target.type === "checkbox" ? { enabled: event.target.checked } : { label: event.target.value });
+    showToast("赞赏码已更新", "success");
+  } catch (error) { showToast(error?.message || "更新失败", "error"); await loadAdminSupportImages(); }
+}
+
+async function handleAdminSupportClick(event) {
+  const button = event.target.closest("[data-support-action]");
+  const card = button?.closest("[data-support-id]");
+  if (!button || !card) return;
+  try {
+    if (button.dataset.supportAction === "delete") {
+      if (!window.confirm("确定删除这张赞赏码吗？")) return;
+      await readApiResponse(await fetch(`/api/admin/support-images/${encodeURIComponent(card.dataset.supportId)}`, { method: "DELETE" }));
+    } else {
+      const sibling = button.dataset.supportAction === "up" ? card.previousElementSibling : card.nextElementSibling;
+      if (!sibling?.dataset.supportId) return;
+      await Promise.all([
+        updateAdminSupportImage(card, { sortOrder: Number(sibling.dataset.sortOrder) }),
+        updateAdminSupportImage(sibling, { sortOrder: Number(card.dataset.sortOrder) })
+      ]);
+    }
+    await loadAdminSupportImages();
+  } catch (error) { showToast(error?.message || "操作失败", "error"); }
 }
 
 const AI_JOB_STAGE_LABELS = {
@@ -6245,6 +6363,7 @@ document.addEventListener("click", (event) => {
 
 elements.loginForm.addEventListener("submit", handleLoginSubmit);
 elements.settingsForm.addEventListener("submit", handleSettingsSubmit);
+elements.passwordForm.addEventListener("submit", handlePasswordSubmit);
 elements.loginMethodSwitch.addEventListener("click", toggleLoginMethod);
 elements.loginTabLogin.addEventListener("click", () => setAuthTab("login"));
 elements.loginTabRegister.addEventListener("click", () => setAuthTab("register"));
@@ -6306,6 +6425,9 @@ elements.adminAnnouncementForm.addEventListener("submit", saveAnnouncement);
 elements.adminFeedbackReplyForm.addEventListener("submit", saveFeedbackReply);
 elements.feedbackForm.addEventListener("submit", submitFeedback);
 elements.adminConfigForm.addEventListener("submit", saveAdminConfig);
+elements.adminSupportUpload?.addEventListener("change", uploadAdminSupportImages);
+elements.adminSupportImages?.addEventListener("change", handleAdminSupportChange);
+elements.adminSupportImages?.addEventListener("click", handleAdminSupportClick);
 elements.adminAuthSecretForm.addEventListener("submit", saveAdminAuthSecrets);
 
 // Word 简历导入：文件选择、字数实时统计、拖拽导入。

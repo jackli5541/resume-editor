@@ -378,6 +378,17 @@ export class AuthService {
     }
   }
 
+  async destroyOtherSessions(userId, currentToken) {
+    const currentHash = currentToken ? hashSessionToken(currentToken) : "";
+    if (this.database) {
+      await this.database.query("DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2", [userId, currentHash]);
+    } else {
+      for (const [tokenHash, session] of this.localSessions) {
+        if (session.userId === userId && tokenHash !== currentHash) this.localSessions.delete(tokenHash);
+      }
+    }
+  }
+
   async getUserById(id) {
     if (this.database) {
       const result = await this.database.query(
@@ -449,6 +460,28 @@ export class AuthService {
       stored.updatedAt = new Date().toISOString();
     }
     return this.toPublicUser({ ...existing, displayName: nextName, settings: nextSettings });
+  }
+
+  async changePassword(id, { currentPassword = "", newPassword, currentToken = "" } = {}) {
+    const existing = await this.getUserById(id);
+    if (!existing || existing.deletedAt) throw new AuthError("用户不存在", 404);
+    if (existing.passwordHash && !(await verifyPassword(currentPassword, existing.passwordHash))) {
+      throw new AuthError("当前密码不正确", 401);
+    }
+    validatePassword(newPassword);
+    if (existing.passwordHash && await verifyPassword(newPassword, existing.passwordHash)) {
+      throw new AuthError("新密码不能与当前密码相同", 400);
+    }
+    const passwordHash = await hashPassword(newPassword);
+    if (this.database) {
+      await this.database.query("UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1", [id, passwordHash]);
+    } else {
+      const stored = this.localUsersById.get(id);
+      stored.passwordHash = passwordHash;
+      stored.updatedAt = new Date().toISOString();
+    }
+    await this.destroyOtherSessions(id, currentToken);
+    return this.toPublicUser({ ...existing, passwordHash });
   }
 
   async promoteToAdmin(id) {
@@ -770,6 +803,7 @@ export class AuthService {
       disabled: Boolean(user.disabled),
       role,
       aiDailyLimit: Number(user.aiDailyLimit) || 8,
+      hasPassword: Boolean(user.passwordHash),
       permissions: listPermissions(normalized),
       createdAt: user.createdAt,
       updatedAt: user.updatedAt

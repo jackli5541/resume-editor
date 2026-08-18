@@ -61,6 +61,20 @@ const CONFIG_SCHEMA = Object.freeze({
     label: "AI 翻译简历",
     group: "ai",
     description: "控制用户端 DOCX 中英翻译入口与接口；关闭后不会消耗模型额度"
+  }),
+  feedback_enabled: Object.freeze({
+    type: "boolean",
+    defaultValue: true,
+    label: "意见反馈入口",
+    group: "engagement",
+    description: "控制用户端反馈入口与新反馈提交；关闭后历史反馈仍可在管理端处理"
+  }),
+  support_enabled: Object.freeze({
+    type: "boolean",
+    defaultValue: true,
+    label: "赞赏入口",
+    group: "engagement",
+    description: "控制用户端赞赏入口；没有已启用的赞赏码时入口不会展示"
   })
 });
 
