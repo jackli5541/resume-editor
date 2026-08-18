@@ -255,6 +255,8 @@ const elements = {
   translateTaskProgressDetail: document.querySelector("#translateTaskProgressDetail"),
   translateTemplateOverlay: document.querySelector("#translateTemplateOverlay"),
   translateTemplateList: document.querySelector("#translateTemplateList"),
+  aiGenerateTemplateOverlay: document.querySelector("#aiGenerateTemplateOverlay"),
+  aiGenerateTemplateList: document.querySelector("#aiGenerateTemplateList"),
   aiOnboarding: document.querySelector("#aiOnboarding"),
   aiGuideCard: document.querySelector("#aiGuideCard"),
   aiGuideProgress: document.querySelector("#aiGuideProgress"),
@@ -361,6 +363,7 @@ let aiProjectReviewConfirmed = true;
 let aiGenerating = false;
 let aiJobMonitoring = false;
 let aiCurrentJobId = "";
+let aiSelectedTemplate = null;
 let aiGuideStep = "role";
 const aiJobContext = { targetRole: "", jobStage: "", jobDescription: "" };
 let aiWordImporting = false;
@@ -1010,7 +1013,7 @@ async function saveDraft() {
 
 async function autoSaveChanges() {
   saveNow();
-  // DOCX 原生模板（推荐模板之外的 10 套）依赖云端快照生成成品预览，
+  // 尚未迁移的 DOCX 原生模板依赖云端快照生成成品预览，
   // 因此首次修改也应自动建云草稿并触发成品渲染，而不是等用户手动点「成品」。
   if (resume.template?.engine !== "docx-native") return;
   await persistDraftChanges({ notify: false });
@@ -3486,13 +3489,15 @@ async function clearAdminAiKey() {
 }
 
 function aiTemplateRef() {
-  const template = availableTemplates.find((item) => item.slug === "clean-single");
+  const selected = aiResult?.template || aiSelectedTemplate || { slug: "clean-single", version: 1 };
+  const template = availableTemplates.find((item) => item.slug === selected.slug && item.version === Number(selected.version || 1));
+  const slug = template?.slug || selected.slug || "clean-single";
   return {
-    slug: "clean-single",
-    version: 1,
-    name: template?.name || "极简轻",
-    engine: template?.engine || "html-native",
-    editorSchema: template?.editorSchema || getTemplateSchema("clean-single")
+    slug,
+    version: template?.version || Number(selected.version) || 1,
+    name: template?.name || selected.name || (slug === "clean-single" ? "极简轻" : "简历模板"),
+    engine: template?.engine || selected.engine || "html-native",
+    editorSchema: template?.editorSchema || selected.editorSchema || getTemplateSchema(slug)
   };
 }
 
@@ -3634,6 +3639,7 @@ function clearAiInputDraft(user = currentUser) {
 function resetAiInputFlow() {
   stopAiVoice();
   aiResult = null;
+  aiSelectedTemplate = null;
   aiProjectReviewConfirmed = true;
   aiWordDocumentStructure = "";
   elements.aiDescription.value = "";
@@ -4039,6 +4045,27 @@ function showAiTranslatePage() {
   loadAiLimits().catch(() => {});
   restoreTranslateJob().catch(() => {});
   window.scrollTo({ top: 0, behavior: "auto" });
+}
+
+function renderAiGenerateTemplates() {
+  const templates = availableTemplates.filter((template) => template.selectable === true);
+  const ordered = [...templates].sort((a, b) => Number(b.slug === "clean-single") - Number(a.slug === "clean-single"));
+  elements.aiGenerateTemplateList.innerHTML = ordered.map((template) => {
+    const recommended = template.slug === "clean-single";
+    const preview = template.previewUrl ? `<img src="${escapeHtml(template.previewUrl)}" alt="${escapeHtml(template.name)}模板预览" />` : "";
+    return `<article class="translate-template-card${recommended ? " is-recommended" : ""}"><div class="translate-template-card__preview">${preview}${recommended ? '<span>★ 通用推荐</span>' : ""}</div><div><strong>${escapeHtml(template.name)}</strong><p>${recommended ? "结构简洁、ATS 友好，适合大多数岗位" : "AI 生成后会自动适配此模板的字段与版式"}</p><button type="button" data-action="ai-select-template" data-template-slug="${escapeHtml(template.slug)}" data-template-version="${template.version}">${recommended ? "使用推荐模板并生成" : "使用此模板并生成"}</button></div></article>`;
+  }).join("");
+}
+
+function showAiGenerateTemplateChooser() {
+  renderAiGenerateTemplates();
+  elements.aiGenerateTemplateOverlay.hidden = false;
+  document.body.classList.add("has-modal");
+}
+
+function closeAiGenerateTemplateChooser() {
+  elements.aiGenerateTemplateOverlay.hidden = true;
+  document.body.classList.remove("has-modal");
 }
 
 async function handleTranslateWord(file) {
@@ -4557,12 +4584,32 @@ async function generateAi() {
     showToast(`描述超过 ${maxChars} 字，请精简`, "warning");
     return;
   }
+  showAiGenerateTemplateChooser();
+}
+
+async function generateAiWithTemplate(button) {
+  if (aiGenerating) return;
+  const template = availableTemplates.find((item) => item.slug === button.dataset.templateSlug && item.version === Number(button.dataset.templateVersion));
+  if (!template || template.selectable !== true) {
+    showToast("所选模板暂不可用，请重新选择", "warning");
+    return;
+  }
+  const description = elements.aiDescription.value.trim();
+  if (!description) {
+    closeAiGenerateTemplateChooser();
+    showToast("请先填写个人经历描述", "warning");
+    elements.aiDescription.focus();
+    return;
+  }
+  aiSelectedTemplate = template;
+  closeAiGenerateTemplateChooser();
   aiGenerating = true;
   elements.aiStatus.hidden = false;
   elements.aiStatus.textContent = "正在提交可恢复的生成任务…";
   try {
     const created = await submitAiJob("generate", {
-        templateSlug: "clean-single",
+        templateSlug: template.slug,
+        templateVersion: template.version,
         description,
         documentStructure: aiWordDocumentStructure,
         tone: aiToneValue(),
@@ -4590,11 +4637,12 @@ async function saveAiDraft() {
   }
   const data = { ...aiResult.resume };
   delete data.template;
+  const template = aiTemplateRef();
   try {
     const draft = await readApiResponse(await fetch("/api/resumes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ templateSlug: "clean-single", templateVersion: 1, data })
+      body: JSON.stringify({ templateSlug: template.slug, templateVersion: template.version, data })
     }));
     await consumeAiJob(aiCurrentJobId);
     aiCurrentJobId = "";
@@ -5556,6 +5604,21 @@ async function loadTemplates() {
   try {
     const payload = await readApiResponse(await fetch("/api/templates", { cache: "no-store" }));
     availableTemplates = payload.templates || [];
+    // 引擎迁移不改变模板 slug。旧的本地草稿可能仍缓存 docx-native，
+    // 加载目录后以服务端发布信息为准并补齐新的结构化编辑 Schema。
+    const published = resume.template && availableTemplates.find((item) =>
+      item.slug === resume.template.slug && item.version === (resume.template.version || 1)
+    );
+    if (published) {
+      resume.template = {
+        ...resume.template,
+        name: published.name,
+        engine: published.engine,
+        previewUrl: published.previewUrl,
+        editorSchema: published.editorSchema || getTemplateSchema(published.slug)
+      };
+      applyTemplateEditorSchema(resume, resume.template.editorSchema);
+    }
     renderTemplateLibrary();
   } catch (error) {
     elements.templateLibraryStatus.hidden = false;
@@ -5804,6 +5867,8 @@ document.addEventListener("click", async (event) => {
   else if (action === "ai-confirm-projects") confirmAiProjects();
   else if (action === "ai-import-word") elements.aiWordFile.click();
   else if (action === "translate-upload") elements.translateWordFile.click();
+  else if (action === "ai-close-templates") closeAiGenerateTemplateChooser();
+  else if (action === "ai-select-template") generateAiWithTemplate(actionTarget);
   else if (action === "translate-close-templates") closeTranslateTemplateChooser();
   else if (action === "translate-select-template") translateWithTemplate(actionTarget);
   else if (action === "ai-voice") toggleAiVoice();

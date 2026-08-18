@@ -70,7 +70,7 @@ test("生成任务可在刷新后通过 latest 恢复，并在处理后消失", 
   const submitted = await fetch(`${app.origin}/api/ai/jobs`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: alice },
-    body: JSON.stringify({ type: "generate", payload: { description: "Alice", templateSlug: "clean-single" } })
+    body: JSON.stringify({ type: "generate", payload: { description: "Alice", templateSlug: "resume-collection-cn-001", templateVersion: 1 } })
   });
   assert.equal(submitted.status, 202);
   const created = (await submitted.json()).job;
@@ -82,6 +82,8 @@ test("生成任务可在刷新后通过 latest 恢复，并在处理后消失", 
   assert.equal(completed.status, "completed");
   assert.equal(completed.progress, 100);
   assert.equal(completed.result.resume.profile.name, "Alice");
+  assert.equal(completed.result.template.slug, "resume-collection-cn-001");
+  assert.deepEqual(completed.result.resume.sections.slice(0, 4).map((section) => section.id), ["summary", "education", "experience", "skills"]);
 
   const restored = await (await fetch(`${app.origin}/api/ai/jobs/latest?type=generate`, { headers: { Cookie: alice } })).json();
   assert.equal(restored.job.id, created.id);

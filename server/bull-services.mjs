@@ -25,15 +25,18 @@ export class BullExportService {
   constructor({ connection, outputDir }) {
     this.connection = connection;
     this.outputDir = outputDir;
+    this.origin = "";
     this.queue = new Queue("resume-exports", { connection });
   }
 
-  setOrigin() {}
+  setOrigin(origin) {
+    this.origin = String(origin || "").replace(/\/$/, "");
+  }
 
   async create(payload) {
     const id = randomUUID();
     const token = randomBytes(32).toString("base64url");
-    await this.queue.add("render", { ...payload, id, token, outputDir: this.outputDir }, {
+    await this.queue.add("render", { ...payload, id, token, origin: this.origin, outputDir: this.outputDir }, {
       jobId: id, attempts: 2, backoff: { type: "exponential", delay: 1000 },
       removeOnComplete: { age: 1800 }, removeOnFail: { age: 1800 }
     });

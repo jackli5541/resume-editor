@@ -33,6 +33,7 @@ import { MetricsService } from "./server/metrics.mjs";
 import { sendCsv } from "./server/csv.mjs";
 import { AppConfigService, configSchema } from "./server/config.mjs";
 import { AlertService } from "./server/alerts.mjs";
+import { resumeForTemplate } from "./public/core.mjs";
 import { DeviceFingerprintService } from "./server/device-fingerprint.mjs";
 import { verifyCaptchaToken } from "./server/captcha.mjs";
 import { SmsService } from "./server/sms.mjs";
@@ -1685,10 +1686,11 @@ export function createAppServer(options = {}) {
         if (type === "translate" && (await configService.get("ai_translate_enabled")) === false) {
           throw new RequestValidationError("AI 翻译简历功能维护中", 503);
         }
-        if (type === "translate") {
+        if (type === "translate" || type === "generate") {
           const template = await templateRepository.get(body?.payload?.templateSlug, Number(body?.payload?.templateVersion) || 1);
-          if (!template) throw new RequestValidationError("翻译模板不存在", 404);
-          if ((template.status || "ready") !== "ready") throw new RequestValidationError("翻译模板暂不可用", 409);
+          const label = type === "translate" ? "翻译" : "生成";
+          if (!template) throw new RequestValidationError(`${label}模板不存在`, 404);
+          if ((template.status || "ready") !== "ready" || template.selectable === false) throw new RequestValidationError(`${label}模板暂不可用`, 409);
         }
         if (await rejectIfLimited(response, apiLimiter, clientKey(user.id, "ai"), { limit: 30, windowMs: 60 * 60 * 1000 })) return;
         if (await rejectIfLimited(response, apiLimiter, clientKey(getClientIp(request), "ai-daily"), { limit: Number.parseInt(process.env.AI_IP_DAILY_LIMIT || "24", 10), windowMs: 24 * 60 * 60 * 1000 })) return;
@@ -1758,7 +1760,10 @@ export function createAppServer(options = {}) {
           throw new RequestValidationError("Content-Type 必须是 application/json", 415);
         }
         const payload = await readJson(request);
-        const result = await aiService.generate({
+        const template = await templateRepository.get(payload?.templateSlug || "clean-single", Number(payload?.templateVersion) || 1);
+        if (!template) throw new RequestValidationError("生成模板不存在", 404);
+        if ((template.status || "ready") !== "ready" || template.selectable === false) throw new RequestValidationError("生成模板暂不可用", 409);
+        const generated = await aiService.generate({
           userId: user.id,
           templateSlug: payload?.templateSlug,
           description: payload?.description,
@@ -1770,6 +1775,12 @@ export function createAppServer(options = {}) {
           isAdmin: user.isAdmin,
           aiDailyLimit: user.aiDailyLimit
         });
+        const mapped = resumeForTemplate(generated.resume, template);
+        const result = {
+          ...generated,
+          resume: validateExportPayload({ resume: mapped, template }).resume,
+          template: { slug: template.slug, version: template.version, name: template.name, engine: template.engine }
+        };
         await eventLog.record({ userId: user.id, event: "ai_generate" });
         sendJson(response, 200, result);
       } catch (error) {

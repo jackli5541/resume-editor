@@ -8,6 +8,8 @@ const PROFILE = {
   workYears: { label: "工作年限", type: "text" },
   gender: { label: "性别", type: "text" },
   politicalStatus: { label: "政治面貌", type: "text" },
+  age: { label: "年龄", type: "text" },
+  education: { label: "学历", type: "text" },
   photo: { label: "个人照片", type: "image" }
 };
 
@@ -88,8 +90,9 @@ export const TEMPLATE_SCHEMAS = {
     section("languages", "main", { optional: true }),
     section("interests", "main", { optional: true })
   ], { styleControls: { fontFamily: true, fontSize: { min: 12, max: 18 }, theme: true, lineHeight: true, pagePadding: true, sectionGap: true } }),
-  "resume-collection-cn-001": schema("resume-collection-cn-001", "商务圆角", "single-banner", ["name", "job", "mobile", "email", "city", "birthday", "photo"], [
-    section("summary"), section("education"), section("experience"), section("certificates"), section("skills")
+  "resume-collection-cn-001": schema("resume-collection-cn-001", "商务圆角", "single-banner", ["name", "age", "education", "job", "mobile", "email", "city", "photo"], [
+    section("summary"), section("education"), section("experience"), section("skills", "main", { title: "职业技能" }),
+    section("certificates", "main", { optional: true })
   ]),
   "resume-collection-cn-002": schema("resume-collection-cn-002", "经典青灰", "single-compact", ["name", "job", "mobile", "email", "city", "birthday", "gender", "photo"], [
     section("education"), section("campus"), section("experience"), section("skills"), section("summary")

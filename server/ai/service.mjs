@@ -65,10 +65,6 @@ export class AiGenerationService {
   }
 
   async generate({ userId, templateSlug, description, documentStructure = "", tone = "professional", targetRole = "", jobStage = "", jobDescription = "", isAdmin = false, aiDailyLimit = null }) {
-    if (templateSlug && templateSlug !== "clean-single") {
-      throw new AiGenerationError("当前仅支持极简轻模板", 400, "unsupported_template");
-    }
-
     const config = await this.configRepository.get();
     if (!config.enabled) throw new AiGenerationError("AI 生成简历未启用，请联系管理员", 503, "ai_disabled");
     const apiKey = await this.configRepository.getApiKey();

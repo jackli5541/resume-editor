@@ -107,6 +107,7 @@ services:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     environment:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      APP_INTERNAL_ORIGIN: http://app:4173
       EXPORT_DIR: /app/var/exports
       PREVIEW_DIR: /app/var/previews
       TEMPLATE_STORAGE_DIR: /app/var/templates
