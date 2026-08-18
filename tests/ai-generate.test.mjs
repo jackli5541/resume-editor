@@ -368,6 +368,28 @@ test("AI 生成接口把结果投影到所选模板", async (context) => {
   assert.deepEqual(body.resume.sections.slice(0, 4).map((section) => section.id), ["summary", "education", "experience", "skills"]);
 });
 
+test("仅保留需要用户确认的低置信度非标准模块映射", () => {
+  const mapped = mapModelOutput({
+    moduleMappings: [
+      { sourceTitle: "社会活动", targetId: "campus", confidence: "low" },
+      { sourceTitle: "资格认证", targetId: "certificates", confidence: "high" },
+      { sourceTitle: "未知", targetId: "custom", confidence: "low" }
+    ]
+  });
+  assert.deepEqual(mapped.moduleMappings, [{ sourceTitle: "社会活动", targetId: "campus", confidence: "low" }]);
+});
+
+test("非标准标题映射后的可选模块内容不会被丢弃", () => {
+  const mapped = mapModelOutput({
+    campus: [{ organization: "青年志愿者协会", role: "负责人", content: "组织公益活动" }],
+    certificates: [{ name: "教师资格证", level: "高级中学", date: "2024" }],
+    interests: ["摄影"]
+  });
+  assert.equal(mapped.resume.sections.find((section) => section.id === "campus").items[0].organization, "青年志愿者协会");
+  assert.equal(mapped.resume.sections.find((section) => section.id === "certificates").items[0].name, "教师资格证");
+  assert.deepEqual(mapped.resume.sections.find((section) => section.id === "interests").items, ["摄影"]);
+});
+
 test("空描述返回 400", async (context) => {
   const app = await startAiServer(await makeService());
   closeServer(app, context);

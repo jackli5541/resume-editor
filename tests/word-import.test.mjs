@@ -43,3 +43,11 @@ test("AI 结果页含项目识别确认面板（名称/角色/时间/技术栈�
   assert.match(content, /field\(index, "start"/);
   assert.match(content, /field\(index, "end"/);
 });
+
+test("AI 结果页要求逐项确认低置信度模块映射", async () => {
+  const content = await readFile(appPath, "utf8");
+  assert.match(content, /确认非标准模块映射/);
+  assert.match(content, /data-ai-module-confirm/);
+  assert.match(content, /aiModuleReviewConfirmed/);
+  assert.match(content, /ai-confirm-modules/);
+});

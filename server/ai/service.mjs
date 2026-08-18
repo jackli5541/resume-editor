@@ -151,6 +151,7 @@ export class AiGenerationService {
         uncertain: mapped.uncertain,
         notices: mapped.notices,
         projectReview: mapped.projectReview || [],
+        moduleMappings: mapped.moduleMappings || [],
         usage: { model: config.model }
       };
     } finally {

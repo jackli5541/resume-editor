@@ -10,16 +10,11 @@ const PROFILE_FIELDS = [
 
 // 极简轻（clean-single）的六模块及其 AI 专属条目上限（比通用校验更严，守住「简约」）。
 const DECLARED_SECTIONS = ["objective", "education", "experience", "projects", "skills", "summary"];
+const MAPPABLE_SECTION_IDS = new Set([
+  "objective", "education", "experience", "projects", "skills", "summary",
+  "campus", "certificates", "awards", "languages", "interests"
+]);
 const ITEM_CAPS = { education: 3, experience: 6, projects: 4 };
-
-// 极简轻之外的模块：一律置空丢弃（决策 2），编辑器可后续增补。
-const EMPTY_EXTRA_SECTIONS = [
-  { id: "campus", type: "timeline", title: "校园经历", visible: false, items: [] },
-  { id: "certificates", type: "list", title: "证书资质", visible: false, items: [] },
-  { id: "awards", type: "list", title: "荣誉奖项", visible: false, items: [] },
-  { id: "languages", type: "levels", title: "语言能力", visible: false, items: [] },
-  { id: "interests", type: "tags", title: "兴趣爱好", visible: false, items: [] }
-];
 
 const DEFAULT_SETTINGS = {
   theme: "#12a77d",
@@ -38,12 +33,13 @@ const BASE_SYSTEM_PROMPT = `你是专业的简历信息抽取助手。你的唯�
 2. 不编造：只使用输入中明确出现或可严格推导的信息；缺失的字段一律填空字符串 ""，缺失的数组填空数组 []，绝不推测、补全或虚构。
 3. 逐字保留实体字段：姓名、电话、邮箱、学校、公司、项目名称、日期、数字、证书等不得改写。
 4. 表达优化与内容展开：对工作经历/项目经验/实习经历的 content，按「职责 / 做法 / 成果」拆成 2-5 个要点，突出重点、适当展开描述，把口语化内容改写成专业、具体、结构化的表述，并尽量保留输入中已有的量化结果；对自我评价 summary 做轻微优化。严禁新增未提及的事实、数字、成果、职责、技能、项目或年限，不得拆分条目、补 STAR、推断年限。
-5. 模块边界：只填充 objective(求职意向)、education(教育背景)、experience(工作经历)、projects(项目经验)、skills(技能特长)、summary(自我评价) 六个模块；证书、语言、兴趣、校园等一律丢弃，不得塞入。
+5. 模块边界：只允许填充 objective(求职意向)、education(教育背景)、experience(工作经历)、projects(项目经验)、skills(技能特长)、summary(自我评价)、campus(校园经历)、certificates(证书资质)、awards(荣誉奖项)、languages(语言能力)、interests(兴趣爱好)。不得丢弃能够归入这些模块的原文内容，也不得创造其他模块。
 6. content 用换行分条输出纯文本，每条以 "- " 开头，动词开头、具体且有信息量，每条只表达一个要点；不要输出任何 HTML。
 7. 拿不准或无法从输入确认的字段，把其字段路径写入 uncertain 数组（例如 ["email", "projects[1].content"]）；没有则写空数组 []。
 8. 经历条目按开始时间从新到旧排序。
 9. 项目字段语义必须严格区分：projectName 是项目、系统、产品、课题或比赛作品的正式名称；projectRole 仅填写本人在项目中的角色或承担方式；techStack 仅填写输入中明确出现的技术栈。标题含“|”或“｜”时，通常左侧是 projectName、右侧是 projectRole。“项目负责人、独立开发、核心成员、前端开发、后端开发”等角色词绝不能代替 projectName。
 10. 如果提供 project_candidates，它们是由原文格式确定性解析出的候选值。优先逐字采用其中的 projectName/projectRole/techStack，并原样回传 sourceId；除非 resume_input 明确证明候选拆分错误，否则不得丢弃或互换。项目名称无法确认时写入 uncertain，不能只返回角色而遗漏名称。
+11. 根据 document_structure 中的标题识别原文模块。标准模块及明确别名直接归入现有模块；遇到含义不明确、可能归入多个模块的非标准标题时，必须从 objective、education、experience、projects、skills、summary、campus、certificates、awards、languages、interests 中选择最接近的 targetId，并加入 moduleMappings。只返回需要用户确认的低置信度映射；不得返回标准标题或明确别名，不得创造 targetId。
 
 输出 JSON 结构（字段名固定，不要增删）：
 {
@@ -54,6 +50,12 @@ const BASE_SYSTEM_PROMPT = `你是专业的简历信息抽取助手。你的唯�
   "projects": [{"sourceId":"project-1","start":"","end":"","projectName":"","projectRole":"","techStack":"","highlights":[""]}],
   "skills": "",
   "summary": "",
+  "campus": [{"start":"","end":"","organization":"","role":"","content":""}],
+  "certificates": [{"name":"","level":"","date":""}],
+  "awards": [{"name":"","level":"","date":""}],
+  "languages": [{"name":"","level":""}],
+  "interests": [""],
+  "moduleMappings": [{"sourceTitle":"社会活动","targetId":"campus","confidence":"low"}],
   "uncertain": []
 }`;
 
@@ -230,6 +232,13 @@ function isSectionFilled(section) {
   return Boolean(clean(section.content));
 }
 
+function mapNamedItems(raw, type, keys) {
+  return (Array.isArray(raw) ? raw : []).slice(0, 12).map((item) => {
+    const source = item && typeof item === "object" ? item : { name: item };
+    return Object.fromEntries([["id", makeId(type)], ...keys.map((key) => [key, clean(source[key])])]);
+  }).filter((item) => keys.some((key) => item[key]));
+}
+
 // 把模型输出的 JSON 映射为规范简历（不含不确定字段之外的任何编造）。
 export function mapModelOutput(modelJson, options = {}) {
   const source = modelJson && typeof modelJson === "object" && !Array.isArray(modelJson) ? modelJson : {};
@@ -255,7 +264,12 @@ export function mapModelOutput(modelJson, options = {}) {
     { id: "experience", type: "experience", title: "工作经历", items: mapTimeline(source.experience, "experience", notices) },
     { id: "projects", type: "projects", title: "项目经验", items: mapTimeline(source.projects, "projects", notices, options.projectCandidates) },
     { id: "skills", type: "richtext", title: "技能特长", content: bulletsToHtml(source.skills) },
-    { id: "summary", type: "richtext", title: "自我评价", content: paragraphToHtml(source.summary) }
+    { id: "summary", type: "richtext", title: "自我评价", content: paragraphToHtml(source.summary) },
+    { id: "campus", type: "timeline", title: "校园经历", items: mapTimeline(source.campus, "campus", notices) },
+    { id: "certificates", type: "list", title: "证书资质", items: mapNamedItems(source.certificates, "certificate", ["name", "level", "date"]) },
+    { id: "awards", type: "list", title: "荣誉奖项", items: mapNamedItems(source.awards, "award", ["name", "level", "date"]) },
+    { id: "languages", type: "levels", title: "语言能力", items: mapNamedItems(source.languages, "language", ["name", "level"]) },
+    { id: "interests", type: "tags", title: "兴趣爱好", items: (Array.isArray(source.interests) ? source.interests : []).map(clean).filter(Boolean).slice(0, 20) }
   ].map((section) => ({ ...section, visible: isSectionFilled(section) }));
 
   const resume = {
@@ -267,11 +281,23 @@ export function mapModelOutput(modelJson, options = {}) {
     revision: 1,
     settings: DEFAULT_SETTINGS,
     profile,
-    sections: [...sections, ...EMPTY_EXTRA_SECTIONS]
+    sections
   };
 
   const uncertain = Array.isArray(source.uncertain)
     ? source.uncertain.filter((value) => typeof value === "string").map(clean).filter(Boolean)
+    : [];
+
+  const moduleMappings = Array.isArray(source.moduleMappings)
+    ? source.moduleMappings
+      .filter((item) => item && typeof item === "object")
+      .map((item) => ({
+        sourceTitle: clean(item.sourceTitle),
+        targetId: clean(item.targetId),
+        confidence: clean(item.confidence).toLowerCase()
+      }))
+      .filter((item) => item.sourceTitle && MAPPABLE_SECTION_IDS.has(item.targetId) && item.confidence === "low")
+      .slice(0, 12)
     : [];
 
   // 确认面板数据：与 resume 的项目条目逐条对齐，附带原文与候选信息，供前端并排核对。
@@ -288,7 +314,7 @@ export function mapModelOutput(modelJson, options = {}) {
     };
   });
 
-  return { resume, uncertain, notices, projectReview };
+  return { resume, uncertain, notices, projectReview, moduleMappings };
 }
 
 export { buildSystemPrompt, buildUserPrompt, bulletsToHtml, paragraphToHtml, DECLARED_SECTIONS, TONE_HINTS, JOB_STAGE_HINTS };

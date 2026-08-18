@@ -283,6 +283,7 @@ const elements = {
   aiNotices: document.querySelector("#aiNotices"),
   aiProjectReview: document.querySelector("#aiProjectReview"),
   aiSaveButton: document.querySelector("#aiSaveButton"),
+  aiModuleReview: document.querySelector("#aiModuleReview"),
   aiPreviewPaper: document.querySelector("#aiPreviewPaper"),
   aiPreviewFlow: document.querySelector("#aiPreviewFlow"),
   aiWordFile: document.querySelector("#aiWordFile"),
@@ -368,6 +369,7 @@ let adminCosts = { days: [], byModel: [] };
 let adminConfigSchema = {};
 let aiResult = null;
 let aiProjectReviewConfirmed = true;
+let aiModuleReviewConfirmed = true;
 let aiGenerating = false;
 let aiJobMonitoring = false;
 let aiCurrentJobId = "";
@@ -3832,6 +3834,7 @@ function resetAiInputFlow() {
   aiResult = null;
   aiSelectedTemplate = null;
   aiProjectReviewConfirmed = true;
+  aiModuleReviewConfirmed = true;
   aiWordDocumentStructure = "";
   elements.aiDescription.value = "";
   elements.aiResult.hidden = true;
@@ -4031,6 +4034,7 @@ async function monitorGenerateJob(initialJob) {
     if (job.status === "completed" && job.result?.resume) {
       aiResult = job.result;
       renderAiPreview();
+      renderAiModuleReview();
       renderAiProjectReview();
       renderAiNotices();
       elements.aiStatus.textContent = "";
@@ -4421,7 +4425,7 @@ function replaceProjectTechStack(content, value) {
 
 function setAiProjectReviewState(confirmed) {
   aiProjectReviewConfirmed = confirmed;
-  if (elements.aiSaveButton) elements.aiSaveButton.disabled = !confirmed;
+  updateAiReviewGate();
   const status = elements.aiProjectReview?.querySelector("[data-project-review-status]");
   if (status) {
     status.textContent = confirmed ? "已确认" : "待确认";
@@ -4779,6 +4783,62 @@ async function generateAi() {
   showAiGenerateTemplateChooser();
 }
 
+function updateAiReviewGate() {
+  if (elements.aiSaveButton) elements.aiSaveButton.disabled = !(aiProjectReviewConfirmed && aiModuleReviewConfirmed);
+}
+
+const AI_SECTION_LABELS = {
+  objective: "求职意向", education: "教育背景", experience: "工作经历", projects: "项目经验",
+  skills: "技能特长", summary: "自我评价", campus: "校园经历", certificates: "证书资质",
+  awards: "荣誉奖项", languages: "语言能力", interests: "兴趣爱好"
+};
+
+function renderAiModuleReview() {
+  const mappings = Array.isArray(aiResult?.moduleMappings) ? aiResult.moduleMappings : [];
+  if (!mappings.length) {
+    elements.aiModuleReview.hidden = true;
+    elements.aiModuleReview.innerHTML = "";
+    aiModuleReviewConfirmed = true;
+    updateAiReviewGate();
+    return;
+  }
+  aiModuleReviewConfirmed = false;
+  elements.aiModuleReview.hidden = false;
+  elements.aiModuleReview.innerHTML = `
+    <div class="ai-project-review__head">
+      <div><span class="eyebrow">MODULE CHECK</span><h3>确认非标准模块映射</h3><p>以下标题无法确定性匹配，请确认系统建议的归属后再进入编辑器。</p></div>
+      <span class="ai-project-review__status" data-module-review-status>待确认</span>
+    </div>
+    <div class="ai-module-review__list">
+      ${mappings.map((mapping, index) => `<label class="ai-module-review__item">
+        <input type="checkbox" data-ai-module-confirm="${index}" />
+        <span><small>DOCX 原模块名</small><strong>${escapeHtml(mapping.sourceTitle)}</strong></span>
+        <span class="ai-module-review__arrow" aria-hidden="true">→</span>
+        <span><small>系统建议归入</small><strong>${escapeHtml(AI_SECTION_LABELS[mapping.targetId] || mapping.targetId)}</strong></span>
+      </label>`).join("")}
+    </div>
+    <div class="ai-project-review__footer"><span>请逐项核对；全部确认后才可进入编辑器。</span><button type="button" class="ai-save" data-action="ai-confirm-modules">确认模块映射</button></div>`;
+  updateAiReviewGate();
+}
+
+function confirmAiModules() {
+  const boxes = [...elements.aiModuleReview.querySelectorAll("[data-ai-module-confirm]")];
+  const unchecked = boxes.find((box) => !box.checked);
+  if (unchecked) {
+    unchecked.focus();
+    showToast("请先逐项确认非标准模块映射", "warning");
+    return;
+  }
+  aiModuleReviewConfirmed = true;
+  const status = elements.aiModuleReview.querySelector("[data-module-review-status]");
+  if (status) {
+    status.textContent = "已确认";
+    status.classList.add("is-confirmed");
+  }
+  updateAiReviewGate();
+  showToast("模块映射已确认", "success");
+}
+
 async function generateAiWithTemplate(button) {
   if (aiGenerating) return;
   const template = availableTemplates.find((item) => item.slug === button.dataset.templateSlug && item.version === Number(button.dataset.templateVersion));
@@ -4896,6 +4956,11 @@ function redoResumeChange() {
 function setAiMode(mode) {
   if (mode === "target" && (aiLimits.enabled === false || aiLimits.features?.targetAgent === false)) {
     showToast("岗位定制功能正在维护中", "info");
+    return;
+  }
+  if (!aiModuleReviewConfirmed) {
+    elements.aiModuleReview?.scrollIntoView({ behavior: "smooth", block: "center" });
+    showToast("请先确认非标准模块映射", "warning");
     return;
   }
   if (mode === "optimize" && (aiLimits.enabled === false || aiLimits.features?.optimize === false)) {
@@ -6297,6 +6362,7 @@ document.addEventListener("click", async (event) => {
   else if (action === "ai-back-to-input") closeAiPreview();
   else if (action === "ai-save") saveAiDraft();
   else if (action === "ai-confirm-projects") confirmAiProjects();
+  else if (action === "ai-confirm-modules") confirmAiModules();
   else if (action === "ai-import-word") elements.aiWordFile.click();
   else if (action === "ai-mode") setAiMode(actionTarget.dataset.aiMode);
   else if (action === "target-upload") elements.targetWordFile.click();

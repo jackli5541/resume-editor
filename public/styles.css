@@ -7120,6 +7120,35 @@ body.export-document .resume-paper[data-template="resume-collection-cn-001"] .cn
   background: var(--surface);
 }
 
+.ai-module-review__list {
+  display: grid;
+  gap: 10px;
+  padding: 0 24px 20px;
+}
+
+.ai-module-review__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.ai-module-review__item input { width: 18px; height: 18px; accent-color: var(--primary); }
+.ai-module-review__item span:not(.ai-module-review__arrow) { display: grid; gap: 3px; }
+.ai-module-review__item small { color: var(--muted); }
+.ai-module-review__arrow { color: var(--muted); font-size: 20px; }
+
+@media (max-width: 640px) {
+  .ai-module-review__item { grid-template-columns: auto 1fr; }
+  .ai-module-review__arrow { display: none; }
+  .ai-module-review__item span:last-child { grid-column: 2; }
+}
+
 .support-card__tabs { display: flex; justify-content: center; gap: 6px; margin: 0 0 10px; }
 .support-card__tabs:empty { display: none; }
 .support-card__tabs button { padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--surface); cursor: pointer; font-size: 11px; }
