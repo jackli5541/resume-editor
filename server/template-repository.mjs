@@ -19,9 +19,25 @@ const BUILTIN_TEMPLATE = {
 BUILTIN_TEMPLATE.editorSchema = publicTemplateSchema(BUILTIN_TEMPLATE);
 BUILTIN_TEMPLATE.layoutSchema = BUILTIN_TEMPLATE.editorSchema.layoutSchema;
 
+// These templates keep their original DOCX assets as visual references and
+// rollback material, but the product path uses the structured HTML renderer.
+const HTML_ADAPTED_TEMPLATES = new Set(
+  Array.from({ length: 10 }, (_, index) => `resume-collection-cn-${String(index + 1).padStart(3, "0")}`)
+);
+const HTML_PREVIEW_REVISION = "structured-v2";
+
+function previewUrlFor(slug, previewPath) {
+  if (!previewPath) return null;
+  const url = `/template-assets/${previewPath.replaceAll("\\", "/")}`;
+  return HTML_ADAPTED_TEMPLATES.has(slug) ? `${url}?preview=${HTML_PREVIEW_REVISION}` : url;
+}
+
 function mapRow(row) {
-  const native = row.engine === "docx-native";
-  const editorSchema = row.manifest?.editorSchema || (native ? null : publicTemplateSchema(row.slug));
+  const htmlAdapted = HTML_ADAPTED_TEMPLATES.has(row.slug);
+  const native = row.engine === "docx-native" && !htmlAdapted;
+  const editorSchema = htmlAdapted
+    ? publicTemplateSchema(row.slug)
+    : row.manifest?.editorSchema || (native ? null : publicTemplateSchema(row.slug));
   const status = native && !editorSchema ? "needs_mapping" : row.status;
   return {
     slug: row.slug,
@@ -30,15 +46,15 @@ function mapRow(row) {
     description: row.description,
     version: row.version,
     status,
-    engine: row.engine,
-    previewUrl: row.preview_path ? `/template-assets/${row.preview_path.replaceAll("\\", "/")}` : null,
+    engine: htmlAdapted ? "html-native" : row.engine,
+    previewUrl: previewUrlFor(row.slug, row.preview_path),
     licenseStatus: row.license_status,
     selectable: status === "ready" && Boolean(editorSchema),
     supportedFormats: row.manifest?.supportedFormats || ["pdf", "docx"],
     analysis: row.analysis || {},
     editorSchema,
-    defaultResume: row.manifest?.defaultResume || null,
-    layoutSchema: row.manifest?.layoutSchema || editorSchema?.layoutSchema || null,
+    defaultResume: htmlAdapted ? null : row.manifest?.defaultResume || null,
+    layoutSchema: htmlAdapted ? editorSchema?.layoutSchema || null : row.manifest?.layoutSchema || editorSchema?.layoutSchema || null,
     styleControls: editorSchema?.styleControls || {}
   };
 }
@@ -95,8 +111,19 @@ export class TemplateRepository {
           };
         });
       return [BUILTIN_TEMPLATE, ...external].map((item) => {
-        const editorSchema = item.manifest?.editorSchema || (item.slug === BUILTIN_TEMPLATE.slug ? publicTemplateSchema(item.slug) : null);
-        return { ...item, editorSchema, defaultResume: item.manifest?.defaultResume || null, layoutSchema: item.manifest?.layoutSchema || editorSchema?.layoutSchema || null, styleControls: editorSchema?.styleControls || {} };
+        const htmlAdapted = HTML_ADAPTED_TEMPLATES.has(item.slug);
+        const editorSchema = htmlAdapted
+          ? publicTemplateSchema(item.slug)
+          : item.manifest?.editorSchema || (item.slug === BUILTIN_TEMPLATE.slug ? publicTemplateSchema(item.slug) : null);
+        return {
+          ...item,
+          engine: htmlAdapted ? "html-native" : item.engine,
+          previewUrl: previewUrlFor(item.slug, item.previewUrl?.replace(/^\/template-assets\//, "").split("?")[0]),
+          editorSchema,
+          defaultResume: htmlAdapted ? null : item.manifest?.defaultResume || null,
+          layoutSchema: htmlAdapted ? editorSchema?.layoutSchema || null : item.manifest?.layoutSchema || editorSchema?.layoutSchema || null,
+          styleControls: editorSchema?.styleControls || {}
+        };
       });
     } catch {
       return [BUILTIN_TEMPLATE];

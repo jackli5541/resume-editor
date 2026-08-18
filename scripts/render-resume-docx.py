@@ -197,7 +197,23 @@ def paragraph(text="", *, bold=False, size=21, color="334155", before=0, after=8
     return f'<w:p><w:pPr>{"".join(props)}</w:pPr>{run(text, bold, size, color)}</w:p>'
 
 
-def section_heading(title, theme):
+def section_heading(title, theme, template_slug=""):
+    if template_slug == "resume-collection-cn-001":
+        return (
+            '<w:tbl><w:tblPr><w:tblW w:w="9720" w:type="dxa"/><w:tblLayout w:type="fixed"/>'
+            '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/>'
+            '<w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders></w:tblPr>'
+            '<w:tblGrid><w:gridCol w:w="1900"/><w:gridCol w:w="7820"/></w:tblGrid><w:tr>'
+            f'<w:tc><w:tcPr><w:tcW w:w="1900" w:type="dxa"/><w:shd w:val="clear" w:fill="{theme}"/>'
+            '<w:tcMar><w:top w:w="65" w:type="dxa"/><w:left w:w="120" w:type="dxa"/>'
+            '<w:bottom w:w="65" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tcMar></w:tcPr>'
+            + paragraph(title, bold=True, size=22, color="FFFFFF", after=0, align="center")
+            + '</w:tc>'
+            '<w:tc><w:tcPr><w:tcW w:w="7820" w:type="dxa"/><w:tcBorders>'
+            '<w:bottom w:val="single" w:sz="8" w:color="D5D5D5"/></w:tcBorders></w:tcPr>'
+            + paragraph("", after=0)
+            + '</w:tc></w:tr></w:tbl>'
+        )
     return (
         '<w:p><w:pPr><w:keepNext/><w:spacing w:before="180" w:after="100"/>'
         f'<w:pBdr><w:bottom w:val="single" w:sz="14" w:space="5" w:color="{theme}"/></w:pBdr>'
@@ -235,7 +251,7 @@ def objective_table(data, fields, theme):
     )
 
 
-def timeline_item(item, fields):
+def timeline_item(item, fields, template_slug=""):
     start = next((f for f in fields if f["key"] == "start"), None)
     end = next((f for f in fields if f["key"] == "end"), None)
     range_fields = [f for f in fields if f.get("role") == "range"]
@@ -251,14 +267,21 @@ def timeline_item(item, fields):
     body_fields = [f for f in fields if f.get("role") == "body"]
     meta_fields = [f for f in fields if f.get("role") not in ("range", "primary", "secondary", "body")]
 
+    if template_slug == "resume-collection-cn-001":
+        left_text, middle_text, right_text = secondary, primary, date_range.replace(" — ", "-")
+        left_color = middle_color = right_color = "587BA5"
+    else:
+        left_text, middle_text, right_text = date_range, primary, secondary
+        left_color, middle_color, right_color = "64748B", "334155", "0F9F76"
+
     header = (
         '<w:tbl><w:tblPr><w:tblW w:w="9720" w:type="dxa"/><w:tblLayout w:type="fixed"/>'
         '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/>'
         '<w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders></w:tblPr>'
         '<w:tblGrid><w:gridCol w:w="2200"/><w:gridCol w:w="4700"/><w:gridCol w:w="2820"/></w:tblGrid><w:tr>'
-        + table_cell(paragraph(date_range, size=19, color="64748B", after=0), 2200)
-        + table_cell(paragraph(primary, bold=True, size=21, after=0), 4700)
-        + table_cell(paragraph(secondary, bold=True, size=19, color="0F9F76", after=0, align="right"), 2820)
+        + table_cell(paragraph(left_text, bold=template_slug != "resume-collection-cn-001", size=19, color=left_color, after=0), 2200)
+        + table_cell(paragraph(middle_text, bold=template_slug != "resume-collection-cn-001", size=21, color=middle_color, after=0), 4700)
+        + table_cell(paragraph(right_text, bold=template_slug != "resume-collection-cn-001", size=19, color=right_color, after=0, align="right"), 2820)
         + '</w:tr></w:tbl>'
     )
     details = "".join(
@@ -285,8 +308,8 @@ def compact_item(item, fields):
     return "".join(parts)
 
 
-def render_section(section, theme):
-    content = [section_heading(section.get("title", ""), theme)]
+def render_section(section, theme, template_slug=""):
+    content = [section_heading(section.get("title", ""), theme, template_slug)]
     fields = resolve_fields(section)
     stype = section.get("type")
     if stype == "objective":
@@ -297,7 +320,7 @@ def render_section(section, theme):
         content.extend(paragraph(item, size=20, after=45, bullet=True) for item in (section.get("items") or []))
     elif isinstance(section.get("items"), list):
         timeline = stype in ("education", "experience", "projects", "timeline", "campus") or any(f.get("role") == "body" for f in fields)
-        content.extend((timeline_item(item, fields) if timeline and isinstance(item, dict) else compact_item(item, fields)) for item in section["items"])
+        content.extend((timeline_item(item, fields, template_slug) if timeline and isinstance(item, dict) else compact_item(item, fields)) for item in section["items"])
     else:
         content.extend(paragraph(text, size=20, after=60, bullet=bullet) for text, bullet in rich_lines(section.get("content", "")))
         data_fields = [f for f in fields if f["key"] != "content"]
@@ -318,6 +341,52 @@ def two_column_table(left_content, right_content, left_width=3300, shade=None):
     )
 
 
+def cn001_banner(theme):
+    title = paragraph("求职简历", size=38, color="FFFFFF", after=20, align="center")
+    subtitle = paragraph("PERSONAL RESUME   我一直在努力！", size=19, color="FFFFFF", after=0, align="center")
+    return (
+        '<w:tbl><w:tblPr><w:tblW w:w="5900" w:type="dxa"/><w:tblLayout w:type="fixed"/>'
+        '<w:tblInd w:w="-680" w:type="dxa"/><w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/>'
+        '<w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders>'
+        '</w:tblPr><w:tblGrid><w:gridCol w:w="5900"/></w:tblGrid><w:tr>'
+        f'<w:tc><w:tcPr><w:tcW w:w="5900" w:type="dxa"/><w:shd w:val="clear" w:fill="{theme}"/>'
+        '<w:tcMar><w:top w:w="260" w:type="dxa"/><w:left w:w="680" w:type="dxa"/>'
+        '<w:bottom w:w="260" w:type="dxa"/><w:right w:w="380" w:type="dxa"/></w:tcMar></w:tcPr>'
+        + title + subtitle + '</w:tc></w:tr></w:tbl>'
+        + paragraph("", after=150)
+    )
+
+
+def cn001_profile_table(profile, has_photo):
+    def info_line(label, value):
+        text_value = str(value or "").strip()
+        return paragraph(f"{label}：  {text_value}", size=19, color="5B5D63", after=45) if text_value else ""
+
+    left = "".join([
+        info_line("姓　名", profile.get("name")),
+        info_line("年　龄", profile.get("age") or profile.get("birthday")),
+        info_line("学　历", profile.get("education")),
+        info_line("求职意向", profile.get("job")),
+    ])
+    right = "".join([
+        info_line("手机", profile.get("mobile")),
+        info_line("邮箱", profile.get("email")),
+        info_line("地址", profile.get("city")),
+    ])
+    photo = photo_paragraph() if has_photo else paragraph("", after=0)
+    return (
+        '<w:tbl><w:tblPr><w:tblW w:w="9720" w:type="dxa"/><w:tblLayout w:type="fixed"/>'
+        '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/>'
+        '<w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders></w:tblPr>'
+        '<w:tblGrid><w:gridCol w:w="3300"/><w:gridCol w:w="4200"/><w:gridCol w:w="2220"/></w:tblGrid><w:tr>'
+        + table_cell(left, 3300)
+        + table_cell(right, 4200)
+        + table_cell(photo, 2220)
+        + '</w:tr></w:tbl>'
+        + paragraph("", after=35)
+    )
+
+
 def build_document(payload, has_photo=False):
     global FONT_NAME, FONT_SCALE
     resume = payload["resume"]
@@ -334,9 +403,13 @@ def build_document(payload, has_photo=False):
     job_block = paragraph(profile.get("job") or "求职岗位", bold=True, size=24, color=theme, after=90, keep_next=True)
     contact = " · ".join(filter(None, [profile.get("mobile"), profile.get("email"), profile.get("city"), profile.get("workYears")]))
     contact_block = paragraph(contact, size=20, color="64748B", after=160)
-    banner_slugs = {"resume-collection-cn-001", "resume-collection-cn-006"}
+    banner_slugs = {"resume-collection-cn-006"}
     profile_block = name_block + job_block + contact_block
-    if has_photo:
+    if template_slug == "resume-collection-cn-001":
+        body.append(cn001_banner(theme))
+        body.append(section_heading("基本信息", theme, template_slug))
+        body.append(cn001_profile_table(profile, has_photo))
+    elif has_photo:
         body.append(
             '<w:tbl><w:tblPr><w:tblW w:w="9720" w:type="dxa"/><w:tblLayout w:type="fixed"/></w:tblPr>'
             '<w:tblGrid><w:gridCol w:w="7900"/><w:gridCol w:w="1820"/></w:tblGrid><w:tr>'
@@ -357,19 +430,19 @@ def build_document(payload, has_photo=False):
         "resume-collection-cn-008": {"certificates", "interests"},
     }
     if template_slug in sidebar_ids:
-        side = "".join(render_section(section, theme) for section in sections if section.get("id") in sidebar_ids[template_slug])
-        main = "".join(render_section(section, theme) for section in sections if section.get("id") not in sidebar_ids[template_slug])
+        side = "".join(render_section(section, theme, template_slug) for section in sections if section.get("id") in sidebar_ids[template_slug])
+        main = "".join(render_section(section, theme, template_slug) for section in sections if section.get("id") not in sidebar_ids[template_slug])
         if template_slug == "resume-collection-cn-007":
             body.append(two_column_table(main, side, 6500, "E9EEF2"))
         else:
             body.append(two_column_table(side, main, 3150, "EAF4F8"))
     elif template_slug in {"resume-collection-cn-009", "resume-collection-cn-010"}:
         left_ids = {"summary", "education", "skills"} if template_slug.endswith("009") else {"summary", "education", "projects"}
-        left = "".join(render_section(section, theme) for section in sections if section.get("id") in left_ids)
-        right = "".join(render_section(section, theme) for section in sections if section.get("id") not in left_ids)
+        left = "".join(render_section(section, theme, template_slug) for section in sections if section.get("id") in left_ids)
+        right = "".join(render_section(section, theme, template_slug) for section in sections if section.get("id") not in left_ids)
         body.append(two_column_table(left, right, 4550))
     else:
-        body.extend(render_section(section, theme) for section in sections)
+        body.extend(render_section(section, theme, template_slug) for section in sections)
 
     body.append(
         '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>'
@@ -383,7 +456,8 @@ def build_document(payload, has_photo=False):
         'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" '
         'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
         'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
-        '<w:body>' + "".join(body) + '</w:body></w:document>'
+        + ('<w:background w:color="F5F6FB"/>' if template_slug == "resume-collection-cn-001" else '')
+        + '<w:body>' + "".join(body) + '</w:body></w:document>'
     )
 
 

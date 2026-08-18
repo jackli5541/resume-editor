@@ -274,12 +274,10 @@ test("服务层：配额用尽返回 429", async () => {
   );
 });
 
-test("服务层：非 clean-single 模板被拒绝", async () => {
+test("服务层生成结构化内容时允许携带目标模板", async () => {
   const service = await makeService();
-  await assert.rejects(
-    () => service.generate({ userId: "u1", templateSlug: "resume-collection-cn-001", description: "张三" }),
-    (error) => error instanceof AiGenerationError && error.statusCode === 400
-  );
+  const result = await service.generate({ userId: "u1", templateSlug: "resume-collection-cn-001", description: "张三" });
+  assert.equal(result.resume.profile.name, "张三");
 });
 
 test("服务层：拒绝未知求职阶段", async () => {
@@ -355,16 +353,19 @@ test("目标岗位写入求职字段且不覆盖历史职位", async (context) =
   assert.equal(body.resume.sections.find((section) => section.id === "experience").items[0].role, "高级产品经理");
 });
 
-test("非 clean-single 模板返回 400", async (context) => {
+test("AI 生成接口把结果投影到所选模板", async (context) => {
   const app = await startAiServer(await makeService());
   closeServer(app, context);
   const cookie = await registerAndLogin(app);
   const response = await fetch(`${app.origin}/api/ai/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: cookie },
-    body: JSON.stringify({ templateSlug: "resume-collection-cn-001", description: "张三" })
+    body: JSON.stringify({ templateSlug: "resume-collection-cn-001", templateVersion: 1, description: "张三" })
   });
-  assert.equal(response.status, 400);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.template.slug, "resume-collection-cn-001");
+  assert.deepEqual(body.resume.sections.slice(0, 4).map((section) => section.id), ["summary", "education", "experience", "skills"]);
 });
 
 test("空描述返回 400", async (context) => {

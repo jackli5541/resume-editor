@@ -55,7 +55,12 @@ export class AiJobService {
     const execution = job.payload?.execution || {};
     try {
       if (job.type === "generate") {
-        const result = await this.aiService.generate({
+        const template = await this.templateRepository.get(job.payload.templateSlug || "clean-single", Number(job.payload.templateVersion) || 1);
+        if (!template) throw Object.assign(new Error("生成模板不存在"), { code: "template_missing" });
+        if ((template.status || "ready") !== "ready" || template.selectable === false) {
+          throw Object.assign(new Error("生成模板暂不可用"), { code: "template_unavailable" });
+        }
+        const generated = await this.aiService.generate({
           userId: job.userId,
           templateSlug: job.payload.templateSlug,
           description: job.payload.description,
@@ -67,9 +72,20 @@ export class AiJobService {
           isAdmin: execution.isAdmin,
           aiDailyLimit: execution.aiDailyLimit
         });
+        const mapped = resumeForTemplate(generated.resume, template);
+        const resume = validateExportPayload({ resume: mapped, template }).resume;
         await this.repository.updateProgress(job.id, "finalizing", 90);
         await this.eventLog?.record({ userId: job.userId, event: "ai_generate" });
-        await this.repository.complete(job.id, result);
+        await this.repository.complete(job.id, {
+          ...generated,
+          resume,
+          template: {
+            slug: template.slug,
+            version: template.version,
+            name: template.name,
+            engine: template.engine
+          }
+        });
         return;
       }
 

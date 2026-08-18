@@ -98,6 +98,21 @@ export function renderResumeMarkup(resume, documentRef = document) {
   const sections = resume.sections.filter((section) => section.visible !== false && definitions.has(section.id));
   const slug = String(resume.template?.slug || "clean-single");
   const layout = schema.layoutSchema?.layout || "single";
+  if (slug === "resume-collection-cn-001") {
+    return renderCn001Markup({ resume, schema, sections, definitions, documentRef });
+  }
+  if (["resume-collection-cn-002", "resume-collection-cn-003"].includes(slug)) {
+    return renderClassicSingleMarkup({ resume, schema, sections, definitions, documentRef, slug });
+  }
+  if (slug === "resume-collection-cn-006") {
+    return renderGeometricMarkup({ resume, schema, sections, definitions, documentRef });
+  }
+  if (["resume-collection-cn-004", "resume-collection-cn-005", "resume-collection-cn-007", "resume-collection-cn-008"].includes(slug)) {
+    return renderCollectionSidebarMarkup({ resume, schema, sections, definitions, documentRef, slug });
+  }
+  if (["resume-collection-cn-009", "resume-collection-cn-010"].includes(slug)) {
+    return renderCreativeColumnsMarkup({ resume, schema, sections, definitions, documentRef, slug });
+  }
   const header = renderProfileHeader(profile, contact, photo, schema);
   const footer = `<footer class="resume-footer"><span>轻简历 · 结构化排版</span><span>${escapeHtml(resume.title)}</span></footer>`;
   const decorations = `<div class="template-decor template-decor--${escapeHtml(layout)}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>`;
@@ -130,6 +145,108 @@ export function renderResumeMarkup(resume, documentRef = document) {
     </main>${footer}</div>`;
 }
 
+function cn001ProfileRow(label, value) {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  return `<div class="cn001-profile-row"><span>${escapeHtml(label)}：</span><strong>${escapeHtml(text)}</strong></div>`;
+}
+
+function cn001Date(value) {
+  return String(value || "").trim().replace(/^(\d{4})-(\d{2})$/, "$1.$2");
+}
+
+function cn001Range(start, end) {
+  const left = cn001Date(start);
+  const right = cn001Date(end);
+  if (!left && !right) return "";
+  return `${left || "—"}-${right || "至今"}`;
+}
+
+function renderCn001TimelineItem(item, fields, documentRef) {
+  const start = fields.find((field) => field.key === "start");
+  const end = fields.find((field) => field.key === "end");
+  const rangeFields = fields.filter((field) => field.role === "range");
+  const rangeText = (start || end)
+    ? cn001Range(item?.start, item?.end)
+    : rangeFields.map((field) => item?.[field.key]).filter(Boolean).join("-");
+  const organization = fields.filter((field) => field.role === "primary")
+    .map((field) => item?.[field.key]).filter((value) => String(value ?? "").trim()).join(" · ");
+  const role = fields.filter((field) => field.role === "secondary")
+    .map((field) => item?.[field.key]).filter((value) => String(value ?? "").trim()).join(" · ");
+  const bodyFields = fields.filter((field) => field.role === "body");
+  const metaFields = fields.filter((field) => !["range", "primary", "secondary", "body"].includes(field.role));
+  const hasHeading = role || organization || rangeText;
+
+  return `<article class="timeline-item cn001-timeline-item">
+    ${hasHeading ? `<div class="cn001-timeline-top">
+      <strong>${escapeHtml(role)}</strong>
+      <span>${escapeHtml(organization)}</span>
+      <time>${escapeHtml(rangeText)}</time>
+    </div>` : ""}
+    ${bodyFields.map((field) => `<div class="rich-preview">${sanitizeRichHtml(item?.[field.key], documentRef)}</div>`).join("")}
+    ${renderMetaRows(metaFields, (field) => item?.[field.key], documentRef)}
+  </article>`;
+}
+
+function renderCn001Section(section, definition, documentRef) {
+  const fields = visibleFields(section);
+  let body = "";
+  if (definition?.type === "timeline") {
+    body = `<div class="timeline-list">${(section.items || []).map((item) => renderCn001TimelineItem(item, fields, documentRef)).join("")}</div>`;
+  } else if (definition?.type === "list") {
+    body = `<div class="compact-list">${(section.items || []).map((item) => renderListItem(item, fields, documentRef)).join("")}</div>`;
+  } else {
+    const contentField = fields.find((field) => field.key === "content");
+    body = contentField
+      ? `<div class="rich-preview rich-preview--standalone">${sanitizeRichHtml(section.content, documentRef)}</div>`
+      : "";
+  }
+  const parsedLineHeight = Number(section.lineHeight);
+  const lineHeightStyle = Number.isFinite(parsedLineHeight) && parsedLineHeight > 0
+    ? `style="line-height:${parsedLineHeight}"`
+    : "";
+  return `<section class="resume-section cn001-section resume-section--${escapeHtml(section.id)}" id="preview-${escapeHtml(section.id)}" data-open-module="${escapeHtml(section.id)}" ${lineHeightStyle}>
+    <div class="section-heading"><span>${escapeHtml(section.title)}</span><i></i></div>
+    <div class="cn001-section-body">${body}</div>
+  </section>`;
+}
+
+function renderCn001Markup({ resume, schema, sections, definitions, documentRef }) {
+  const profile = resume.profile || {};
+  const photo = safeImageUrl(profile.photo);
+  const leftRows = [
+    cn001ProfileRow("姓　名", profile.name),
+    cn001ProfileRow("年　龄", profile.age || profile.birthday),
+    cn001ProfileRow("学　历", profile.education),
+    cn001ProfileRow("求职意向", profile.job)
+  ].join("");
+  const rightRows = [
+    cn001ProfileRow("手机", profile.mobile),
+    cn001ProfileRow("邮箱", profile.email),
+    cn001ProfileRow("地址", profile.city)
+  ].join("");
+  const renderedSections = sections.map((section) => renderCn001Section(section, definitions.get(section.id), documentRef)).join("");
+
+  return `<div class="cn001-layout">
+    <header class="cn001-banner" aria-label="求职简历">
+      <strong>求职简历</strong>
+      <span><b>PERSONAL RESUME</b><small>我一直在努力！</small></span>
+    </header>
+    <section class="cn001-profile" data-open-module="profile">
+      <div class="section-heading"><span>基本信息</span><i></i></div>
+      <div class="cn001-profile-body">
+        <div class="cn001-profile-columns"><div>${leftRows}</div><div>${rightRows}</div></div>
+        ${schema.profileFields.includes("photo")
+          ? photo
+            ? `<img class="resume-photo" src="${escapeHtml(photo)}" alt="个人照片" />`
+            : `<div class="resume-photo resume-photo--placeholder" aria-hidden="true"><span>${escapeHtml((profile.name || "你").slice(0, 1))}</span></div>`
+          : ""}
+      </div>
+    </section>
+    <main class="resume-sections cn001-sections">${renderedSections}</main>
+  </div>`;
+}
+
 function renderProfileHeader(profile, contact, photo, schema) {
   return `<header class="resume-header" data-open-module="profile">
       <div class="resume-header__main">
@@ -147,6 +264,144 @@ function renderProfileHeader(profile, contact, photo, schema) {
           : `<div class="resume-photo resume-photo--placeholder" aria-hidden="true"><span>${escapeHtml((profile.name || "你").slice(0, 1))}</span></div>`
         : ""}
     </header>`;
+}
+
+const COLLECTION_ASSET_ROOT = "/template-assets";
+const SECTION_ICONS = {
+  objective: "◎", education: "▰", experience: "▣", projects: "◇", campus: "▥",
+  certificates: "♙", awards: "✹", skills: "✦", languages: "A", interests: "⌘", summary: "◉"
+};
+const SECTION_ENGLISH = {
+  objective: "Job objective", education: "Education background", experience: "Work experience",
+  projects: "Project experience", campus: "Campus experience", certificates: "Certificates",
+  awards: "Get the honor", skills: "Professional skills", languages: "Languages",
+  interests: "Interests", summary: "Self assessment"
+};
+
+function collectionAsset(slug, name) {
+  return `${COLLECTION_ASSET_ROOT}/${slug}/v1/html-assets/${name}`;
+}
+
+function collectionPhoto(profile, schema, slug, fallback, extraClass = "") {
+  if (!schema.profileFields.includes("photo")) return "";
+  const photo = safeImageUrl(profile.photo) || (fallback ? collectionAsset(slug, fallback) : "");
+  return photo
+    ? `<img class="resume-photo ${extraClass}" src="${escapeHtml(photo)}" alt="个人照片" />`
+    : `<div class="resume-photo resume-photo--placeholder ${extraClass}" aria-hidden="true"><span>${escapeHtml((profile.name || "你").slice(0, 1))}</span></div>`;
+}
+
+function renderCollectionSections(sections, definitions, documentRef) {
+  return sections.map((section) => renderResumeSection(section, definitions.get(section.id), documentRef)).join("");
+}
+
+function profileValue(label, value, className = "") {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  return `<div class="collection-profile-value ${className}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(text)}</strong></div>`;
+}
+
+function renderClassicSingleMarkup({ resume, schema, sections, definitions, documentRef, slug }) {
+  const profile = resume.profile || {};
+  const isTeal = slug.endsWith("002");
+  const rows = [
+    profileValue("姓　　名", profile.name), profileValue("性　　别", profile.gender),
+    profileValue("出生年月", profile.birthday), profileValue("求职意向", profile.job),
+    profileValue("联系电话", profile.mobile), profileValue("电子邮箱", profile.email),
+    profileValue("所在城市", profile.city), profileValue("政治面貌", profile.politicalStatus)
+  ].join("");
+  const photo = collectionPhoto(profile, schema, slug, "");
+  const title = isTeal
+    ? `<div class="collection-document-title"><strong>个人简历</strong><span>PERSONAL RESUME</span></div>`
+    : `<div class="collection-info-title"><b>&lt;&lt;&lt;</b><strong> 个人信息</strong></div>`;
+  return `<div class="collection-single ${isTeal ? "collection-single--teal" : "collection-single--navy"}">
+    <div class="collection-top-rule" aria-hidden="true"></div>
+    ${isTeal ? title : ""}
+    <section class="collection-profile-card" data-open-module="profile">
+      ${isTeal ? "" : title}<div class="collection-profile-grid">${rows}</div>${photo}
+    </section>
+    <main class="resume-sections collection-single-sections">${renderCollectionSections(sections, definitions, documentRef)}</main>
+    <div class="collection-bottom-rule" aria-hidden="true"></div>
+  </div>`;
+}
+
+function renderGeometricMarkup({ resume, schema, sections, definitions, documentRef }) {
+  const slug = "resume-collection-cn-006";
+  const profile = resume.profile || {};
+  const summary = sections.find((section) => section.id === "summary");
+  const bodySections = sections.filter((section) => section.id !== "summary");
+  const summaryHtml = summary ? sanitizeRichHtml(summary.content, documentRef) : "";
+  const info = [
+    profileValue("出生年月", profile.birthday), profileValue("性别", profile.gender),
+    profileValue("籍贯", profile.city), profileValue("现居", profile.city),
+    profileValue("电话", profile.mobile), profileValue("邮箱", profile.email)
+  ].join("");
+  return `<div class="collection-geometric">
+    <header class="geometric-hero" data-open-module="profile">
+      <div class="geometric-summary rich-preview">${summaryHtml}</div>
+      <div class="geometric-title"><strong>个人简历</strong><b class="geometric-name">${escapeHtml(profile.name || "你的姓名")}</b><span>求职意向：${escapeHtml(profile.job || "求职岗位")}</span></div>
+      ${collectionPhoto(profile, schema, slug, "image1.png")}
+    </header>
+    <div class="geometric-body"><main class="resume-sections">${renderCollectionSections(bodySections, definitions, documentRef)}</main>
+      <aside class="geometric-profile"><h2>基本信息</h2>${info}<h2>兴趣爱好</h2><div class="geometric-hobbies">◉　✈　♬　⌕</div></aside>
+    </div><div class="geometric-bottom" aria-hidden="true"></div>
+  </div>`;
+}
+
+function sidebarFallback(slug) {
+  return ({
+    "resume-collection-cn-004": "image2.png", "resume-collection-cn-005": "image1.jpeg",
+    "resume-collection-cn-007": "image1.jpeg", "resume-collection-cn-008": "image1.jpeg"
+  })[slug];
+}
+
+function renderSidebarProfile(profile, schema, slug) {
+  const contact = [
+    profileValue("生日", profile.birthday), profileValue("性别", profile.gender),
+    profileValue("电话", profile.mobile), profileValue("邮箱", profile.email), profileValue("地址", profile.city)
+  ].join("");
+  if (slug.endsWith("008")) {
+    return `<div class="sidebar-profile sidebar-profile--nurse">${collectionPhoto(profile, schema, slug, sidebarFallback(slug))}
+      <img class="nurse-cap" src="${collectionAsset(slug, "image2.png")}" alt="" />
+      <div class="nurse-name"><strong>${escapeHtml(profile.name || "你的姓名")}</strong><span>求职目标：${escapeHtml(profile.job || "护士岗位")}</span></div>
+      <div class="sidebar-contact-box">${contact}</div></div>`;
+  }
+  return `<div class="sidebar-profile">${collectionPhoto(profile, schema, slug, sidebarFallback(slug))}
+    <h1>${escapeHtml(profile.name || "你的姓名")}</h1><p>${escapeHtml(profile.job || "求职岗位")}</p>
+    <div class="sidebar-contact-box">${contact}</div></div>`;
+}
+
+function renderCollectionSidebarMarkup({ resume, schema, sections, definitions, documentRef, slug }) {
+  const profile = resume.profile || {};
+  const sidebarSections = sections.filter((section) => definitions.get(section.id)?.zone === "sidebar");
+  const mainSections = sections.filter((section) => definitions.get(section.id)?.zone !== "sidebar");
+  const right = slug.endsWith("007");
+  const nurse = slug.endsWith("008");
+  return `<div class="collection-sidebar-layout ${right ? "is-right" : "is-left"}">
+    <aside class="collection-sidebar">${renderSidebarProfile(profile, schema, slug)}
+      <div class="collection-sidebar-sections">${renderCollectionSections(sidebarSections, definitions, documentRef)}</div>
+      ${nurse ? `<img class="nurse-illustration" src="${collectionAsset(slug, "image3.png")}" alt="护士插画" />` : ""}
+    </aside>
+    <main class="resume-sections collection-sidebar-main">
+      ${slug.endsWith("004") ? `<div class="coral-resume-title"><span>RESUME</span></div>` : ""}
+      ${slug.endsWith("005") ? `<div class="navy-main-name"><strong>${escapeHtml(profile.name || "你的姓名")}</strong><span>${escapeHtml(profile.job || "求职岗位")}</span></div>` : ""}
+      ${renderCollectionSections(mainSections, definitions, documentRef)}
+    </main>
+  </div>`;
+}
+
+function renderCreativeColumnsMarkup({ resume, schema, sections, definitions, documentRef, slug }) {
+  const profile = resume.profile || {};
+  const left = sections.filter((section) => definitions.get(section.id)?.zone === "left");
+  const right = sections.filter((section) => definitions.get(section.id)?.zone === "right");
+  const background = collectionAsset(slug, "image2.png");
+  const info = [profile.name, profile.job, profile.birthday, profile.mobile, profile.email, profile.city].filter(Boolean).join(" · ");
+  return `<div class="collection-creative-columns">
+    <img class="creative-background" src="${background}" alt="" />
+    <header class="creative-header" data-open-module="profile"><div><strong>个人简历</strong><span>PERSONAL RESUME</span><small>${escapeHtml(info)}</small></div>
+      ${collectionPhoto(profile, schema, slug, "image1.jpeg")}</header>
+    <div class="creative-path" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <main class="creative-columns"><div>${renderCollectionSections(left, definitions, documentRef)}</div><div>${renderCollectionSections(right, definitions, documentRef)}</div></main>
+  </div>`;
 }
 
 export function paginateResumeLayout(flow, pageHeight) {

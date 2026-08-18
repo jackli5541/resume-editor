@@ -721,6 +721,13 @@
       </main>
     </section>
 
+    <div class="translate-template-overlay" id="aiGenerateTemplateOverlay" hidden>
+      <div class="translate-template-dialog" role="dialog" aria-modal="true" aria-labelledby="aiGenerateTemplateTitle">
+        <div class="translate-template-head"><div><span class="eyebrow">SELECT TEMPLATE</span><h2 id="aiGenerateTemplateTitle">选择生成后的简历模板</h2><p>AI 会先整理结构化内容，再按所选模板排版；进入编辑器后仍可继续修改。</p></div><button type="button" class="auth-dialog__close" data-action="ai-close-templates" aria-label="关闭">×</button></div>
+        <div id="aiGenerateTemplateList" class="translate-template-grid"></div>
+      </div>
+    </div>
+
     <div class="translate-template-overlay" id="translateTemplateOverlay" hidden>
       <div class="translate-template-dialog" role="dialog" aria-modal="true" aria-labelledby="translateTemplateTitle">
         <div class="translate-template-head"><div><span class="eyebrow">SELECT TEMPLATE</span><h2 id="translateTemplateTitle">选择翻译后的简历模板</h2><p>推荐模板经过中英文排版适配；其他模板可能因英文内容较长发生换行。</p></div><button type="button" class="auth-dialog__close" data-action="translate-close-templates" aria-label="关闭">×</button></div>

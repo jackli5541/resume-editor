@@ -1,11 +1,11 @@
-import { mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { Worker } from "bullmq";
 import { createRedisConnection } from "./bull-services.mjs";
-import { convertWithLibreOffice, moveAcrossDevices, renderNativeDocument, renderPreviewPages } from "./document-renderer.mjs";
+import { renderNativeDocument, renderPreviewPages } from "./document-renderer.mjs";
 import { renderDocx } from "./docx-renderer.mjs";
 import { objectStorageEnabled, uploadObject } from "./object-storage.mjs";
+import { renderPdf } from "./pdf-renderer.mjs";
 
 const connection = createRedisConnection();
 if (!connection) throw new Error("REDIS_URL is required by the document worker");
@@ -20,16 +20,12 @@ const exportWorker = new Worker("resume-exports", async (job) => {
   } else if (job.data.format === "docx") {
     result = await renderDocx({ outputPath, resume: job.data.resume, template: job.data.template });
   } else {
-    const workDir = await mkdtemp(join(tmpdir(), "resume-generic-pdf-"));
-    try {
-      const docxPath = join(workDir, "resume.docx");
-      await renderDocx({ outputPath: docxPath, resume: job.data.resume, template: job.data.template });
-      const pdfPath = await convertWithLibreOffice(docxPath, workDir);
-      await moveAcrossDevices(pdfPath, outputPath);
-      result = { pageCount: null };
-    } finally {
-      await rm(workDir, { recursive: true, force: true });
-    }
+    const origin = String(process.env.APP_INTERNAL_ORIGIN || job.data.origin || "").replace(/\/$/, "");
+    if (!origin) throw new Error("HTML PDF export requires APP_INTERNAL_ORIGIN");
+    result = await renderPdf({
+      url: `${origin}/internal/print/${encodeURIComponent(job.data.id)}?token=${encodeURIComponent(job.data.token)}`,
+      outputPath
+    });
   }
   if ((await stat(outputPath)).size < 1000) throw new Error("生成的文档无效");
   const objectKey = objectStorageEnabled()

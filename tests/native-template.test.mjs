@@ -7,7 +7,9 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { createInitialResume } from "../public/core.mjs";
+import { renderResumeMarkup } from "../public/resume-renderer.mjs";
 import { TEMPLATE_SCHEMAS } from "../public/template-schemas.mjs";
+import { TemplateRepository } from "../server/template-repository.mjs";
 import { buildEditorSchema } from "../scripts/template-editor-mappings.mjs";
 
 const EXPECTED_NATIVE_SECTIONS = {
@@ -66,6 +68,48 @@ test("11 个模板声明独立字段与布局能力", () => {
       assert.equal(schema.styleControls.fontSize, false);
     }
   }
+});
+
+test("cn-001 至 cn-010 均发布为 HTML 高保真适配", async () => {
+  const repository = new TemplateRepository({ database: null, storageDir: join("var", "templates") });
+  const templates = await repository.list();
+  for (const slug of Object.keys(EXPECTED_NATIVE_SECTIONS)) {
+    const adapted = templates.find((template) => template.slug === slug);
+    assert.equal(adapted.engine, "html-native", slug);
+    assert.equal(adapted.selectable, true, slug);
+    assert.equal(adapted.defaultResume, null, slug);
+    assert.equal(adapted.editorSchema.schemaVersion, 2, slug);
+    assert.match(adapted.previewUrl, /preview\.png\?preview=structured-v2$/, slug);
+  }
+  const first = templates.find((template) => template.slug === "resume-collection-cn-001");
+  assert.deepEqual(first.editorSchema.sections.slice(0, 4).map((section) => section.id), ["summary", "education", "experience", "skills"]);
+});
+
+test("全部模板均显示并转义姓名", () => {
+  const documentRef = {
+    createElement() {
+      let html = "";
+      return {
+        content: { querySelectorAll: () => [] },
+        get innerHTML() { return html; },
+        set innerHTML(value) { html = String(value); }
+      };
+    }
+  };
+  for (const [slug, editorSchema] of Object.entries(TEMPLATE_SCHEMAS)) {
+    const resume = createInitialResume();
+    resume.profile.name = "林知夏<script>";
+    resume.template = { slug, editorSchema };
+    const markup = renderResumeMarkup(resume, documentRef);
+    assert.match(markup, /林知夏&lt;script&gt;/, slug);
+    assert.doesNotMatch(markup, /林知夏<script>/, slug);
+  }
+});
+
+test("模板库封面按整页比例完整展示", async () => {
+  const styles = await readFile(join("public", "styles.css"), "utf8");
+  assert.match(styles, /\.template-preview\s*\{[^}]*aspect-ratio:\s*820\s*\/\s*1160/s);
+  assert.match(styles, /\.template-preview img\s*\{[^}]*object-fit:\s*contain/s);
 });
 
 const execFileAsync = promisify(execFile);
