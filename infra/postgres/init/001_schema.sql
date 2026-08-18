@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS templates (
   name text NOT NULL,
   category text NOT NULL DEFAULT '中文简历',
   description text NOT NULL DEFAULT '',
+  tags text[] NOT NULL DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );

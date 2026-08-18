@@ -215,6 +215,19 @@ const elements = {
   adminFeedbackReplyStatus: document.querySelector("#adminFeedbackReplyStatus"),
   adminFeedbackReplyText: document.querySelector("#adminFeedbackReplyText"),
   adminTemplateSearch: document.querySelector("#adminTemplateSearch"),
+  adminTemplateStatusFilter: document.querySelector("#adminTemplateStatusFilter"),
+  adminTemplateCategoryFilter: document.querySelector("#adminTemplateCategoryFilter"),
+  adminTemplateEngineFilter: document.querySelector("#adminTemplateEngineFilter"),
+  adminTemplateLicenseFilter: document.querySelector("#adminTemplateLicenseFilter"),
+  adminTemplateBulkBar: document.querySelector("#adminTemplateBulkBar"),
+  adminTemplateSelectedCount: document.querySelector("#adminTemplateSelectedCount"),
+  adminTemplateBulkCategory: document.querySelector("#adminTemplateBulkCategory"),
+  adminTemplateEditForm: document.querySelector("#adminTemplateEditForm"),
+  adminTemplateEditSlug: document.querySelector("#adminTemplateEditSlug"),
+  adminTemplateEditName: document.querySelector("#adminTemplateEditName"),
+  adminTemplateEditCategory: document.querySelector("#adminTemplateEditCategory"),
+  adminTemplateEditTags: document.querySelector("#adminTemplateEditTags"),
+  adminTemplateEditDescription: document.querySelector("#adminTemplateEditDescription"),
   adminTemplateTotal: document.querySelector("#adminTemplateTotal"),
   adminTemplateList: document.querySelector("#adminTemplateList"),
   adminTemplateStatus: document.querySelector("#adminTemplateStatus"),
@@ -365,6 +378,8 @@ let adminAnnouncementSearchTimer = null;
 let adminFeedbacks = [];
 let adminFeedbackSearchTimer = null;
 let adminTemplates = [];
+let adminTemplateCatalog = [];
+const adminTemplateSelection = new Set();
 let adminTemplateSearchTimer = null;
 let adminCosts = { days: [], byModel: [] };
 let adminConfigSchema = {};
@@ -2765,13 +2780,17 @@ async function loadAdminTemplates() {
   elements.adminTemplateStatus.textContent = "正在加载模板…";
   try {
     const payload = await readApiResponse(await fetch("/api/admin/templates", { cache: "no-store" }));
-    let templates = payload.templates || [];
+    adminTemplateCatalog = payload.templates || [];
+    populateAdminTemplateFilters();
+    let templates = adminTemplateCatalog;
     if (search) {
       const needle = search.toLowerCase();
-      templates = templates.filter((t) => (t.name || "").toLowerCase().includes(needle) || (t.category || "").toLowerCase().includes(needle));
+      templates = templates.filter((t) => [t.name, t.category, t.description, ...(t.tags || [])].some((value) => String(value || "").toLowerCase().includes(needle)));
     }
+    const filters = { status: elements.adminTemplateStatusFilter.value, category: elements.adminTemplateCategoryFilter.value, engine: elements.adminTemplateEngineFilter.value, licenseStatus: elements.adminTemplateLicenseFilter.value };
+    templates = templates.filter((template) => Object.entries(filters).every(([key, value]) => !value || template[key] === value));
     adminTemplates = templates;
-    elements.adminTemplateTotal.textContent = `${templates.length} 个模板`;
+    elements.adminTemplateTotal.textContent = templates.length === adminTemplateCatalog.length ? `${templates.length} 个模板` : `${templates.length} / ${adminTemplateCatalog.length} 个模板`;
     renderAdminTemplates();
     elements.adminTemplateStatus.hidden = true;
   } catch (error) {
@@ -2779,10 +2798,24 @@ async function loadAdminTemplates() {
   }
 }
 
+function populateAdminTemplateFilters() {
+  const statusNames = { ready: "已发布", needs_mapping: "待标注", needs_qa: "待验收", blocked: "已下架" };
+  const fill = (select, values, placeholder, labels = {}) => {
+    const selected = select.value;
+    select.innerHTML = `<option value="">${placeholder}</option>${[...new Set(values.filter(Boolean))].sort().map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(labels[value] || value)}</option>`).join("")}`;
+    if ([...select.options].some((option) => option.value === selected)) select.value = selected;
+  };
+  fill(elements.adminTemplateStatusFilter, adminTemplateCatalog.map((item) => item.status), "全部状态", statusNames);
+  fill(elements.adminTemplateCategoryFilter, adminTemplateCatalog.map((item) => item.category), "全部分类");
+  fill(elements.adminTemplateEngineFilter, adminTemplateCatalog.map((item) => item.engine), "全部引擎");
+  fill(elements.adminTemplateLicenseFilter, adminTemplateCatalog.map((item) => item.licenseStatus), "全部许可证");
+}
+
 function renderAdminTemplates() {
   const canWrite = hasAdminPermission("templates.write");
   if (!adminTemplates.length) {
     elements.adminTemplateList.innerHTML = '<p class="admin-empty">暂无模板。</p>';
+    renderAdminTemplateBulkBar();
     return;
   }
   const statusLabel = {
@@ -2793,16 +2826,18 @@ function renderAdminTemplates() {
   };
   elements.adminTemplateList.innerHTML = `
     <table class="admin-table">
-      <thead><tr><th>模板</th><th>分类</th><th>版本</th><th>引擎</th><th>状态</th><th>许可证</th><th>操作</th></tr></thead>
+      <thead><tr><th class="admin-check"><input type="checkbox" data-admin-template-select-all aria-label="全选当前结果" ${adminTemplates.every((t) => adminTemplateSelection.has(`${t.slug}@${t.version}`)) ? "checked" : ""}></th><th>模板</th><th>分类</th><th>标签</th><th>版本</th><th>引擎</th><th>状态</th><th>许可证</th><th>操作</th></tr></thead>
       <tbody>${adminTemplates.map((t) => {
         const ops = [];
         if (canWrite) {
+          ops.push(`<button type="button" data-action="admin-edit-template" data-slug="${escapeHtml(t.slug)}">编辑</button>`);
           if (t.status !== "ready") ops.push(`<button type="button" data-action="admin-template-status" data-slug="${escapeHtml(t.slug)}" data-version="${t.version}" data-status="ready">发布</button>`);
           if (t.status !== "blocked") ops.push(`<button type="button" data-action="admin-template-status" data-slug="${escapeHtml(t.slug)}" data-version="${t.version}" data-status="blocked">下架</button>`);
         }
-        return `<tr>
+        return `<tr><td class="admin-check"><input type="checkbox" data-admin-template-select="${escapeHtml(`${t.slug}@${t.version}`)}" aria-label="选择 ${escapeHtml(t.name)}" ${adminTemplateSelection.has(`${t.slug}@${t.version}`) ? "checked" : ""}></td>
           <td><strong>${escapeHtml(t.name)}</strong><small class="admin-user small">${escapeHtml(t.slug)}</small></td>
           <td>${escapeHtml(t.category || "—")}</td>
+          <td>${(t.tags || []).length ? t.tags.map((tag) => `<span class="admin-template-tag">${escapeHtml(tag)}</span>`).join("") : "—"}</td>
           <td>v${t.version}</td>
           <td>${escapeHtml(t.engine || "—")}</td>
           <td>${statusLabel[t.status] || escapeHtml(t.status)}</td>
@@ -2811,6 +2846,59 @@ function renderAdminTemplates() {
         </tr>`;
       }).join("")}</tbody>
     </table>`;
+  renderAdminTemplateBulkBar();
+}
+
+function renderAdminTemplateBulkBar() {
+  const count = adminTemplateSelection.size;
+  elements.adminTemplateBulkBar.hidden = !count || !hasAdminPermission("templates.write");
+  elements.adminTemplateSelectedCount.textContent = `已选 ${count} 项`;
+}
+
+function openAdminTemplateEdit(slug) {
+  const template = adminTemplateCatalog.find((item) => item.slug === slug);
+  if (!template) return;
+  elements.adminTemplateEditSlug.value = template.slug;
+  elements.adminTemplateEditName.value = template.name || "";
+  elements.adminTemplateEditCategory.value = template.category || "";
+  elements.adminTemplateEditTags.value = (template.tags || []).join("，");
+  elements.adminTemplateEditDescription.value = template.description || "";
+  elements.adminTemplateEditForm.hidden = false;
+  elements.adminTemplateEditName.focus();
+}
+
+function cancelAdminTemplateEdit() {
+  elements.adminTemplateEditForm.hidden = true;
+  elements.adminTemplateEditSlug.value = "";
+}
+
+async function saveAdminTemplate(event) {
+  event.preventDefault();
+  const slug = elements.adminTemplateEditSlug.value;
+  const tags = elements.adminTemplateEditTags.value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean);
+  try {
+    await readApiResponse(await fetch(`/api/admin/templates/${encodeURIComponent(slug)}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: elements.adminTemplateEditName.value.trim(), category: elements.adminTemplateEditCategory.value.trim(), description: elements.adminTemplateEditDescription.value.trim(), tags })
+    }));
+    showToast("模板资料已保存", "success");
+    cancelAdminTemplateEdit();
+    await loadAdminTemplates();
+  } catch (error) { showToast(error?.message || "保存失败", "warning"); }
+}
+
+async function bulkUpdateAdminTemplates(changes) {
+  const items = [...adminTemplateSelection].map((key) => { const [slug, version] = key.split("@"); return { slug, version: Number(version) }; });
+  if (!items.length) return;
+  try {
+    const payload = await readApiResponse(await fetch("/api/admin/templates/bulk", {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items, ...changes })
+    }));
+    showToast(`已更新 ${payload.count || 0} 个模板`, "success");
+    adminTemplateSelection.clear();
+    elements.adminTemplateBulkCategory.value = "";
+    await loadAdminTemplates();
+  } catch (error) { showToast(error?.message || "批量操作失败", "warning"); }
 }
 
 async function adminTemplateStatus(target) {
@@ -5927,6 +6015,13 @@ document.addEventListener("click", async (event) => {
   else if (action === "close-feedback-detail") closeFeedbackDetail();
   else if (action === "admin-cancel-feedback") cancelFeedbackReply();
   else if (action === "admin-template-status") adminTemplateStatus(actionTarget);
+  else if (action === "admin-edit-template") openAdminTemplateEdit(actionTarget.dataset.slug);
+  else if (action === "admin-cancel-template-edit") cancelAdminTemplateEdit();
+  else if (action === "admin-template-bulk-status") bulkUpdateAdminTemplates({ status: actionTarget.dataset.status });
+  else if (action === "admin-template-bulk-category") {
+    const category = elements.adminTemplateBulkCategory.value.trim();
+    if (category) bulkUpdateAdminTemplates({ category }); else showToast("请输入新分类", "warning");
+  }
   else if (action === "admin-export-csv") adminExportCsv(actionTarget);
   else if (action === "admin-refresh-system") loadAdminSystem();
   else if (action === "admin-retry-failed") adminRetryFailed();
@@ -6405,10 +6500,28 @@ elements.adminTemplateSearch.addEventListener("input", () => {
   clearTimeout(adminTemplateSearchTimer);
   adminTemplateSearchTimer = setTimeout(() => loadAdminTemplates(), 300);
 });
+[elements.adminTemplateStatusFilter, elements.adminTemplateCategoryFilter, elements.adminTemplateEngineFilter, elements.adminTemplateLicenseFilter].forEach((select) => select.addEventListener("change", loadAdminTemplates));
+
+elements.adminTemplateList.addEventListener("change", (event) => {
+  const selectAll = event.target.closest("[data-admin-template-select-all]");
+  if (selectAll) {
+    for (const template of adminTemplates) {
+      const key = `${template.slug}@${template.version}`;
+      if (selectAll.checked) adminTemplateSelection.add(key); else adminTemplateSelection.delete(key);
+    }
+    renderAdminTemplates();
+    return;
+  }
+  const checkbox = event.target.closest("[data-admin-template-select]");
+  if (!checkbox) return;
+  if (checkbox.checked) adminTemplateSelection.add(checkbox.dataset.adminTemplateSelect); else adminTemplateSelection.delete(checkbox.dataset.adminTemplateSelect);
+  renderAdminTemplates();
+});
 
 elements.adminAiForm.addEventListener("submit", saveAdminAiConfig);
 elements.adminAnnouncementForm.addEventListener("submit", saveAnnouncement);
 elements.adminFeedbackReplyForm.addEventListener("submit", saveFeedbackReply);
+elements.adminTemplateEditForm.addEventListener("submit", saveAdminTemplate);
 elements.feedbackForm.addEventListener("submit", submitFeedback);
 elements.adminConfigForm.addEventListener("submit", saveAdminConfig);
 elements.adminSupportUpload?.addEventListener("change", uploadAdminSupportImages);

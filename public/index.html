@@ -493,9 +493,32 @@
         </section>
         <section class="admin-panel" data-admin-panel="templates" hidden>
           <div class="admin-toolbar">
-            <input type="search" id="adminTemplateSearch" placeholder="搜索模板名称或分类" aria-label="搜索模板" />
+            <div class="admin-toolbar__actions admin-template-filters">
+              <input type="search" id="adminTemplateSearch" placeholder="搜索名称、分类或标签" aria-label="搜索模板" />
+              <select id="adminTemplateStatusFilter" aria-label="按状态筛选"><option value="">全部状态</option></select>
+              <select id="adminTemplateCategoryFilter" aria-label="按分类筛选"><option value="">全部分类</option></select>
+              <select id="adminTemplateEngineFilter" aria-label="按引擎筛选"><option value="">全部引擎</option></select>
+              <select id="adminTemplateLicenseFilter" aria-label="按许可证筛选"><option value="">全部许可证</option></select>
+            </div>
             <span id="adminTemplateTotal" class="section-count"></span>
           </div>
+          <div id="adminTemplateBulkBar" class="admin-bulk-bar" hidden>
+            <span id="adminTemplateSelectedCount">已选 0 项</span>
+            <button type="button" data-action="admin-template-bulk-status" data-status="ready">批量上架</button>
+            <button type="button" data-action="admin-template-bulk-status" data-status="blocked">批量下架</button>
+            <input id="adminTemplateBulkCategory" maxlength="50" placeholder="新分类" aria-label="批量修改分类" />
+            <button type="button" data-action="admin-template-bulk-category">修改分类</button>
+          </div>
+          <form class="admin-form admin-inline-form" id="adminTemplateEditForm" hidden novalidate>
+            <input type="hidden" id="adminTemplateEditSlug" />
+            <div class="admin-form__grid">
+              <label class="admin-field"><span class="admin-field__label">名称</span><input id="adminTemplateEditName" maxlength="100" required /></label>
+              <label class="admin-field"><span class="admin-field__label">分类</span><input id="adminTemplateEditCategory" maxlength="50" required /></label>
+              <label class="admin-field admin-field--wide"><span class="admin-field__label">标签</span><input id="adminTemplateEditTags" placeholder="用逗号分隔，最多 20 个" /></label>
+              <label class="admin-field admin-field--wide"><span class="admin-field__label">描述</span><textarea id="adminTemplateEditDescription" rows="2" maxlength="500"></textarea></label>
+            </div>
+            <div class="admin-form__footer"><button type="submit" class="admin-submit">保存</button><button type="button" class="admin-link" data-action="admin-cancel-template-edit">取消</button></div>
+          </form>
           <div id="adminTemplateList" class="admin-table-wrap" aria-live="polite"></div>
           <p id="adminTemplateStatus" class="library-status">正在加载模板…</p>
         </section>
