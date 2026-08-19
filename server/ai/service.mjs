@@ -231,7 +231,7 @@ export class AiGenerationService {
     }
   }
 
-  async optimize({ userId, resume, instruction, tone = "professional", isAdmin = false, aiDailyLimit = null }) {
+  async optimize({ userId, resume, instruction, tone = "professional", decisionContext = [], isAdmin = false, aiDailyLimit = null }) {
     const config = await this.configRepository.get();
     if (!config.enabled) throw new AiGenerationError("AI 服务未启用，请联系管理员", 503, "ai_disabled");
     if (config.optimizeEnabled === false) throw new AiGenerationError("AI 优化已关闭，请联系管理员", 503, "ai_optimize_disabled");
@@ -267,7 +267,7 @@ export class AiGenerationService {
           maxOutputTokens: config.maxOutputTokens,
           timeoutMs: config.timeoutMs,
           systemPrompt: buildOptimizeSystemPrompt(config.systemPrompt),
-          userPrompt: buildOptimizeUserPrompt(resume, text, tone)
+          userPrompt: buildOptimizeUserPrompt(resume, text, tone, decisionContext)
         });
         outputChars = JSON.stringify(modelJson).length;
       } catch (error) {

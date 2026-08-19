@@ -25,3 +25,11 @@ test("首页展示四个 AI 入口和逐项决策承诺", async () => {
   assert.match(html, /逐项接受或拒绝/);
   assert.match(styles, /@media screen and \(max-width: 640px\)[\s\S]*?\.home-tool-grid\s*\{\s*grid-template-columns:\s*1fr;/);
 });
+
+test("AI 精修应用后保留轮次记录并等待用户主动继续", async () => {
+  const app = await readFile(new URL("../public/app.mjs", import.meta.url), "utf8");
+  assert.match(app, /decisionContext:\s*aiOptimizeHistory/);
+  assert.match(app, /archiveAiProposal\(round/);
+  assert.match(app, /data-action="ai-followup"/);
+  assert.doesNotMatch(app, /function applyAiOptimize\(\)[\s\S]*?clearAiChat\(\);[\s\S]*?function cancelAiOptimize/);
+});

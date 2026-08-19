@@ -1763,6 +1763,7 @@ export function createAppServer(options = {}) {
           resume: payload?.resume,
           instruction: payload?.instruction,
           tone: payload?.tone,
+          decisionContext: payload?.decisionContext,
           isAdmin: user.isAdmin,
           aiDailyLimit: user.aiDailyLimit
         });

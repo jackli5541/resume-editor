@@ -3711,6 +3711,17 @@ select:focus-visible,
 .ai-proposal__cancel:hover {
   background: var(--surface-2);
 }
+.ai-proposal.is-completed { box-shadow: none; }
+.ai-proposal.is-completed details { padding: 10px 12px; }
+.ai-proposal.is-completed summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--ink-soft); font-size: 12px; cursor: pointer; }
+.ai-proposal.is-completed summary strong { color: var(--brand-dark); font-size: 11px; }
+.ai-proposal.is-completed p { margin: 9px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.ai-round-followup { padding: 11px 12px; border: 1px solid var(--brand-100); border-radius: 10px; background: var(--brand-25); }
+.ai-round-followup p { margin: 0 0 8px; color: var(--ink-soft); font-size: 12px; line-height: 1.55; }
+.ai-round-followup > span { color: var(--muted); font-size: 11px; }
+.ai-round-followup > div { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.ai-round-followup button { padding: 6px 9px; border: 1px solid var(--brand-100); border-radius: 999px; color: var(--brand-dark); background: var(--surface); font: inherit; font-size: 11px; cursor: pointer; }
+.ai-round-followup button:hover { border-color: var(--brand-300); background: var(--brand-50); }
 
 .ai-chat__hint {
   margin: 0 0 12px;

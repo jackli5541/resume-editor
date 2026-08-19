@@ -15,6 +15,7 @@ const OPTIMIZE_BASE_SYSTEM_PROMPT = `你是专业的简历改写助手。用户�
 4. content 类字段输出 HTML，只允许 <p>、<ul>、<ol>、<li>、<strong>、<em> 标签，每条要点用 <li>；其它字段输出纯文本。
 5. op 取值：set（修改字段）、add（新增条目）、remove（删除条目）、addModule（启用/新增模块）、removeModule（隐藏/删除模块）。
 6. 用最少的修改达成目标；能改就改，能不删就不删，能不新增就不新增。
+7. 如果提供了此前轮次的用户决策，必须尊重被拒绝的建议；除非用户在本轮明确要求重新考虑，否则不要再次提出相同事实、数字或改写方向。
 
 输出 JSON 结构（字段名固定，不要增删）：
 {
@@ -58,9 +59,21 @@ function serializeResumeForOptimize(resume) {
   };
 }
 
-function buildOptimizeUserPrompt(resume, instruction, tone) {
+export function normalizeOptimizeDecisionContext(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(-6).map((round) => ({
+    instruction: cleanStr(round?.instruction, 500),
+    summary: cleanStr(round?.summary, 500),
+    accepted: (Array.isArray(round?.accepted) ? round.accepted : []).slice(0, MAX_CHANGES).map((item) => cleanStr(item, 500)).filter(Boolean),
+    rejected: (Array.isArray(round?.rejected) ? round.rejected : []).slice(0, MAX_CHANGES).map((item) => cleanStr(item, 500)).filter(Boolean)
+  })).filter((round) => round.instruction || round.accepted.length || round.rejected.length);
+}
+
+function buildOptimizeUserPrompt(resume, instruction, tone, decisionContext = []) {
   const hint = TONE_HINTS[tone] || TONE_HINTS.professional;
-  return `<current_resume>\n${JSON.stringify(serializeResumeForOptimize(resume))}\n</current_resume>\n\n<instruction>\n${String(instruction || "").trim()}\n</instruction>\n\n${hint}`;
+  const history = normalizeOptimizeDecisionContext(decisionContext);
+  const decisions = history.length ? `\n\n<previous_user_decisions>\n${JSON.stringify(history)}\n</previous_user_decisions>` : "";
+  return `<current_resume>\n${JSON.stringify(serializeResumeForOptimize(resume))}\n</current_resume>${decisions}\n\n<instruction>\n${String(instruction || "").trim()}\n</instruction>\n\n${hint}`;
 }
 
 function sectionById(resume, id) {
