@@ -3471,6 +3471,7 @@ select:focus-visible,
 }
 
 .ai-tool-menu__trigger {
+  white-space: nowrap;
   height: 34px;
   padding: 0 10px;
   border: 0;
@@ -7963,6 +7964,29 @@ body.export-document .resume-paper[data-template="resume-collection-cn-001"] .cn
   .library-header .primary-nav a {
     flex: 0 0 auto;
     white-space: nowrap;
+  }
+
+  .library-header .ai-tool-menu {
+    flex: 0 0 auto;
+  }
+
+  .library-header .ai-tool-menu__trigger {
+    height: 40px;
+    padding-inline: 7px;
+    font-size: 12px;
+  }
+
+  /* The navigation scrolls horizontally on phones. Keep its menu panel out
+   * of that scroll container so it is not clipped below the header. */
+  .library-header .ai-tool-menu__panel {
+    position: fixed;
+    top: calc(62px + env(safe-area-inset-top));
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-width: 360px;
+    margin-left: auto;
+    transform: none;
   }
 
   .library-header .account-area,
