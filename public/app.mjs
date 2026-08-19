@@ -22,7 +22,7 @@ import {
   renderResumeMarkup,
   sanitizeRichHtml
 } from "./resume-renderer.mjs";
-import { isAppPath, parseAppRoute, routePath } from "./router.mjs";
+import { isAppPath, isLegalRoute, legalReturnTarget, parseAppRoute, routePath } from "./router.mjs";
 import { getDeviceId } from "./fingerprint.mjs";
 import { readApiResponse as parseApiResponse } from "./api-client.mjs";
 import { createAdminApi } from "./admin-api.mjs";
@@ -86,6 +86,7 @@ const elements = {
   toastRegion: document.querySelector("#toastRegion"),
   loginPage: document.querySelector("#loginPage"),
   legalPage: document.querySelector("#legalPage"),
+  legalBackLink: document.querySelector("#legalBackLink"),
   trustFooter: document.querySelector("#trustFooter"),
   settingsOverlay: document.querySelector("#settingsOverlay"),
   loginForm: document.querySelector("#loginForm"),
@@ -5806,9 +5807,9 @@ async function applyCurrentRoute({ replaceInvalid = false } = {}) {
   const route = parseAppRoute(window.location.pathname);
   elements.legalPage.hidden = true;
   elements.trustFooter.hidden = ["editor", "resume", "admin"].includes(route.name);
-  if (!["privacy", "terms", "ai-notice", "data-deletion", "contact"].includes(route.name)) document.title = "轻简历 · 免费在线简历编辑器";
+  if (!isLegalRoute(route)) document.title = "轻简历 · 免费在线简历编辑器";
   refreshAiToolMenuState();
-  if (["privacy", "terms", "ai-notice", "data-deletion", "contact"].includes(route.name)) {
+  if (isLegalRoute(route)) {
     elements.app.hidden = true;
     elements.homePage.hidden = true;
     elements.templateLibrary.hidden = true;
@@ -5821,6 +5822,11 @@ async function applyCurrentRoute({ replaceInvalid = false } = {}) {
     document.documentElement.classList.remove("home-page-mode", "template-library-mode");
     document.querySelectorAll("[data-legal-article]").forEach((article) => { article.hidden = article.dataset.legalArticle !== route.name; });
     document.querySelectorAll("[data-legal-link]").forEach((link) => link.classList.toggle("is-active", link.dataset.legalLink === route.name));
+    const returnTo = legalReturnTarget(window.history.state?.legalReturnTo);
+    const returnRoute = parseAppRoute(new URL(returnTo, window.location.origin).pathname);
+    const returnLabels = { login: "返回登录", ai: "返回 AI 生成", "ai-translate": "返回 AI 翻译", templates: "返回模板库", drafts: "返回我的草稿", editor: "返回编辑器", resume: "返回编辑器" };
+    elements.legalBackLink.href = returnTo;
+    elements.legalBackLink.textContent = returnLabels[returnRoute.name] || "返回首页";
     const heading = document.querySelector(`[data-legal-article="${route.name}"] h1`)?.textContent || "信任中心";
     document.title = `${heading} · 轻简历`;
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -6764,6 +6770,11 @@ document.addEventListener("click", (event) => {
 
   const link = event.target.closest("a[href]");
   if (!link) return;
+  if (link === elements.legalBackLink && Number.isInteger(window.history.state?.legalDepth) && window.history.state.legalDepth > 0) {
+    event.preventDefault();
+    window.history.go(-window.history.state.legalDepth);
+    return;
+  }
   if (link.getAttribute("aria-disabled") === "true") {
     event.preventDefault();
     showToast("该 AI 功能正在维护中", "info");
@@ -6791,7 +6802,16 @@ document.addEventListener("click", (event) => {
     if (window.location.hash !== url.hash) window.history.replaceState({}, "", targetPath);
     return;
   }
-  window.history.pushState({}, "", targetPath);
+  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const targetRoute = parseAppRoute(url.pathname);
+  const currentRoute = parseAppRoute(window.location.pathname);
+  const state = isLegalRoute(targetRoute)
+    ? {
+        legalReturnTo: isLegalRoute(currentRoute) ? legalReturnTarget(window.history.state?.legalReturnTo) : legalReturnTarget(currentPath),
+        legalDepth: isLegalRoute(currentRoute) ? Math.max(1, Number(window.history.state?.legalDepth) || 1) + 1 : 1
+      }
+    : {};
+  window.history.pushState(state, "", targetPath);
   applyCurrentRoute();
 });
 
