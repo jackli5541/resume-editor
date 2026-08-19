@@ -23,6 +23,8 @@ const CLIENT_ERRORS = {
   invalid_json: [502, "模型返回了无效结果，请重试"],
   output_truncated: [502, "简历内容较长，模型输出被截断，请精简内容后重试"],
   provider_error: [502, "模型服务异常，请稍后再试"],
+  provider_unavailable: [502, "模型服务暂时不可用，已自动重试，请稍后再试"],
+  network: [502, "暂时无法连接模型服务，已自动重试，请稍后再试"],
   unsafe_base_url: [500, "模型服务地址配置有误，请联系管理员"]
 };
 

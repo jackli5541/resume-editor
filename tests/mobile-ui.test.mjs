@@ -33,3 +33,15 @@ test("AI 精修应用后保留轮次记录并等待用户主动继续", async ()
   assert.match(app, /data-action="ai-followup"/);
   assert.doesNotMatch(app, /function applyAiOptimize\(\)[\s\S]*?clearAiChat\(\);[\s\S]*?function cancelAiOptimize/);
 });
+
+test("桌面端 AI 侧边栏支持有上限的拖拽调宽，窄屏禁用拖拽", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
+  const app = await readFile(new URL("../public/app.mjs", import.meta.url), "utf8");
+  assert.match(html, /id="aiChatResizeHandle"[^>]+role="separator"/);
+  assert.match(styles, /width:\s*clamp\(320px,[^;]+720px[^;]+60vw/);
+  assert.match(styles, /@media screen and \(max-width:\s*900px\)[\s\S]*?\.ai-chat__resize-handle\s*\{\s*display:\s*none;/);
+  assert.match(app, /AI_CHAT_MAX_WIDTH\s*=\s*720/);
+  assert.match(app, /setPointerCapture\(event\.pointerId\)/);
+  assert.match(app, /localStorage\.setItem\(AI_CHAT_WIDTH_KEY/);
+});
