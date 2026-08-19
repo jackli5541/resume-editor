@@ -81,6 +81,23 @@ function schema(slug, name, layout, profileFields, sections, overrides = {}) {
   };
 }
 
+const MODULE_BASELINE = [
+  "objective", "education", "experience", "projects", "skills", "summary",
+  "campus", "certificates", "awards", "languages", "interests"
+];
+
+// 极简轻是所有模板的内容能力基线。模板原有模块保持默认显示；缺失模块作为
+// 可添加项补齐，并按模板布局进入合适栏位，避免切换模板时丢失草稿内容。
+function withModuleBaseline(sections, fallbackZone = "main", optionalZones = {}) {
+  const existing = new Set(sections.map((item) => item.id));
+  return [
+    ...sections,
+    ...MODULE_BASELINE
+      .filter((id) => !existing.has(id))
+      .map((id) => section(id, optionalZones[id] || fallbackZone, { optional: true }))
+  ];
+}
+
 export const TEMPLATE_SCHEMAS = {
   "clean-single": schema("clean-single", "极简轻", "single", ["name", "job", "mobile", "email", "city", "workYears", "photo"], [
     section("objective"), section("education"), section("experience"), section("projects"), section("skills"), section("summary"),
@@ -90,37 +107,37 @@ export const TEMPLATE_SCHEMAS = {
     section("languages", "main", { optional: true }),
     section("interests", "main", { optional: true })
   ], { styleControls: { fontFamily: true, fontSize: { min: 12, max: 18 }, theme: true, lineHeight: true, pagePadding: true, sectionGap: true } }),
-  "resume-collection-cn-001": schema("resume-collection-cn-001", "商务圆角", "single-banner", ["name", "age", "education", "job", "mobile", "email", "city", "photo"], [
+  "resume-collection-cn-001": schema("resume-collection-cn-001", "商务圆角", "single-banner", ["name", "age", "education", "job", "mobile", "email", "city", "photo"], withModuleBaseline([
     section("summary"), section("education"), section("experience"), section("skills", "main", { title: "职业技能" }),
     section("certificates", "main", { optional: true })
-  ]),
-  "resume-collection-cn-002": schema("resume-collection-cn-002", "经典青灰", "single-compact", ["name", "job", "mobile", "email", "city", "birthday", "gender", "photo"], [
+  ])),
+  "resume-collection-cn-002": schema("resume-collection-cn-002", "经典青灰", "single-compact", ["name", "job", "mobile", "email", "city", "birthday", "gender", "photo"], withModuleBaseline([
     section("education"), section("campus"), section("experience"), section("skills"), section("summary")
-  ]),
-  "resume-collection-cn-003": schema("resume-collection-cn-003", "深蓝专业", "single-rule", ["name", "job", "mobile", "email", "city", "birthday", "gender", "politicalStatus", "photo"], [
+  ])),
+  "resume-collection-cn-003": schema("resume-collection-cn-003", "深蓝专业", "single-rule", ["name", "job", "mobile", "email", "city", "birthday", "gender", "politicalStatus", "photo"], withModuleBaseline([
     section("education"), section("campus"), section("experience"), section("certificates"), section("skills"), section("summary")
-  ]),
-  "resume-collection-cn-004": schema("resume-collection-cn-004", "珊瑚侧栏", "sidebar-left", ["name", "job", "mobile", "email", "birthday", "gender", "photo"], [
+  ])),
+  "resume-collection-cn-004": schema("resume-collection-cn-004", "珊瑚侧栏", "sidebar-left", ["name", "job", "mobile", "email", "birthday", "gender", "photo"], withModuleBaseline([
     section("objective", "sidebar"), section("skills", "sidebar"), section("experience"), section("education"), section("summary")
-  ]),
-  "resume-collection-cn-005": schema("resume-collection-cn-005", "深蓝图标", "sidebar-left", ["name", "job", "mobile", "email", "birthday", "photo"], [
+  ], "main", { languages: "sidebar", interests: "sidebar", certificates: "sidebar" })),
+  "resume-collection-cn-005": schema("resume-collection-cn-005", "深蓝图标", "sidebar-left", ["name", "job", "mobile", "email", "birthday", "photo"], withModuleBaseline([
     section("skills", "sidebar"), section("interests", "sidebar"), section("education"), section("experience"), section("projects"), section("summary")
-  ]),
-  "resume-collection-cn-006": schema("resume-collection-cn-006", "蓝色几何", "single-geometric", ["name", "job", "mobile", "email", "birthday", "gender", "photo"], [
+  ], "main", { objective: "sidebar", languages: "sidebar", certificates: "sidebar" })),
+  "resume-collection-cn-006": schema("resume-collection-cn-006", "蓝色几何", "single-geometric", ["name", "job", "mobile", "email", "birthday", "gender", "photo"], withModuleBaseline([
     section("education"), section("experience"), section("campus"), section("certificates"), section("skills")
-  ]),
-  "resume-collection-cn-007": schema("resume-collection-cn-007", "灰蓝右栏", "sidebar-right", ["name", "job", "mobile", "email", "city", "birthday", "photo"], [
+  ])),
+  "resume-collection-cn-007": schema("resume-collection-cn-007", "灰蓝右栏", "sidebar-right", ["name", "job", "mobile", "email", "city", "birthday", "photo"], withModuleBaseline([
     section("objective", "sidebar"), section("skills", "sidebar"), section("interests", "sidebar"), section("education"), section("experience"), section("summary")
-  ]),
-  "resume-collection-cn-008": schema("resume-collection-cn-008", "插画侧栏", "sidebar-left", ["name", "job", "mobile", "email", "birthday", "gender", "photo"], [
+  ], "main", { languages: "sidebar", certificates: "sidebar" })),
+  "resume-collection-cn-008": schema("resume-collection-cn-008", "插画侧栏", "sidebar-left", ["name", "job", "mobile", "email", "birthday", "gender", "photo"], withModuleBaseline([
     section("certificates", "sidebar"), section("interests", "sidebar"), section("summary"), section("experience"), section("education"), section("campus"), section("awards")
-  ]),
-  "resume-collection-cn-009": schema("resume-collection-cn-009", "清新双栏", "columns", ["name", "job", "mobile", "email", "birthday", "gender", "photo"], [
+  ], "main", { objective: "sidebar", skills: "sidebar", languages: "sidebar" })),
+  "resume-collection-cn-009": schema("resume-collection-cn-009", "清新双栏", "columns", ["name", "job", "mobile", "email", "birthday", "gender", "photo"], withModuleBaseline([
     section("summary", "left"), section("education", "left"), section("skills", "left"), section("experience", "right"), section("campus", "right"), section("certificates", "right"), section("awards", "right")
-  ]),
-  "resume-collection-cn-010": schema("resume-collection-cn-010", "时间轴双栏", "columns", ["name", "job", "mobile", "email", "city", "birthday", "photo"], [
+  ], "right", { objective: "left", projects: "right", languages: "left", interests: "left" })),
+  "resume-collection-cn-010": schema("resume-collection-cn-010", "时间轴双栏", "columns", ["name", "job", "mobile", "email", "city", "birthday", "photo"], withModuleBaseline([
     section("summary", "left"), section("education", "left"), section("projects", "left"), section("experience", "right"), section("campus", "right"), section("awards", "right"), section("interests", "right")
-  ])
+  ], "right", { objective: "left", skills: "left", languages: "left", certificates: "right" }))
 };
 
 export function getTemplateSchema(template) {

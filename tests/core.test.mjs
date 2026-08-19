@@ -14,6 +14,7 @@ import {
   resumeForTemplate
 } from "../public/core.mjs";
 import { parseAppRoute, routePath } from "../public/router.mjs";
+import { TEMPLATE_SCHEMAS } from "../public/template-schemas.mjs";
 
 test("应用路由可解析模板库、编辑器和具体草稿", () => {
   assert.deepEqual(parseAppRoute("/templates"), { name: "templates" });
@@ -96,6 +97,18 @@ test("翻译结果投影到模板时不混入模板示例内容", () => {
   });
   assert.equal(mapped.profile.name, "张三");
   assert.equal(mapped.sections[0].content, "Translated summary");
+});
+
+test("模板投影保留标签模块的字符串条目", () => {
+  const source = createInitialResume();
+  const interests = source.sections.find((section) => section.id === "interests");
+  interests.visible = true;
+  interests.items = ["摄影", "旅行"];
+  const projected = resumeForTemplate(source, {
+    slug: "resume-collection-cn-005",
+    editorSchema: TEMPLATE_SCHEMAS["resume-collection-cn-005"]
+  });
+  assert.deepEqual(projected.sections.find((section) => section.id === "interests").items, ["摄影", "旅行"]);
 });
 
 test("normalizeResume 合并缺省字段并限制排版参数", () => {
