@@ -278,7 +278,9 @@ export function resumeForTemplate(sourceResume, template) {
       visible: sourceSection.visible !== false
     };
     if (Array.isArray(section.items) && Array.isArray(sourceSection.items)) {
-      next.items = sourceSection.items.map((item) => ({ ...item, id: makeId(section.id) }));
+      next.items = sourceSection.items.map((item) => item && typeof item === "object"
+        ? { ...item, id: makeId(section.id) }
+        : String(item ?? ""));
     }
     if ("content" in section && sourceSection.content != null) next.content = sourceSection.content;
     if (section.data && sourceSection.data) next.data = { ...section.data, ...sourceSection.data };

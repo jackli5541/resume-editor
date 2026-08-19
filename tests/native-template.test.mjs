@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { createInitialResume } from "../public/core.mjs";
+import { createInitialResume, resumeForTemplate } from "../public/core.mjs";
 import { renderResumeMarkup } from "../public/resume-renderer.mjs";
 import { TEMPLATE_SCHEMAS } from "../public/template-schemas.mjs";
 import { TemplateRepository } from "../server/template-repository.mjs";
@@ -59,6 +59,10 @@ test("11 个模板声明独立字段与布局能力", () => {
     assert.equal(schema.schemaVersion, 2);
     assert.ok(schema.profileFields.includes("name"));
     assert.ok(schema.sections.length >= 5);
+    assert.deepEqual(new Set(schema.sections.map((section) => section.id)), new Set([
+      "objective", "education", "experience", "projects", "skills", "summary",
+      "campus", "certificates", "awards", "languages", "interests"
+    ]));
     if (schema.slug === "clean-single") {
       assert.equal(schema.styleControls.fontFamily, true);
       assert.ok(schema.styleControls.fontSize.min <= 12);
@@ -106,10 +110,69 @@ test("全部模板均显示并转义姓名", () => {
   }
 });
 
+test("商务圆角可渲染基线中的结构化可选模块", () => {
+  const documentRef = {
+    createElement() {
+      let html = "";
+      return {
+        content: { querySelectorAll: () => [] },
+        get innerHTML() { return html; },
+        set innerHTML(value) { html = String(value); }
+      };
+    }
+  };
+  const source = createInitialResume();
+  const editorSchema = TEMPLATE_SCHEMAS["resume-collection-cn-001"];
+  source.template = { slug: editorSchema.slug, editorSchema };
+  const objective = source.sections.find((section) => section.id === "objective");
+  objective.visible = true;
+  objective.data.job = "产品经理";
+  const languages = source.sections.find((section) => section.id === "languages");
+  languages.visible = true;
+  languages.items = [{ name: "英语", level: "熟练" }];
+  const interests = source.sections.find((section) => section.id === "interests");
+  interests.visible = true;
+  interests.items = ["摄影"];
+  const markup = renderResumeMarkup(source, documentRef);
+  assert.match(markup, /产品经理/);
+  assert.match(markup, /英语/);
+  assert.match(markup, /摄影/);
+});
+
+test("全部模板都能渲染极简轻的 11 个模块", () => {
+  const documentRef = {
+    createElement() {
+      let html = "";
+      return {
+        content: { querySelectorAll: () => [] },
+        get innerHTML() { return html; },
+        set innerHTML(value) { html = String(value); }
+      };
+    }
+  };
+  const source = createInitialResume();
+  source.sections.forEach((section) => { section.visible = true; });
+  for (const [slug, editorSchema] of Object.entries(TEMPLATE_SCHEMAS)) {
+    const resume = resumeForTemplate(source, { slug, editorSchema });
+    resume.template = { slug, editorSchema };
+    const markup = renderResumeMarkup(resume, documentRef);
+    for (const section of editorSchema.sections) {
+      assert.match(markup, new RegExp(`preview-${section.id}`), `${slug}: ${section.id}`);
+    }
+  }
+});
+
 test("模板库封面按整页比例完整展示", async () => {
   const styles = await readFile(join("public", "styles.css"), "utf8");
   assert.match(styles, /\.template-preview\s*\{[^}]*aspect-ratio:\s*820\s*\/\s*1160/s);
   assert.match(styles, /\.template-preview img\s*\{[^}]*object-fit:\s*contain/s);
+});
+
+test("模板封面生成脚本固定输出完整 A4 比例页面", async () => {
+  const script = await readFile(join("scripts", "regenerate-template-previews.mjs"), "utf8");
+  assert.match(script, /paper\.style\.width\s*=\s*"820px"/);
+  assert.match(script, /paper\.style\.height\s*=\s*"1160px"/);
+  assert.match(script, /locator\("\.resume-paper"\)\.screenshot/);
 });
 
 const execFileAsync = promisify(execFile);

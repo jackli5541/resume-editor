@@ -191,10 +191,19 @@ function renderCn001TimelineItem(item, fields, documentRef) {
 function renderCn001Section(section, definition, documentRef) {
   const fields = visibleFields(section);
   let body = "";
-  if (definition?.type === "timeline") {
+  if (definition?.type === "keyValues") {
+    const values = fields
+      .map((field) => [field.label, section.data?.[field.key]])
+      .filter(([, value]) => String(value ?? "").trim());
+    body = `<div class="objective-grid">${values.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div>`;
+  } else if (definition?.type === "timeline") {
     body = `<div class="timeline-list">${(section.items || []).map((item) => renderCn001TimelineItem(item, fields, documentRef)).join("")}</div>`;
   } else if (definition?.type === "list") {
     body = `<div class="compact-list">${(section.items || []).map((item) => renderListItem(item, fields, documentRef)).join("")}</div>`;
+  } else if (definition?.type === "levels") {
+    body = `<div class="level-list">${(section.items || []).map((item) => renderLevelItem(item, fields, documentRef)).join("")}</div>`;
+  } else if (definition?.type === "tags") {
+    body = `<div class="tag-list">${(section.items || []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>`;
   } else {
     const contentField = fields.find((field) => field.key === "content");
     body = contentField
@@ -337,7 +346,7 @@ function renderGeometricMarkup({ resume, schema, sections, definitions, document
   ].join("");
   return `<div class="collection-geometric">
     <header class="geometric-hero" data-open-module="profile">
-      <div class="geometric-summary rich-preview">${summaryHtml}</div>
+      <div class="geometric-summary rich-preview" id="preview-summary" data-open-module="summary">${summaryHtml}</div>
       <div class="geometric-title"><strong>个人简历</strong><b class="geometric-name">${escapeHtml(profile.name || "你的姓名")}</b><span>求职意向：${escapeHtml(profile.job || "求职岗位")}</span></div>
       ${collectionPhoto(profile, schema, slug, "image1.png")}
     </header>
