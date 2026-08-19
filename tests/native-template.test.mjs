@@ -168,6 +168,13 @@ test("模板库封面按整页比例完整展示", async () => {
   assert.match(styles, /\.template-preview img\s*\{[^}]*object-fit:\s*contain/s);
 });
 
+test("求职意向使用轻量信息行而非四列表格卡片", async () => {
+  const styles = await readFile(join("public", "styles.css"), "utf8");
+  assert.match(styles, /\.objective-grid\s*\{[^}]*display:\s*flex/s);
+  assert.match(styles, /\.objective-grid\s*>\s*div\s*\{[^}]*background:\s*transparent/s);
+  assert.doesNotMatch(styles, /\.objective-grid\s*\{[^}]*grid-template-columns:\s*repeat\(4/s);
+});
+
 test("模板封面生成脚本固定输出完整 A4 比例页面", async () => {
   const script = await readFile(join("scripts", "regenerate-template-previews.mjs"), "utf8");
   assert.match(script, /paper\.style\.width\s*=\s*"820px"/);

@@ -28,6 +28,7 @@ import { readApiResponse as parseApiResponse } from "./api-client.mjs";
 import { createAdminApi } from "./admin-api.mjs";
 import { createResumeApi } from "./resume-api.mjs";
 import { normalizeWordText } from "./word-import.mjs";
+import { createResumeBackup, readResumeBackup } from "./resume-backup.mjs";
 import { applyTheme, currentTheme, refreshThemeButtons, toggleTheme } from "./theme.mjs";
 
 const elements = {
@@ -6572,7 +6573,8 @@ document.addEventListener("click", async (event) => {
   else if (action === "export-resume") exportResume();
   else if (action === "download-json") {
     saveNow();
-    const blob = new Blob([JSON.stringify(resume, null, 2)], { type: "application/json" });
+    const backup = createResumeBackup(resume);
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -6682,7 +6684,7 @@ elements.importFile.addEventListener("change", () => {
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      const imported = normalizeResume(JSON.parse(String(reader.result || "{}")));
+      const imported = readResumeBackup(JSON.parse(String(reader.result || "{}")));
       resume = imported;
       activeModuleId = "profile";
       renderAll();
@@ -6691,8 +6693,8 @@ elements.importFile.addEventListener("change", () => {
         ? { name: "resume", resumeId: resume.remoteId }
         : { name: "editor" }, "replace");
       showToast("简历备份导入成功");
-    } catch {
-      showToast("无法读取该 JSON 文件", "warning");
+    } catch (error) {
+      showToast(error?.message || "无法读取该 JSON 备份文件", "warning");
     } finally {
       elements.importFile.value = "";
     }

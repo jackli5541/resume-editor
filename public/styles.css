@@ -2057,33 +2057,50 @@ select:focus-visible,
 }
 
 .objective-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  padding: 4px 0 2px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 7px 0;
+  padding: 3px 0 2px;
 }
 
 .objective-grid > div {
-  padding: 9px 10px;
-  background: #f8fafc;
-  border-left: 3px solid var(--theme);
-  border-radius: 0 6px 6px 0;
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 0;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+}
+
+.objective-grid > div:first-child {
+  padding-left: 0;
+}
+
+.objective-grid > div:not(:last-child)::after {
+  width: 1px;
+  height: 12px;
+  margin-left: 14px;
+  background: color-mix(in srgb, var(--theme) 32%, transparent);
+  content: "";
 }
 
 .objective-grid span,
 .objective-grid strong {
-  display: block;
+  display: inline;
 }
 
 .objective-grid span {
+  margin-right: 6px;
   color: #8a96a8;
   font-size: 10px;
+  white-space: nowrap;
 }
 
 .objective-grid strong {
-  margin-top: 3px;
   color: #334155;
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .timeline-list {
@@ -2588,12 +2605,16 @@ select:focus-visible,
 }
 
 .template-sidebar .objective-grid {
-  grid-template-columns: 1fr;
+  align-items: stretch;
+  flex-direction: column;
 }
 
 .template-sidebar .objective-grid div {
-  border-color: rgba(255,255,255,.28);
-  background: transparent;
+  padding: 0;
+}
+
+.template-sidebar .objective-grid div::after {
+  display: none;
 }
 
 .template-sidebar .objective-grid span {
@@ -3024,8 +3045,9 @@ select:focus-visible,
 .collection-sidebar .section-heading span { width: 100%; min-width: 0; padding: 6px 10px; color: inherit; background: rgba(255,255,255,.16); border-radius: 0; text-align: center; }
 .collection-sidebar .section-heading i,.collection-sidebar .section-heading span::after { display: none; }
 .collection-sidebar .resume-section,.collection-sidebar .rich-preview,.collection-sidebar .rich-preview strong { color: inherit; }
-.collection-sidebar .objective-grid { grid-template-columns: 1fr; }
-.collection-sidebar .objective-grid div { border-color: rgba(255,255,255,.25); background: transparent; }
+.collection-sidebar .objective-grid { align-items: stretch; flex-direction: column; }
+.collection-sidebar .objective-grid div { padding: 0; background: transparent; }
+.collection-sidebar .objective-grid div::after { display: none; }
 .collection-sidebar .objective-grid span { color: rgba(255,255,255,.7); }
 .collection-sidebar-main { min-width: 0; padding: 34px 32px 54px; gap: 22px; }
 .collection-sidebar-main .section-heading { border-bottom: 1px solid #aab2b7; }
