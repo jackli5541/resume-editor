@@ -289,6 +289,16 @@ export function resumeForTemplate(sourceResume, template) {
   return target;
 }
 
+// Change presentation without replacing the draft's content or identity.
+// Sections outside the target schema stay in the draft so switching templates
+// never destroys user-authored content.
+export function migrateResumeToTemplate(sourceResume, template) {
+  const target = normalizeResume(clone(sourceResume));
+  target.template = clone({ ...template, defaultResume: undefined });
+  applyTemplateEditorSchema(target, target.template?.editorSchema);
+  return target;
+}
+
 export function clamp(value, min, max) {
   const number = Number.isFinite(value) ? value : min;
   return Math.min(max, Math.max(min, number));

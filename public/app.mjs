@@ -9,6 +9,7 @@ import {
   escapeHtml,
   formatRange,
   makeId,
+  migrateResumeToTemplate,
   moveItem,
   nextCustomFieldKey,
   normalizeResume,
@@ -317,6 +318,7 @@ let previewDragActive = false;
 let previewDragScrollFrame = null;
 let previewDragScrollSpeed = 0;
 let previewDragScrollUpdatedAt = 0;
+let templateChangeMode = false;
 let exportInProgress = false;
 let availableTemplates = [];
 let availableDrafts = [];
@@ -5604,7 +5606,12 @@ async function persistRemoteDraft() {
   }
 
   try {
-    const result = await resumeApi.updateResume(resume.remoteId, { revision: resume.remoteRevision || 1, data: resume });
+    const result = await resumeApi.updateResume(resume.remoteId, {
+      revision: resume.remoteRevision || 1,
+      templateSlug: resume.template?.slug,
+      templateVersion: resume.template?.version,
+      data: resume
+    });
     resume.remoteRevision = result.revision;
   } catch (error) {
     if (error?.status !== 404) throw error;
@@ -5728,9 +5735,10 @@ async function exportResume() {
   }
 }
 
-function showTemplateLibrary({ historyMode = "none" } = {}) {
+function showTemplateLibrary({ historyMode = "none", preserveResume = false } = {}) {
   elements.aiTranslatePage.hidden = true;
-  if (!resume.remoteId && resume.template) {
+  templateChangeMode = preserveResume && Boolean(resume.template);
+  if (!templateChangeMode && !resume.remoteId && resume.template) {
     clearTimeout(saveTimer);
     clearTimeout(fidelityTimer);
     saveTimer = null;
@@ -5752,6 +5760,15 @@ function showTemplateLibrary({ historyMode = "none" } = {}) {
   elements.loginPage.hidden = true;
   elements.aiPage.hidden = true;
   revealView(elements.templateLibrary);
+  const libraryTitle = document.querySelector("#templateLibraryTitle");
+  const libraryDescription = document.querySelector("#templateLibraryDescription");
+  const cancelButton = document.querySelector("#templateChangeCancel");
+  if (libraryTitle) libraryTitle.textContent = templateChangeMode ? "更换模板" : "简历模板";
+  if (libraryDescription) libraryDescription.textContent = templateChangeMode
+    ? "已有内容会自动迁移到新版式，不支持的模块仍会保留在草稿中。"
+    : "选择适合你的版式，快速创建简历。";
+  if (cancelButton) cancelButton.hidden = !templateChangeMode;
+  renderTemplateLibrary();
   loadDrafts();
   window.scrollTo({ top: 0, behavior: "auto" });
 }
@@ -6029,6 +6046,9 @@ async function applyCurrentRoute({ replaceInvalid = false } = {}) {
 function renderTemplateCard(template) {
   const ready = template.selectable === true;
   const recommended = template.slug === "clean-single";
+  const current = templateChangeMode
+    && resume.template?.slug === template.slug
+    && Number(resume.template?.version || 1) === Number(template.version);
   const statusText = ready ? "可使用"
     : template.status === "blocked" ? "安全检查未通过"
       : template.status === "needs_qa" ? "待高保真验收" : "待字段标注";
@@ -6044,8 +6064,8 @@ function renderTemplateCard(template) {
       <div class="template-card__body">
         <div><strong>${escapeHtml(template.name)}</strong><span>${escapeHtml(template.category)} · v${template.version}</span></div>
         <p>${escapeHtml(description)}</p>
-        <button type="button" data-action="select-template" data-template-slug="${escapeHtml(template.slug)}" data-template-version="${template.version}" ${ready ? "" : "disabled"}>
-          ${ready ? (recommended ? "使用推荐模板" : "使用此模板") : template.status === "needs_qa" ? "验收后开放" : "标注后开放"}
+        <button type="button" data-action="select-template" data-template-slug="${escapeHtml(template.slug)}" data-template-version="${template.version}" ${ready && !current ? "" : "disabled"}>
+          ${current ? "当前模板" : ready ? (templateChangeMode ? "更换为此模板" : recommended ? "使用推荐模板" : "使用此模板") : template.status === "needs_qa" ? "验收后开放" : "标注后开放"}
         </button>
       </div>
     </article>`;
@@ -6273,6 +6293,33 @@ async function selectTemplate(target) {
   if (!currentUser) {
     openLogin("/templates");
     showToast("登录后开始编辑", "info");
+    return;
+  }
+  if (templateChangeMode) {
+    const previousName = resume.template?.name || "当前模板";
+    const confirmed = await confirmAction({
+      title: `更换为「${template.name}」？`,
+      message: `将保留当前简历内容，并从「${previousName}」重新排版。新模板未展示的模块不会被删除，更换后可使用撤回恢复。`,
+      confirmLabel: "确认更换"
+    });
+    if (!confirmed) return;
+    const before = cloneResumeState();
+    resume = migrateResumeToTemplate(resume, {
+      slug: template.slug,
+      version: template.version,
+      name: template.name,
+      engine: template.engine,
+      previewUrl: template.previewUrl,
+      editorSchema: template.editorSchema || getTemplateSchema(template.slug)
+    });
+    recordResumeChange(before, `更换模板：${template.name}`);
+    if (!resume.sections.some((section) => section.id === activeModuleId)) activeModuleId = "profile";
+    templateChangeMode = false;
+    hideTemplateLibrary();
+    updateBrowserRoute(resume.remoteId ? { name: "resume", resumeId: resume.remoteId } : { name: "editor" }, "replace");
+    renderAll();
+    scheduleSave(0);
+    showToast(`已更换为「${template.name}」，简历内容已保留`, "success");
     return;
   }
   target.disabled = true;
@@ -6508,7 +6555,13 @@ document.addEventListener("click", async (event) => {
   else if (action === "add-module") addModule(actionTarget.dataset.moduleId);
   else if (action === "select-template") selectTemplate(actionTarget);
   else if (action === "save-draft") saveDraft();
-  else if (action === "change-template") showTemplateLibrary({ historyMode: "push" });
+  else if (action === "change-template") showTemplateLibrary({ historyMode: "push", preserveResume: true });
+  else if (action === "cancel-template-change") {
+    templateChangeMode = false;
+    hideTemplateLibrary();
+    updateBrowserRoute(resume.remoteId ? { name: "resume", resumeId: resume.remoteId } : { name: "editor" }, "replace");
+    renderAll();
+  }
   else if (action === "continue-draft") continueDraft(actionTarget.dataset.resumeId);
   else if (action === "delete-draft") deleteDraft(actionTarget.dataset.resumeId);
   else if (action === "select-module") {

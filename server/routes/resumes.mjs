@@ -81,14 +81,22 @@ export function createResumeRoutes({ templateRepository, eventLog, authorize, er
         }
         const existingDraft = await templateRepository.getResume(resumeMatch[1], user?.id);
         if (!existingDraft) throw new RequestValidationError("简历草稿不存在", 404);
+        const changingTemplate = payload.templateSlug != null || payload.templateVersion != null;
+        const template = changingTemplate
+          ? await templateRepository.get(payload.templateSlug, Number(payload.templateVersion) || 1)
+          : { slug: existingDraft.templateSlug, version: existingDraft.templateVersion, status: "ready" };
+        if (!template) throw new RequestValidationError("模板不存在", 404);
+        if ((template.status || "ready") !== "ready") throw new RequestValidationError("模板暂不可用", 409);
         const canonical = validateExportPayload({
           resume: payload.data,
-          template: { slug: existingDraft.templateSlug, version: existingDraft.templateVersion }
+          template
         }).resume;
         const updated = await templateRepository.updateResume({
           id: resumeMatch[1],
           revision: payload.revision,
           data: canonical,
+          templateSlug: template.slug,
+          templateVersion: template.version,
           ownerId: user?.id
         });
         if (!updated) {

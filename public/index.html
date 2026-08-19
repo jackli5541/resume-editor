@@ -148,7 +148,8 @@
         <div class="template-library-hero">
           <section id="templateFeatured" class="template-featured" aria-label="模板编辑动画" hidden></section>
           <div class="library-toolbar">
-            <div><span class="eyebrow">TEMPLATE LIBRARY</span><h1>简历模板</h1><p>选择适合你的版式，快速创建简历。</p></div>
+            <div><span class="eyebrow">TEMPLATE LIBRARY</span><h1 id="templateLibraryTitle">简历模板</h1><p id="templateLibraryDescription">选择适合你的版式，快速创建简历。</p></div>
+            <button class="secondary-button" id="templateChangeCancel" type="button" data-action="cancel-template-change" hidden>返回编辑器</button>
             <div class="library-legend"><span><i class="status-dot status-dot--ready"></i>可使用</span><span><i class="status-dot"></i>待适配</span></div>
           </div>
         </div>
@@ -833,7 +834,7 @@
         <div class="topbar-sub">
           <nav class="toolbar" aria-label="排版工具">
             <button class="tool-button" type="button" data-action="change-template">
-              <span class="tool-button__icon">▦</span><span>模板</span>
+              <span class="tool-button__icon">▦</span><span>更换模板</span>
             </button>
             <button class="tool-button" type="button" data-popover="spacingPopover">
               <span class="tool-button__icon">↕</span><span>间距</span>

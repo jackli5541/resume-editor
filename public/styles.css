@@ -3165,6 +3165,19 @@ select:focus-visible,
   padding-top: 48px;
 }
 
+@media screen and (min-width: 901px) {
+  .side-panel {
+    position: sticky;
+    top: 118px;
+    align-self: start;
+    max-height: calc(100dvh - 118px);
+    overflow-y: auto;
+    padding-bottom: 72px;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+}
+
 .side-card {
   margin-bottom: 14px;
   padding: 20px;
