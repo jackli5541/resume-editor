@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createInitialResume } from "../public/core.mjs";
-import { mapTargetDiagnosis, mapTargetExecution, validateTargetInput } from "../server/ai/target-agent.mjs";
+import { buildTargetExecutionPrompt, buildTargetPrompt, mapTargetDiagnosis, mapTargetExecution, validateTargetInput } from "../server/ai/target-agent.mjs";
 import { TargetAgentRepository } from "../server/ai/target-repository.mjs";
 import { createProposalSelection, selectedProposalChanges, setProposalDecision } from "../public/features/ai/proposal-selection.mjs";
 
@@ -30,6 +30,17 @@ test("岗位执行复用安全 Patch 校验并丢弃幻觉路径", () => {
   ] }, resume);
   assert.equal(result.changes.length, 1);
   assert.equal(result.changes[0].sectionId, "experience");
+});
+
+test("岗位模型输入移除模板元数据，单项执行只携带相关模块", () => {
+  const resume = createInitialResume();
+  resume.template = { editorSchema: { oversized: "x".repeat(2000) } };
+  const diagnosisPrompt = buildTargetPrompt(resume, "JD");
+  const executionPrompt = buildTargetExecutionPrompt(resume, "JD", { sectionId: "experience", title: "优化经历" });
+  assert.doesNotMatch(diagnosisPrompt, /oversized/);
+  assert.doesNotMatch(executionPrompt, /oversized/);
+  assert.match(executionPrompt, /"id":"experience"/);
+  assert.doesNotMatch(executionPrompt, /"id":"education"/);
 });
 
 test("岗位 JD 必填且限制长度", () => {

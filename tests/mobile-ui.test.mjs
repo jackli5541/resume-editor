@@ -45,3 +45,10 @@ test("桌面端 AI 侧边栏支持有上限的拖拽调宽，窄屏禁用拖拽"
   assert.match(app, /setPointerCapture\(event\.pointerId\)/);
   assert.match(app, /localStorage\.setItem\(AI_CHAT_WIDTH_KEY/);
 });
+
+test("切换草稿会重置 JD 工作区并阻止旧会话异步覆盖", async () => {
+  const app = await readFile(new URL("../public/app.mjs", import.meta.url), "utf8");
+  assert.match(app, /async function loadRemoteResume[\s\S]*?targetState\s*=\s*\{[^}]*diagnosis:\s*null[\s\S]*?resetTargetWorkspace\(\)/);
+  assert.match(app, /const requestedResumeId\s*=\s*resume\.remoteId/);
+  assert.match(app, /if \(resume\.remoteId !== requestedResumeId\) return/);
+});

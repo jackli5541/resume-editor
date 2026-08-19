@@ -40,7 +40,9 @@ export function validateTargetInput(jobDescription) {
 }
 
 export function buildTargetPrompt(resume, jobDescription) {
-  return `<job_description>\n${jobDescription}\n</job_description>\n\n<current_resume>\n${JSON.stringify(resume || {})}\n</current_resume>`;
+  const source = resume && typeof resume === "object" ? resume : {};
+  const modelResume = { profile: source.profile || {}, sections: Array.isArray(source.sections) ? source.sections : [] };
+  return `<job_description>\n${jobDescription}\n</job_description>\n\n<current_resume>\n${JSON.stringify(modelResume)}\n</current_resume>`;
 }
 
 export function mapTargetDiagnosis(raw) {
@@ -68,7 +70,11 @@ export function mapTargetDiagnosis(raw) {
 }
 
 export function buildTargetExecutionPrompt(resume, jobDescription, planItem, userEvidence = "") {
-  return `<job_description>\n${jobDescription}\n</job_description>\n<plan_item>\n${JSON.stringify(planItem || {})}\n</plan_item>\n<user_evidence>\n${text(userEvidence, 4000)}\n</user_evidence>\n<current_resume>\n${JSON.stringify(resume || {})}\n</current_resume>`;
+  const source = resume && typeof resume === "object" ? resume : {};
+  const sectionId = text(planItem?.sectionId, 80);
+  const sections = (Array.isArray(source.sections) ? source.sections : []).filter((section) => section?.id === sectionId);
+  const modelResume = { profile: source.profile || {}, sections };
+  return `<job_description>\n${jobDescription}\n</job_description>\n<plan_item>\n${JSON.stringify(planItem || {})}\n</plan_item>\n<user_evidence>\n${text(userEvidence, 4000)}\n</user_evidence>\n<current_resume>\n${JSON.stringify(modelResume)}\n</current_resume>`;
 }
 
 export function mapTargetExecution(raw, resume) {
