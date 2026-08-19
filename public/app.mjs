@@ -57,6 +57,7 @@ const elements = {
   drawer: document.querySelector("#editorDrawer"),
   aiFloatBtn: document.querySelector("#aiFloatBtn"),
   aiChatPanel: document.querySelector("#aiChatPanel"),
+  aiChatResizeHandle: document.querySelector("#aiChatResizeHandle"),
   aiChatBody: document.querySelector("#aiChatBody"),
   aiChatForm: document.querySelector("#aiChatForm"),
   aiChatInput: document.querySelector("#aiChatInput"),
@@ -329,6 +330,9 @@ let previewDragScrollSpeed = 0;
 let previewDragScrollUpdatedAt = 0;
 let templateChangeMode = false;
 let exportInProgress = false;
+const AI_CHAT_WIDTH_KEY = "resume-ai-chat-width";
+const AI_CHAT_MIN_WIDTH = 320;
+const AI_CHAT_MAX_WIDTH = 720;
 let availableTemplates = [];
 let availableDrafts = [];
 let hasUnsavedChanges = false;
@@ -5573,6 +5577,49 @@ function clearAiChat() {
   elements.aiChatBody.innerHTML = "";
 }
 
+function aiChatWidthLimit() {
+  return Math.max(AI_CHAT_MIN_WIDTH, Math.min(AI_CHAT_MAX_WIDTH, Math.floor(window.innerWidth * 0.6)));
+}
+
+function setAiChatWidth(value, { persist = false } = {}) {
+  const width = Math.max(AI_CHAT_MIN_WIDTH, Math.min(aiChatWidthLimit(), Math.round(Number(value) || 360)));
+  elements.aiChatPanel.style.setProperty("--ai-chat-width", `${width}px`);
+  elements.aiChatResizeHandle?.setAttribute("aria-valuenow", String(width));
+  elements.aiChatResizeHandle?.setAttribute("aria-valuemax", String(aiChatWidthLimit()));
+  if (persist) localStorage.setItem(AI_CHAT_WIDTH_KEY, String(width));
+  return width;
+}
+
+function initializeAiChatResize() {
+  if (!elements.aiChatResizeHandle) return;
+  setAiChatWidth(localStorage.getItem(AI_CHAT_WIDTH_KEY) || 360);
+  elements.aiChatResizeHandle.addEventListener("pointerdown", (event) => {
+    if (window.innerWidth <= 900) return;
+    event.preventDefault();
+    elements.aiChatResizeHandle.setPointerCapture(event.pointerId);
+    elements.aiChatPanel.classList.add("is-resizing");
+  });
+  elements.aiChatResizeHandle.addEventListener("pointermove", (event) => {
+    if (!elements.aiChatResizeHandle.hasPointerCapture(event.pointerId)) return;
+    setAiChatWidth(event.clientX);
+  });
+  const finishResize = (event) => {
+    if (!elements.aiChatResizeHandle.hasPointerCapture(event.pointerId)) return;
+    elements.aiChatResizeHandle.releasePointerCapture(event.pointerId);
+    elements.aiChatPanel.classList.remove("is-resizing");
+    setAiChatWidth(elements.aiChatPanel.getBoundingClientRect().width, { persist: true });
+  };
+  elements.aiChatResizeHandle.addEventListener("pointerup", finishResize);
+  elements.aiChatResizeHandle.addEventListener("pointercancel", finishResize);
+  elements.aiChatResizeHandle.addEventListener("keydown", (event) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const current = elements.aiChatPanel.getBoundingClientRect().width;
+    const next = event.key === "Home" ? AI_CHAT_MIN_WIDTH : event.key === "End" ? aiChatWidthLimit() : current + (event.key === "ArrowRight" ? 20 : -20);
+    setAiChatWidth(next, { persist: true });
+  });
+}
+
 function resetAiOptimizeConversation() {
   aiOptimizePending = null;
   aiOptimizeHistory = [];
@@ -7071,7 +7118,10 @@ window.addEventListener("beforeunload", () => {
   if (saveTimer) saveNow();
 });
 
-window.addEventListener("resize", schedulePagination);
+window.addEventListener("resize", () => {
+  schedulePagination();
+  setAiChatWidth(elements.aiChatPanel.getBoundingClientRect().width);
+});
 window.addEventListener("popstate", () => applyCurrentRoute());
 
 // 站内界面链接走 SPA 导航（pushState + applyCurrentRoute），避免整页刷新。
@@ -7325,6 +7375,7 @@ if (elements.aiInputCard) {
 
 async function initialize() {
   injectAccountItems();
+  initializeAiChatResize();
   await refreshSession();
   await Promise.all([loadTemplates(), loadDrafts(), loadAnnouncementBanner()]);
   populateAdminResumeTemplates();

@@ -16,7 +16,7 @@ const INVALID_JSON_RETRY_PROMPT =
   "上一次输出不是合法 JSON。请重新输出完整的合法 JSON 对象，不要接着续写，也不要包含解释、注释或 Markdown 代码块。";
 const TRUNCATED_JSON_RETRY_PROMPT =
   "上一次输出因长度限制被截断。请压缩措辞并从头重新输出完整 JSON，不要接着续写，不要省略字段，也不要输出 Markdown。";
-const RETRYABLE_OUTPUT_CODES = new Set(["invalid_json", "output_truncated"]);
+const RETRYABLE_OUTPUT_CODES = new Set(["invalid_json", "output_truncated", "network", "provider_unavailable"]);
 
 function extractBalancedJsonObject(text) {
   const source = String(text || "");
@@ -154,7 +154,8 @@ export class AiProvider {
     if (!response.ok) {
       const code = response.status === 401 || response.status === 403
         ? "auth"
-        : response.status === 429 ? "rate_limited" : "provider_error";
+        : response.status === 429 ? "rate_limited"
+          : response.status >= 500 ? "provider_unavailable" : "provider_error";
       throw new AiProviderError(`模型服务返回 HTTP ${response.status}`, code);
     }
 
@@ -186,6 +187,10 @@ export class AiProvider {
         return await this.completeOnce({ ...options, messages });
       } catch (error) {
         if (!RETRYABLE_OUTPUT_CODES.has(error?.code) || attempt === retries) throw error;
+        if (error.code === "network" || error.code === "provider_unavailable") {
+          messages = options.messages;
+          continue;
+        }
         const base = options.messages || this.buildMessages(options);
         const repairPrompt = error.code === "output_truncated"
           ? TRUNCATED_JSON_RETRY_PROMPT

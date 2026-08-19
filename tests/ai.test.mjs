@@ -291,8 +291,23 @@ test("重试后仍无效则抛出 invalid_json", async () => {
   );
 });
 
+test("模型服务 5xx 瞬时失败后自动重试一次", async () => {
+  let calls = 0;
+  const provider = new AiProvider({
+    resolveBaseUrl: identityResolve,
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) return { ok: false, status: 503, text: async () => "" };
+      return okEnvelope('{"summary":"已恢复","changes":[]}');
+    }
+  });
+  const data = await provider.complete({ baseUrl: "https://api.deepseek.com", apiKey: "sk-test", model: "deepseek-chat" });
+  assert.equal(data.summary, "已恢复");
+  assert.equal(calls, 2);
+});
+
 test("HTTP 错误码映射", async () => {
-  for (const [status, code] of [[401, "auth"], [403, "auth"], [429, "rate_limited"], [500, "provider_error"]]) {
+  for (const [status, code] of [[400, "provider_error"], [401, "auth"], [403, "auth"], [429, "rate_limited"], [500, "provider_unavailable"]]) {
     const provider = new AiProvider({
       resolveBaseUrl: identityResolve,
       fetchImpl: async () => ({ ok: false, status, text: async () => "" })
