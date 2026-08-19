@@ -162,10 +162,60 @@ test("全部模板都能渲染极简轻的 11 个模块", () => {
   }
 });
 
+test("全部模板的可见模块均支持按版式分区拖动排序", async () => {
+  for (const [slug, editorSchema] of Object.entries(TEMPLATE_SCHEMAS)) {
+    assert.equal(editorSchema.sections.length, 11, `${slug}: 模块数量`);
+    for (const section of editorSchema.sections) {
+      assert.notEqual(section.sortable, false, `${slug}: ${section.id} sortable`);
+      assert.notEqual(section.capabilities?.sort, false, `${slug}: ${section.id} capabilities.sort`);
+      assert.match(section.zone || "main", /^(main|sidebar|left|right)$/, `${slug}: ${section.id} zone`);
+    }
+  }
+
+  const script = await readFile(join("public", "app.mjs"), "utf8");
+  assert.match(script, /decoratePreviewModuleDragging\(\)/);
+  assert.match(script, /source\.dataset\.zone\s*!==\s*target\.dataset\.zone/);
+  assert.match(script, /recordResumeChange\(before, "调整模块顺序"\)/);
+});
+
+test("新数据库迁移直接登记全部已适配模板为 ready", async () => {
+  const migration = await readFile(join("infra", "postgres", "init", "026_seed_adapted_templates.sql"), "utf8");
+  for (let index = 1; index <= 10; index += 1) {
+    const slug = `resume-collection-cn-${String(index).padStart(3, "0")}`;
+    assert.match(migration, new RegExp(slug), slug);
+  }
+  assert.match(migration, /'ready'/);
+  assert.match(migration, /'html-native'/);
+  assert.match(migration, /ON CONFLICT \(template_slug, version\) DO UPDATE SET[\s\S]*status = 'ready'/);
+  assert.doesNotMatch(migration, /needs_mapping|needs_qa/);
+});
+
+test("拖动手柄只由编辑器即时预览注入，不进入模板导出标记", () => {
+  const documentRef = {
+    createElement() {
+      let html = "";
+      return {
+        content: { querySelectorAll: () => [] },
+        get innerHTML() { return html; },
+        set innerHTML(value) { html = String(value); }
+      };
+    }
+  };
+  const markup = renderResumeMarkup(createInitialResume(), documentRef);
+  assert.doesNotMatch(markup, /preview-module-drag-handle|data-preview-drag-module/);
+});
+
 test("模板库封面按整页比例完整展示", async () => {
   const styles = await readFile(join("public", "styles.css"), "utf8");
   assert.match(styles, /\.template-preview\s*\{[^}]*aspect-ratio:\s*820\s*\/\s*1160/s);
   assert.match(styles, /\.template-preview img\s*\{[^}]*object-fit:\s*contain/s);
+});
+
+test("求职意向使用轻量信息行而非四列表格卡片", async () => {
+  const styles = await readFile(join("public", "styles.css"), "utf8");
+  assert.match(styles, /\.objective-grid\s*\{[^}]*display:\s*flex/s);
+  assert.match(styles, /\.objective-grid\s*>\s*div\s*\{[^}]*background:\s*transparent/s);
+  assert.doesNotMatch(styles, /\.objective-grid\s*\{[^}]*grid-template-columns:\s*repeat\(4/s);
 });
 
 test("模板封面生成脚本固定输出完整 A4 比例页面", async () => {

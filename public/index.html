@@ -864,11 +864,11 @@
             </button>
           </nav>
           <div class="topbar-sub__actions">
-            <label class="secondary-button file-button">
-              导入 JSON
+            <label class="secondary-button file-button" title="导入由轻简历导出的 JSON 备份文件">
+              导入备份
               <input id="importFile" type="file" accept="application/json,.json" />
             </label>
-            <button class="secondary-button" type="button" data-action="download-json">备份</button>
+            <button class="secondary-button" type="button" data-action="download-json" title="下载 JSON 格式的完整简历备份">下载备份</button>
           </div>
           <section id="spacingPopover" class="popover" hidden>
             <div class="popover__heading">版面间距</div>
@@ -1030,7 +1030,7 @@
     <section id="legalPage" class="legal-page" hidden>
       <header class="legal-header">
         <a class="brand" href="/" aria-label="轻简历首页"><span class="brand__mark"><img src="/logo.png" alt="" width="24" height="24" /></span><span class="brand__text">轻简历</span></a>
-        <a class="legal-header__back" href="/">返回首页</a>
+        <a class="legal-header__back" id="legalBackLink" href="/">返回首页</a>
       </header>
       <main class="legal-layout">
         <nav class="legal-nav" aria-label="信任与合规页面">

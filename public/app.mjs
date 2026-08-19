@@ -22,12 +22,13 @@ import {
   renderResumeMarkup,
   sanitizeRichHtml
 } from "./resume-renderer.mjs";
-import { isAppPath, parseAppRoute, routePath } from "./router.mjs";
+import { isAppPath, isLegalRoute, legalReturnTarget, parseAppRoute, routePath } from "./router.mjs";
 import { getDeviceId } from "./fingerprint.mjs";
 import { readApiResponse as parseApiResponse } from "./api-client.mjs";
 import { createAdminApi } from "./admin-api.mjs";
 import { createResumeApi } from "./resume-api.mjs";
 import { normalizeWordText } from "./word-import.mjs";
+import { createResumeBackup, readResumeBackup } from "./resume-backup.mjs";
 import { applyTheme, currentTheme, refreshThemeButtons, toggleTheme } from "./theme.mjs";
 
 const elements = {
@@ -86,6 +87,7 @@ const elements = {
   toastRegion: document.querySelector("#toastRegion"),
   loginPage: document.querySelector("#loginPage"),
   legalPage: document.querySelector("#legalPage"),
+  legalBackLink: document.querySelector("#legalBackLink"),
   trustFooter: document.querySelector("#trustFooter"),
   settingsOverlay: document.querySelector("#settingsOverlay"),
   loginForm: document.querySelector("#loginForm"),
@@ -309,6 +311,7 @@ let paginationFrame = null;
 let previewFrame = null;
 let currentPages = 1;
 let draggedModuleId = "";
+let previewDragHandleArmed = false;
 let exportInProgress = false;
 let availableTemplates = [];
 let availableDrafts = [];
@@ -959,8 +962,63 @@ function renderPreview() {
   previewFrame = requestAnimationFrame(() => {
     elements.flow.innerHTML = renderResumeMarkup(resume);
     elements.flow.style.fontSize = `${resume.settings.fontSize}px`;
+    decoratePreviewModuleDragging();
     schedulePagination();
   });
+}
+
+function sortablePreviewSchemas() {
+  return new Map(renderableSectionSchemas()
+    .filter((definition) => definition.sortable !== false && definition.capabilities?.sort !== false)
+    .map((definition) => [definition.id, definition]));
+}
+
+function decoratePreviewModuleDragging() {
+  if (previewMode !== "instant" || resume.template?.engine === "docx-native") return;
+  const schemas = sortablePreviewSchemas();
+  elements.flow.querySelectorAll(".resume-section[data-open-module]").forEach((sectionNode) => {
+    const moduleId = sectionNode.dataset.openModule;
+    const definition = schemas.get(moduleId);
+    if (!definition || sectionById(moduleId)?.visible === false) return;
+    sectionNode.dataset.previewDragModule = moduleId;
+    sectionNode.dataset.zone = definition.zone || "main";
+    sectionNode.draggable = true;
+    const heading = sectionNode.querySelector(":scope > .section-heading");
+    if (!heading) return;
+    heading.insertAdjacentHTML("beforeend", `
+      <button class="preview-module-drag-handle" type="button" draggable="false"
+        data-preview-drag-handle="${escapeHtml(moduleId)}" aria-label="拖动${escapeHtml(sectionById(moduleId)?.title || definition.title || "模块")}调整位置"
+        title="拖动调整模块位置">⠿</button>`);
+  });
+}
+
+function clearPreviewDragState() {
+  previewDragHandleArmed = false;
+  draggedModuleId = "";
+  elements.flow.querySelectorAll(".is-preview-dragging, .is-drop-before, .is-drop-after").forEach((node) => {
+    node.classList.remove("is-preview-dragging", "is-drop-before", "is-drop-after");
+  });
+}
+
+function reorderModule(sourceId, targetId, { after = false } = {}) {
+  if (!sourceId || !targetId || sourceId === targetId) return false;
+  const schemas = new Map(renderableSectionSchemas().map((definition) => [definition.id, definition]));
+  if (schemas.get(sourceId)?.zone !== schemas.get(targetId)?.zone) {
+    showToast("模块只能在当前版式分区内排序", "warning");
+    return false;
+  }
+  const from = resume.sections.findIndex((section) => section.id === sourceId);
+  const target = resume.sections.findIndex((section) => section.id === targetId);
+  if (from < 0 || target < 0) return false;
+  let to = target + (after ? 1 : 0);
+  if (from < to) to -= 1;
+  if (from === to) return false;
+  const before = cloneResumeState();
+  resume.sections = moveItem(resume.sections, from, to);
+  renderAll();
+  scheduleSave();
+  recordResumeChange(before, "调整模块顺序");
+  return true;
 }
 
 function schedulePagination() {
@@ -5806,9 +5864,9 @@ async function applyCurrentRoute({ replaceInvalid = false } = {}) {
   const route = parseAppRoute(window.location.pathname);
   elements.legalPage.hidden = true;
   elements.trustFooter.hidden = ["editor", "resume", "admin"].includes(route.name);
-  if (!["privacy", "terms", "ai-notice", "data-deletion", "contact"].includes(route.name)) document.title = "轻简历 · 免费在线简历编辑器";
+  if (!isLegalRoute(route)) document.title = "轻简历 · 免费在线简历编辑器";
   refreshAiToolMenuState();
-  if (["privacy", "terms", "ai-notice", "data-deletion", "contact"].includes(route.name)) {
+  if (isLegalRoute(route)) {
     elements.app.hidden = true;
     elements.homePage.hidden = true;
     elements.templateLibrary.hidden = true;
@@ -5821,6 +5879,11 @@ async function applyCurrentRoute({ replaceInvalid = false } = {}) {
     document.documentElement.classList.remove("home-page-mode", "template-library-mode");
     document.querySelectorAll("[data-legal-article]").forEach((article) => { article.hidden = article.dataset.legalArticle !== route.name; });
     document.querySelectorAll("[data-legal-link]").forEach((link) => link.classList.toggle("is-active", link.dataset.legalLink === route.name));
+    const returnTo = legalReturnTarget(window.history.state?.legalReturnTo);
+    const returnRoute = parseAppRoute(new URL(returnTo, window.location.origin).pathname);
+    const returnLabels = { login: "返回登录", ai: "返回 AI 生成", "ai-translate": "返回 AI 翻译", templates: "返回模板库", drafts: "返回我的草稿", editor: "返回编辑器", resume: "返回编辑器" };
+    elements.legalBackLink.href = returnTo;
+    elements.legalBackLink.textContent = returnLabels[returnRoute.name] || "返回首页";
     const heading = document.querySelector(`[data-legal-article="${route.name}"] h1`)?.textContent || "信任中心";
     document.title = `${heading} · 轻简历`;
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -6566,7 +6629,8 @@ document.addEventListener("click", async (event) => {
   else if (action === "export-resume") exportResume();
   else if (action === "download-json") {
     saveNow();
-    const blob = new Blob([JSON.stringify(resume, null, 2)], { type: "application/json" });
+    const backup = createResumeBackup(resume);
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -6676,7 +6740,7 @@ elements.importFile.addEventListener("change", () => {
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      const imported = normalizeResume(JSON.parse(String(reader.result || "{}")));
+      const imported = readResumeBackup(JSON.parse(String(reader.result || "{}")));
       resume = imported;
       activeModuleId = "profile";
       renderAll();
@@ -6685,8 +6749,8 @@ elements.importFile.addEventListener("change", () => {
         ? { name: "resume", resumeId: resume.remoteId }
         : { name: "editor" }, "replace");
       showToast("简历备份导入成功");
-    } catch {
-      showToast("无法读取该 JSON 文件", "warning");
+    } catch (error) {
+      showToast(error?.message || "无法读取该 JSON 备份文件", "warning");
     } finally {
       elements.importFile.value = "";
     }
@@ -6733,16 +6797,7 @@ elements.tabs.addEventListener("drop", (event) => {
   event.preventDefault();
   const target = event.target.closest("[data-drag-module]");
   if (!target || !draggedModuleId || target.dataset.dragModule === draggedModuleId) return;
-  const source = elements.tabs.querySelector(`[data-drag-module="${CSS.escape(draggedModuleId)}"]`);
-  if (!source || source.dataset.zone !== target.dataset.zone) {
-    showToast("模块只能在当前版式分区内排序", "warning");
-    return;
-  }
-  const from = resume.sections.findIndex((section) => section.id === draggedModuleId);
-  const to = resume.sections.findIndex((section) => section.id === target.dataset.dragModule);
-  resume.sections = moveItem(resume.sections, from, to);
-  renderAll();
-  scheduleSave();
+  reorderModule(draggedModuleId, target.dataset.dragModule);
 });
 
 elements.tabs.addEventListener("dragend", () => {
@@ -6764,6 +6819,11 @@ document.addEventListener("click", (event) => {
 
   const link = event.target.closest("a[href]");
   if (!link) return;
+  if (link === elements.legalBackLink && Number.isInteger(window.history.state?.legalDepth) && window.history.state.legalDepth > 0) {
+    event.preventDefault();
+    window.history.go(-window.history.state.legalDepth);
+    return;
+  }
   if (link.getAttribute("aria-disabled") === "true") {
     event.preventDefault();
     showToast("该 AI 功能正在维护中", "info");
@@ -6791,7 +6851,16 @@ document.addEventListener("click", (event) => {
     if (window.location.hash !== url.hash) window.history.replaceState({}, "", targetPath);
     return;
   }
-  window.history.pushState({}, "", targetPath);
+  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const targetRoute = parseAppRoute(url.pathname);
+  const currentRoute = parseAppRoute(window.location.pathname);
+  const state = isLegalRoute(targetRoute)
+    ? {
+        legalReturnTo: isLegalRoute(currentRoute) ? legalReturnTarget(window.history.state?.legalReturnTo) : legalReturnTarget(currentPath),
+        legalDepth: isLegalRoute(currentRoute) ? Math.max(1, Number(window.history.state?.legalDepth) || 1) + 1 : 1
+      }
+    : {};
+  window.history.pushState(state, "", targetPath);
   applyCurrentRoute();
 });
 
@@ -6853,6 +6922,46 @@ elements.adminTemplateSearch.addEventListener("input", () => {
   clearTimeout(adminTemplateSearchTimer);
   adminTemplateSearchTimer = setTimeout(() => loadAdminTemplates(), 300);
 });
+
+elements.flow.addEventListener("pointerdown", (event) => {
+  previewDragHandleArmed = Boolean(event.target.closest("[data-preview-drag-handle]"));
+});
+
+elements.flow.addEventListener("dragstart", (event) => {
+  const sectionNode = event.target.closest("[data-preview-drag-module]");
+  if (!sectionNode || !previewDragHandleArmed) {
+    event.preventDefault();
+    return;
+  }
+  draggedModuleId = sectionNode.dataset.previewDragModule;
+  sectionNode.classList.add("is-preview-dragging");
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", draggedModuleId);
+});
+
+elements.flow.addEventListener("dragover", (event) => {
+  const target = event.target.closest("[data-preview-drag-module]");
+  if (!target || !draggedModuleId || target.dataset.previewDragModule === draggedModuleId) return;
+  const source = elements.flow.querySelector(`[data-preview-drag-module="${CSS.escape(draggedModuleId)}"]`);
+  if (!source || source.dataset.zone !== target.dataset.zone) return;
+  event.preventDefault();
+  elements.flow.querySelectorAll(".is-drop-before, .is-drop-after").forEach((node) => node.classList.remove("is-drop-before", "is-drop-after"));
+  const bounds = target.getBoundingClientRect();
+  const after = event.clientY >= bounds.top + bounds.height / 2;
+  target.classList.add(after ? "is-drop-after" : "is-drop-before");
+  event.dataTransfer.dropEffect = "move";
+});
+
+elements.flow.addEventListener("drop", (event) => {
+  const target = event.target.closest("[data-preview-drag-module]");
+  if (!target || !draggedModuleId) return;
+  event.preventDefault();
+  const after = target.classList.contains("is-drop-after");
+  reorderModule(draggedModuleId, target.dataset.previewDragModule, { after });
+  clearPreviewDragState();
+});
+
+elements.flow.addEventListener("dragend", clearPreviewDragState);
 [elements.adminTemplateStatusFilter, elements.adminTemplateCategoryFilter, elements.adminTemplateEngineFilter, elements.adminTemplateLicenseFilter].forEach((select) => select.addEventListener("change", loadAdminTemplates));
 
 elements.adminTemplateList.addEventListener("change", (event) => {

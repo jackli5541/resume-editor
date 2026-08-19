@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { isAppPath, parseAppRoute, routePath } from "../public/router.mjs";
+import { isAppPath, isLegalRoute, legalReturnTarget, parseAppRoute, routePath } from "../public/router.mjs";
 
 test("parseAppRoute 识别首页与其他路由", () => {
   assert.deepEqual(parseAppRoute("/"), { name: "home" });
@@ -32,4 +32,14 @@ test("isAppPath 识别 AI 翻译路由", () => {
   assert.equal(isAppPath("/ai/translate/"), true);
   assert.equal(isAppPath("/api/ai/translate"), false);
   assert.equal(isAppPath("/privacy"), true);
+});
+
+test("信任页返回地址只接受应用内非信任页路径", () => {
+  assert.equal(isLegalRoute(parseAppRoute("/terms")), true);
+  assert.equal(isLegalRoute(parseAppRoute("/login")), false);
+  assert.equal(legalReturnTarget("/login"), "/login");
+  assert.equal(legalReturnTarget("/ai?from=home#input"), "/ai?from=home#input");
+  assert.equal(legalReturnTarget("/privacy"), "/");
+  assert.equal(legalReturnTarget("https://example.com/login"), "/");
+  assert.equal(legalReturnTarget("//example.com/login"), "/");
 });

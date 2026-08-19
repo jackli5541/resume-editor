@@ -1,4 +1,21 @@
 const resumeRoutePattern = /^\/resumes\/([0-9a-f-]+)\/edit\/?$/i;
+const legalRouteNames = new Set(["privacy", "terms", "ai-notice", "data-deletion", "contact"]);
+
+export function isLegalRoute(route) {
+  return legalRouteNames.has(route?.name);
+}
+
+export function legalReturnTarget(value) {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) return "/";
+  let url;
+  try {
+    url = new URL(value, "https://qingjianli.local");
+  } catch {
+    return "/";
+  }
+  if (url.origin !== "https://qingjianli.local" || !isAppPath(url.pathname) || isLegalRoute(parseAppRoute(url.pathname))) return "/";
+  return `${url.pathname}${url.search}${url.hash}`;
+}
 
 export function parseAppRoute(pathname) {
   const path = String(pathname || "/").replace(/\/{2,}/g, "/");
@@ -41,7 +58,7 @@ export function routePath(route) {
   if (route.name === "login") return "/login";
   if (route.name === "ai") return "/ai";
   if (route.name === "ai-translate") return "/ai/translate";
-  if (["privacy", "terms", "ai-notice", "data-deletion", "contact"].includes(route.name)) return `/${route.name}`;
+  if (isLegalRoute(route)) return `/${route.name}`;
   if (route.name === "resume" && route.resumeId) return `/resumes/${encodeURIComponent(route.resumeId)}/edit`;
   return "/editor";
 }
