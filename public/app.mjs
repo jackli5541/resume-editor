@@ -5141,12 +5141,15 @@ function applyRequestedAiMode() {
 
 async function recoverTargetSession() {
   if (!resume.remoteId || !currentUser || targetState.sessionId) return;
+  const requestedResumeId = resume.remoteId;
   try {
-    const payload = await readApiResponse(await fetch(`/api/ai/target/latest?resumeId=${encodeURIComponent(resume.remoteId)}`, { cache: "no-store" }));
+    const payload = await readApiResponse(await fetch(`/api/ai/target/latest?resumeId=${encodeURIComponent(requestedResumeId)}`, { cache: "no-store" }));
+    if (resume.remoteId !== requestedResumeId) return;
     if (!payload.session) return;
     const session = payload.session;
     targetState = { diagnosis: { ...session.diagnosis, plan: session.plan }, jobDescription: session.jobDescription, baseline: null, applied: session.plan.filter((item) => item.status === "applied"), sessionId: session.id, status: session.status };
-    const versions = await resumeApi.getResumeVersions(resume.remoteId);
+    const versions = await resumeApi.getResumeVersions(requestedResumeId);
+    if (resume.remoteId !== requestedResumeId || targetState.sessionId !== session.id) return;
     targetState.baseline = versions.versions?.find((item) => item.sessionId === session.id && item.label === "JD 优化前")?.data || null;
     elements.targetJobDescription.value = session.jobDescription;
     renderTargetDiagnosis();
@@ -5163,6 +5166,18 @@ function targetPlanActions(item, index) {
     ? `<button type="button" data-action="target-evidence" data-plan-index="${index}">补充事实证据</button>`
     : `<button type="button" data-action="target-execute" data-plan-index="${index}">生成修改</button>`;
   return `<div class="target-plan__actions">${primary}<button type="button" class="target-plan__skip" data-action="target-skip" data-plan-index="${index}">跳过此项</button></div>`;
+}
+
+function resetTargetWorkspace() {
+  elements.aiTargetBody.innerHTML = `
+    <p class="ai-chat__hint">使用当前简历，或上传 DOCX 创建一份采用“极简轻”模板的新草稿。Agent 会先诊断并给出计划，确认后逐模块修改。</p>
+    <button type="button" class="ai-target__upload" data-action="target-upload">上传 DOCX 并替换当前工作草稿</button>
+    <input id="targetWordFile" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
+    <label class="ai-target__field"><span>目标岗位 JD</span><textarea id="targetJobDescription" rows="8" maxlength="12000" placeholder="粘贴完整职位描述…"></textarea></label>
+    <button id="targetDiagnoseButton" type="button" class="ai-proposal__apply" data-action="target-diagnose">开始岗位诊断</button>`;
+  elements.targetWordFile = document.querySelector("#targetWordFile");
+  elements.targetJobDescription = document.querySelector("#targetJobDescription");
+  elements.targetDiagnoseButton = document.querySelector("#targetDiagnoseButton");
 }
 
 function renderTargetDiagnosis() {
@@ -6083,6 +6098,7 @@ async function loadRemoteResume(id) {
   targetState = { diagnosis: null, jobDescription: "", baseline: null, applied: [], sessionId: null, status: null };
   resetAiOptimizeConversation();
   targetPending = null;
+  resetTargetWorkspace();
   undoStack.length = 0;
   redoStack.length = 0;
   refreshUndoButtons();
@@ -7335,8 +7351,9 @@ elements.aiGuideCard?.addEventListener("keydown", (event) => {
 });
 
 elements.aiChatForm.addEventListener("submit", handleAiChatSubmit);
-elements.targetWordFile?.addEventListener("change", () => {
-  const file = elements.targetWordFile.files?.[0];
+document.addEventListener("change", (event) => {
+  if (event.target.id !== "targetWordFile") return;
+  const file = event.target.files?.[0];
   if (file) importTargetWord(file);
 });
 elements.optimizeWordFile?.addEventListener("change", () => {
