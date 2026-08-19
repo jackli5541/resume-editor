@@ -5173,6 +5173,19 @@ function targetPlanFeedback(item, index) {
   return `<div class="target-plan__feedback" data-plan-feedback="${index}" role="alert" tabindex="-1"><strong>本次未生成修改</strong><p>${escapeHtml(item.aiFeedback)}</p><small>请点击“补充事实证据”完善信息，或跳过此项。</small></div>`;
 }
 
+function renderTargetPlan(diagnosis) {
+  const plan = diagnosis.plan || [];
+  const completed = plan.filter((item) => ["applied", "skipped"].includes(item.status)).length;
+  const currentIndex = plan.findIndex((item) => !["applied", "skipped"].includes(item.status));
+  const current = currentIndex >= 0 ? plan[currentIndex] : null;
+  const nextIndex = plan.findIndex((item, index) => index > currentIndex && !["applied", "skipped"].includes(item.status));
+  const currentCard = current ? `<article class="target-plan__item is-current"><div class="target-plan__summary"><span>${currentIndex + 1}</span><strong>${escapeHtml(current.title)}</strong><small>${escapeHtml(current.reason)}</small></div><em class="is-${current.status}">${targetStatusLabel(current.status)}</em>${targetPlanFeedback(current, currentIndex)}${targetPlanActions(current, currentIndex)}</article>` : "";
+  const nextPreview = nextIndex >= 0 ? `<div class="target-plan__next"><span>下一项</span><strong>${escapeHtml(plan[nextIndex].title)}</strong></div>` : "";
+  const allItems = plan.map((item, index) => `<li class="is-${item.status}"><span>${index + 1}</span><strong>${escapeHtml(item.title)}</strong><em>${targetStatusLabel(item.status)}</em></li>`).join("");
+  const completion = targetState.status === "validating" ? '<button type="button" class="target-review-button" data-action="target-review">完成并重新验收</button>' : targetState.status === "completed" ? '<p class="target-complete">✓ 岗位定制已完成并保存最终版本</p>' : "";
+  return `<div class="target-plan"><div class="target-plan__title"><div><strong>当前任务</strong><small>${plan.length ? `${Math.min(completed + 1, plan.length)} / ${plan.length}` : "0 / 0"}</small></div><button type="button" data-action="target-restore">恢复至优化前</button></div><progress class="target-plan__progress" aria-label="改造进度" value="${completed}" max="${Math.max(plan.length, 1)}"></progress>${currentCard}${nextPreview}${plan.length > 1 ? `<details class="target-plan__all"><summary>查看全部 ${plan.length} 项计划</summary><ol>${allItems}</ol></details>` : ""}${completion}</div>`;
+}
+
 function resetTargetWorkspace() {
   elements.aiTargetBody.innerHTML = `
     <p class="ai-chat__hint">使用当前简历，或上传 DOCX 创建一份采用“极简轻”模板的新草稿。Agent 会先诊断并给出计划，确认后逐模块修改。</p>
@@ -5194,7 +5207,7 @@ function renderTargetDiagnosis() {
     <div class="target-scores">${score("要求覆盖", diagnosis.scores?.requirementCoverage || 0)}${score("证据强度", diagnosis.scores?.evidenceStrength || 0)}${score("成果量化", diagnosis.scores?.quantification || 0)}</div>
     <details class="target-matrix"><summary>查看岗位要求与简历证据</summary>${(diagnosis.matrix || []).map((item) => `<div class="target-matrix__item is-${item.status}"><strong>${escapeHtml(item.requirement)}</strong><span>${escapeHtml(item.evidence?.join("；") || "暂无简历证据")}</span><small>${escapeHtml(item.suggestion)}</small></div>`).join("")}</details>
     ${(diagnosis.questions || []).length ? `<div class="target-questions"><strong>建议先补充</strong><ul>${diagnosis.questions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
-    <div class="target-plan"><div class="target-plan__title"><strong>改造计划</strong><button type="button" data-action="target-restore">恢复至优化前</button></div>${(diagnosis.plan || []).map((item, index) => `<article class="target-plan__item"><div class="target-plan__summary"><span>${index + 1}</span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.reason)}</small></div><em class="is-${item.status}">${targetStatusLabel(item.status)}</em>${targetPlanFeedback(item, index)}${targetPlanActions(item, index)}</article>`).join("")}${targetState.status === "validating" ? '<button type="button" class="target-review-button" data-action="target-review">完成并重新验收</button>' : targetState.status === "completed" ? '<p class="target-complete">✓ 岗位定制已完成并保存最终版本</p>' : ""}</div>`;
+    ${renderTargetPlan(diagnosis)}`;
 }
 
 async function diagnoseTarget() {
@@ -5494,6 +5507,7 @@ function aiApplyChange(change) {
 function setAiChatOpen(open) {
   elements.aiChatPanel.classList.toggle("is-open", open);
   elements.aiChatPanel.setAttribute("aria-hidden", String(!open));
+  syncAiDockLayout(open);
   if (elements.aiFloatBtn) {
     elements.aiFloatBtn.setAttribute("aria-pressed", String(open));
     elements.aiFloatBtn.setAttribute("aria-label", open ? "关闭 AI 优化" : "打开 AI 优化");
@@ -5605,13 +5619,19 @@ function clearAiChat() {
   elements.aiChatBody.innerHTML = "";
 }
 
+function syncAiDockLayout(open = elements.aiChatPanel.classList.contains("is-open")) {
+  document.documentElement.classList.toggle("ai-chat-docked", open && window.innerWidth > 1200);
+}
+
 function aiChatWidthLimit() {
-  return Math.max(AI_CHAT_MIN_WIDTH, Math.min(AI_CHAT_MAX_WIDTH, Math.floor(window.innerWidth * 0.6)));
+  const workspaceLimit = window.innerWidth > 1200 ? window.innerWidth - 860 : window.innerWidth * 0.45;
+  return Math.max(AI_CHAT_MIN_WIDTH, Math.min(AI_CHAT_MAX_WIDTH, Math.floor(window.innerWidth * 0.45), Math.floor(workspaceLimit)));
 }
 
 function setAiChatWidth(value, { persist = false } = {}) {
   const width = Math.max(AI_CHAT_MIN_WIDTH, Math.min(aiChatWidthLimit(), Math.round(Number(value) || 360)));
   elements.aiChatPanel.style.setProperty("--ai-chat-width", `${width}px`);
+  document.documentElement.style.setProperty("--ai-chat-docked-width", `${width}px`);
   elements.aiChatResizeHandle?.setAttribute("aria-valuenow", String(width));
   elements.aiChatResizeHandle?.setAttribute("aria-valuemax", String(aiChatWidthLimit()));
   if (persist) localStorage.setItem(AI_CHAT_WIDTH_KEY, String(width));
@@ -7150,6 +7170,7 @@ window.addEventListener("beforeunload", () => {
 window.addEventListener("resize", () => {
   schedulePagination();
   setAiChatWidth(elements.aiChatPanel.getBoundingClientRect().width);
+  syncAiDockLayout();
 });
 window.addEventListener("popstate", () => applyCurrentRoute());
 

@@ -39,11 +39,30 @@ test("桌面端 AI 侧边栏支持有上限的拖拽调宽，窄屏禁用拖拽"
   const styles = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
   const app = await readFile(new URL("../public/app.mjs", import.meta.url), "utf8");
   assert.match(html, /id="aiChatResizeHandle"[^>]+role="separator"/);
-  assert.match(styles, /width:\s*clamp\(320px,[^;]+720px[^;]+60vw/);
+  assert.match(styles, /width:\s*clamp\(320px,[^;]+720px[^;]+45vw/);
   assert.match(styles, /@media screen and \(max-width:\s*900px\)[\s\S]*?\.ai-chat__resize-handle\s*\{\s*display:\s*none;/);
   assert.match(app, /AI_CHAT_MAX_WIDTH\s*=\s*720/);
   assert.match(app, /setPointerCapture\(event\.pointerId\)/);
   assert.match(app, /localStorage\.setItem\(AI_CHAT_WIDTH_KEY/);
+});
+
+test("岗位计划默认只展开当前任务并保留进度与全部计划入口", async () => {
+  const app = await readFile(new URL("../public/app.mjs", import.meta.url), "utf8");
+  assert.match(app, /function renderTargetPlan\(diagnosis\)/);
+  assert.match(app, /findIndex\(\(item\) => !\["applied", "skipped"\]\.includes\(item\.status\)\)/);
+  assert.match(app, /class="target-plan__progress"/);
+  assert.match(app, /class="target-plan__next"/);
+  assert.match(app, /查看全部 \$\{plan\.length\} 项计划/);
+  assert.equal((app.match(/class="target-plan__item is-current"/g) || []).length, 1);
+});
+
+test("宽屏 AI 使用停靠布局并为完整简历预览让出空间", async () => {
+  const styles = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
+  const app = await readFile(new URL("../public/app.mjs", import.meta.url), "utf8");
+  assert.match(styles, /@media screen and \(min-width:\s*1201px\)[\s\S]*?html\.ai-chat-docked \.workspace\s*\{[\s\S]*?grid-template-columns:\s*820px;/);
+  assert.match(styles, /html\.ai-chat-docked \.workspace > \.side-panel\s*\{\s*display:\s*none;/);
+  assert.match(app, /classList\.toggle\("ai-chat-docked", open && window\.innerWidth > 1200\)/);
+  assert.match(app, /window\.innerWidth \* 0\.45/);
 });
 
 test("切换草稿会重置 JD 工作区并阻止旧会话异步覆盖", async () => {
