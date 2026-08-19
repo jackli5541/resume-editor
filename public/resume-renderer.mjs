@@ -293,9 +293,10 @@ function collectionAsset(slug, name) {
 
 function collectionPhoto(profile, schema, slug, fallback, extraClass = "") {
   if (!schema.profileFields.includes("photo")) return "";
-  const photo = safeImageUrl(profile.photo) || (fallback ? collectionAsset(slug, fallback) : "");
+  const userPhoto = safeImageUrl(profile.photo);
+  const photo = userPhoto || (fallback ? collectionAsset(slug, fallback) : "");
   return photo
-    ? `<img class="resume-photo ${extraClass}" src="${escapeHtml(photo)}" alt="个人照片" />`
+    ? `<img class="resume-photo ${userPhoto ? "" : "resume-photo--fallback"} ${extraClass}" src="${escapeHtml(photo)}" alt="个人照片" />`
     : `<div class="resume-photo resume-photo--placeholder ${extraClass}" aria-hidden="true"><span>${escapeHtml((profile.name || "你").slice(0, 1))}</span></div>`;
 }
 

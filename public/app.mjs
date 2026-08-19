@@ -30,6 +30,7 @@ import { createResumeApi } from "./resume-api.mjs";
 import { normalizeWordText } from "./word-import.mjs";
 import { createResumeBackup, readResumeBackup } from "./resume-backup.mjs";
 import { applyTheme, currentTheme, refreshThemeButtons, toggleTheme } from "./theme.mjs";
+import { dragAutoScrollSpeed } from "./drag-auto-scroll.mjs";
 
 const elements = {
   app: document.querySelector("#app"),
@@ -312,6 +313,10 @@ let previewFrame = null;
 let currentPages = 1;
 let draggedModuleId = "";
 let previewDragHandleArmed = false;
+let previewDragActive = false;
+let previewDragScrollFrame = null;
+let previewDragScrollSpeed = 0;
+let previewDragScrollUpdatedAt = 0;
 let exportInProgress = false;
 let availableTemplates = [];
 let availableDrafts = [];
@@ -994,10 +999,41 @@ function decoratePreviewModuleDragging() {
 
 function clearPreviewDragState() {
   previewDragHandleArmed = false;
+  previewDragActive = false;
   draggedModuleId = "";
+  stopPreviewDragAutoScroll();
   elements.flow.querySelectorAll(".is-preview-dragging, .is-drop-before, .is-drop-after").forEach((node) => {
     node.classList.remove("is-preview-dragging", "is-drop-before", "is-drop-after");
   });
+}
+
+function stopPreviewDragAutoScroll() {
+  previewDragScrollSpeed = 0;
+  previewDragScrollUpdatedAt = 0;
+  if (previewDragScrollFrame !== null) cancelAnimationFrame(previewDragScrollFrame);
+  previewDragScrollFrame = null;
+}
+
+function runPreviewDragAutoScroll() {
+  previewDragScrollFrame = null;
+  if (!previewDragActive || !previewDragScrollSpeed || performance.now() - previewDragScrollUpdatedAt > 180) {
+    stopPreviewDragAutoScroll();
+    return;
+  }
+  window.scrollBy(0, previewDragScrollSpeed);
+  previewDragScrollFrame = requestAnimationFrame(runPreviewDragAutoScroll);
+}
+
+function updatePreviewDragAutoScroll(pointerY) {
+  if (!previewDragActive) return;
+  const top = document.querySelector(".topbar")?.getBoundingClientRect().bottom || 0;
+  previewDragScrollSpeed = dragAutoScrollSpeed(pointerY, { top, bottom: window.innerHeight });
+  previewDragScrollUpdatedAt = performance.now();
+  if (!previewDragScrollSpeed) {
+    stopPreviewDragAutoScroll();
+  } else if (previewDragScrollFrame === null) {
+    previewDragScrollFrame = requestAnimationFrame(runPreviewDragAutoScroll);
+  }
 }
 
 function reorderModule(sourceId, targetId, { after = false } = {}) {
@@ -6934,6 +6970,7 @@ elements.flow.addEventListener("dragstart", (event) => {
     return;
   }
   draggedModuleId = sectionNode.dataset.previewDragModule;
+  previewDragActive = true;
   sectionNode.classList.add("is-preview-dragging");
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("text/plain", draggedModuleId);
@@ -6950,6 +6987,11 @@ elements.flow.addEventListener("dragover", (event) => {
   const after = event.clientY >= bounds.top + bounds.height / 2;
   target.classList.add(after ? "is-drop-after" : "is-drop-before");
   event.dataTransfer.dropEffect = "move";
+});
+
+document.addEventListener("dragover", (event) => updatePreviewDragAutoScroll(event.clientY));
+document.addEventListener("dragleave", (event) => {
+  if (previewDragActive && !event.relatedTarget) stopPreviewDragAutoScroll();
 });
 
 elements.flow.addEventListener("drop", (event) => {

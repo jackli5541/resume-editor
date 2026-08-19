@@ -25,6 +25,12 @@ body.export-document .resume-section:hover {
   background: transparent !important;
 }
 
+/* Editing placeholders help users find the photo field, but are not resume content. */
+body.export-document .resume-photo--placeholder,
+body.export-document .resume-photo--fallback {
+  display: none !important;
+}
+
 body.export-document .resume-section,
 body.export-document .timeline-item {
   break-inside: auto !important;
