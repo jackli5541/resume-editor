@@ -25,6 +25,7 @@ export function parseAppRoute(pathname) {
   if (path === "/admin" || path === "/admin/") return { name: "admin" };
   if (path === "/login" || path === "/login/") return { name: "login" };
   if (path === "/ai" || path === "/ai/") return { name: "ai" };
+  if (path === "/ai/optimize" || path === "/ai/optimize/") return { name: "ai-optimize" };
   if (path === "/ai/translate" || path === "/ai/translate/") return { name: "ai-translate" };
   if (path === "/editor" || path === "/editor/") return { name: "editor" };
   if (path === "/privacy" || path === "/privacy/") return { name: "privacy" };
@@ -39,7 +40,7 @@ export function parseAppRoute(pathname) {
 
 const knownRoutePatterns = [
   /^\/(templates|drafts|admin|login|ai|editor|privacy|terms|ai-notice|data-deletion|contact)\/?$/i,
-  /^\/ai\/translate\/?$/i,
+  /^\/ai\/(optimize|translate)\/?$/i,
   resumeRoutePattern
 ];
 
@@ -57,6 +58,7 @@ export function routePath(route) {
   if (route.name === "admin") return "/admin";
   if (route.name === "login") return "/login";
   if (route.name === "ai") return "/ai";
+  if (route.name === "ai-optimize") return "/ai/optimize";
   if (route.name === "ai-translate") return "/ai/translate";
   if (isLegalRoute(route)) return `/${route.name}`;
   if (route.name === "resume" && route.resumeId) return `/resumes/${encodeURIComponent(route.resumeId)}/edit`;

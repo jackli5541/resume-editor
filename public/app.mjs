@@ -253,6 +253,14 @@ const elements = {
   adminDuplicatesStatus: document.querySelector("#adminDuplicatesStatus"),
   aiPage: document.querySelector("#aiPage"),
   aiTranslatePage: document.querySelector("#aiTranslatePage"),
+  aiOptimizePage: document.querySelector("#aiOptimizePage"),
+  aiOptimizeBadge: document.querySelector("#aiOptimizeBadge"),
+  aiOptimizeTitle: document.querySelector("#aiOptimizeTitle"),
+  aiOptimizeDescription: document.querySelector("#aiOptimizeDescription"),
+  optimizeWordFile: document.querySelector("#optimizeWordFile"),
+  optimizeImportStatus: document.querySelector("#optimizeImportStatus"),
+  optimizeDraftList: document.querySelector("#optimizeDraftList"),
+  optimizeDraftEmpty: document.querySelector("#optimizeDraftEmpty"),
   aiGenerateFeatureNotice: document.querySelector("#aiGenerateFeatureNotice"),
   aiTranslateFeatureNotice: document.querySelector("#aiTranslateFeatureNotice"),
   translateWordFile: document.querySelector("#translateWordFile"),
@@ -1443,8 +1451,9 @@ function openLogin(next = null, historyMode = "push") {
 // 用户不想登录时返回：进入登录页前的可见页面优先；若来路是需登录才能访问的
 // 页面（/ai、/admin、/resumes/.../edit），则落到首页。
 function closeLogin() {
-  const route = loginNext && isAppPath(loginNext) ? parseAppRoute(loginNext) : null;
-  const gated = route && (route.name === "ai" || route.name === "admin" || route.name === "resume");
+  const loginUrl = loginNext ? new URL(loginNext, window.location.origin) : null;
+  const route = loginUrl && isAppPath(loginUrl.pathname) ? parseAppRoute(loginUrl.pathname) : null;
+  const gated = route && (["ai", "ai-optimize", "ai-translate", "admin", "resume"].includes(route.name));
   const target = route && !gated ? loginNext : "/";
   loginNext = null;
   if (window.location.pathname !== target) window.history.replaceState({}, "", target);
@@ -1516,7 +1525,8 @@ async function completeAuthSuccess(payload, isRegister) {
   closeAllAccountMenus();
   showToast(isRegister ? "注册成功，已登录" : "登录成功", "success");
   const fallback = defaultPathFor(currentUser);
-  const target = loginNext && isAppPath(loginNext) ? loginNext : fallback;
+  const loginUrl = loginNext ? new URL(loginNext, window.location.origin) : null;
+  const target = loginUrl && isAppPath(loginUrl.pathname) ? `${loginUrl.pathname}${loginUrl.search}${loginUrl.hash}` : fallback;
   loginNext = null;
   window.history.replaceState({}, "", target);
   await applyCurrentRoute();
@@ -4285,6 +4295,66 @@ function hideAiPage() {
   elements.aiPage.hidden = true;
 }
 
+function requestedOptimizeMode() {
+  return new URLSearchParams(window.location.search).get("mode") === "target" ? "target" : "optimize";
+}
+
+function renderOptimizeDrafts() {
+  if (!elements.optimizeDraftList) return;
+  elements.optimizeDraftEmpty.hidden = availableDrafts.length > 0;
+  elements.optimizeDraftList.innerHTML = availableDrafts.map((draft) => `<button type="button" class="optimize-draft-item" data-action="optimize-open-draft" data-resume-id="${escapeHtml(draft.id)}"><span><strong>${escapeHtml(draft.candidateName)}</strong><small>${escapeHtml(draft.title)}</small></span><span>${escapeHtml(draft.templateName)} →</span></button>`).join("");
+}
+
+async function showAiOptimizePage() {
+  const mode = requestedOptimizeMode();
+  document.documentElement.classList.remove("home-page-mode", "template-library-mode");
+  elements.homePage.hidden = true;
+  elements.templateLibrary.hidden = true;
+  elements.draftPage.hidden = true;
+  elements.app.hidden = true;
+  elements.adminPage.hidden = true;
+  elements.loginPage.hidden = true;
+  elements.aiPage.hidden = true;
+  elements.aiTranslatePage.hidden = true;
+  elements.aiOptimizeBadge.textContent = mode === "target" ? "按 JD 定制" : "AI 精修";
+  elements.aiOptimizeTitle.textContent = mode === "target" ? "导入简历后按 JD 定制" : "导入简历后开始 AI 精修";
+  elements.aiOptimizeDescription.textContent = mode === "target"
+    ? "上传 Word 简历，系统会转换为站内模板草稿并自动打开岗位诊断；也可以直接选择已有草稿。"
+    : "上传 Word 简历，系统会转换为站内模板草稿并自动打开 AI 精修；也可以直接选择已有草稿。";
+  document.querySelectorAll("[data-optimize-nav]").forEach((link) => link.classList.toggle("is-active", link.dataset.optimizeNav === mode));
+  revealView(elements.aiOptimizePage);
+  await loadDrafts();
+  renderOptimizeDrafts();
+  window.scrollTo({ top: 0, behavior: "auto" });
+}
+
+function openDraftInAiMode(resumeId, mode = requestedOptimizeMode()) {
+  const path = `/resumes/${encodeURIComponent(resumeId)}/edit?aiMode=${mode}`;
+  window.history.pushState({}, "", path);
+  applyCurrentRoute();
+}
+
+async function importWordForOptimization(file) {
+  const mode = requestedOptimizeMode();
+  elements.optimizeImportStatus.textContent = "正在解析并转换 Word 简历…";
+  try {
+    const { text, structure } = await extractWordText(file);
+    const template = availableTemplates.find((item) => item.slug === "clean-single") || { slug: "clean-single", version: 1 };
+    const generated = await readApiResponse(await fetch("/api/ai/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ templateSlug: template.slug, templateVersion: template.version, description: text, documentStructure: structure }) }));
+    const data = { ...generated.resume };
+    delete data.template;
+    const draft = await resumeApi.createResume({ templateSlug: template.slug, templateVersion: template.version, data });
+    elements.optimizeImportStatus.textContent = "转换完成，正在打开 AI 工作区…";
+    showToast("Word 简历已转换为可编辑草稿", "success");
+    openDraftInAiMode(draft.id, mode);
+  } catch (error) {
+    elements.optimizeImportStatus.textContent = error?.message || "导入失败，请重试";
+    showToast(error?.message || "Word 导入失败", "warning");
+  } finally {
+    elements.optimizeWordFile.value = "";
+  }
+}
+
 function renderTranslateTemplates() {
   const templates = availableTemplates.filter((template) => template.selectable === true);
   const ordered = [...templates].sort((a, b) => Number(b.slug === "clean-single") - Number(a.slug === "clean-single"));
@@ -5057,7 +5127,11 @@ function setAiMode(mode) {
 
 function applyRequestedAiMode() {
   const requestedMode = new URLSearchParams(window.location.search).get("aiMode");
-  if (["optimize", "target"].includes(requestedMode)) setAiMode(requestedMode);
+  if (["optimize", "target"].includes(requestedMode)) {
+    setAiMode(requestedMode);
+    setAiChatOpen(true);
+    ensureAiChatHint();
+  }
 }
 
 async function recoverTargetSession() {
@@ -5937,6 +6011,7 @@ function decideAiOptimize(index, accepted, button) {
 
 async function applyCurrentRoute({ replaceInvalid = false } = {}) {
   const route = parseAppRoute(window.location.pathname);
+  elements.aiOptimizePage.hidden = true;
   elements.legalPage.hidden = true;
   elements.trustFooter.hidden = ["editor", "resume", "admin"].includes(route.name);
   if (!isLegalRoute(route)) document.title = "轻简历 · 免费在线简历编辑器";
@@ -5955,7 +6030,7 @@ async function applyCurrentRoute({ replaceInvalid = false } = {}) {
     document.querySelectorAll("[data-legal-link]").forEach((link) => link.classList.toggle("is-active", link.dataset.legalLink === route.name));
     const returnTo = legalReturnTarget(window.history.state?.legalReturnTo);
     const returnRoute = parseAppRoute(new URL(returnTo, window.location.origin).pathname);
-    const returnLabels = { login: "返回登录", ai: "返回 AI 生成", "ai-translate": "返回 AI 翻译", templates: "返回模板库", drafts: "返回我的草稿", editor: "返回编辑器", resume: "返回编辑器" };
+    const returnLabels = { login: "返回登录", ai: "返回 AI 生成", "ai-optimize": "返回 AI 优化", "ai-translate": "返回 AI 翻译", templates: "返回模板库", drafts: "返回我的草稿", editor: "返回编辑器", resume: "返回编辑器" };
     elements.legalBackLink.href = returnTo;
     elements.legalBackLink.textContent = returnLabels[returnRoute.name] || "返回首页";
     const heading = document.querySelector(`[data-legal-article="${route.name}"] h1`)?.textContent || "信任中心";
@@ -6318,6 +6393,14 @@ async function selectTemplate(target) {
     showToast("登录后开始编辑", "info");
     return;
   }
+  if (route.name === "ai-optimize") {
+    if (!currentUser) {
+      openLogin(`/ai/optimize?mode=${requestedOptimizeMode()}`, "replace");
+      return;
+    }
+    await showAiOptimizePage();
+    return;
+  }
   if (templateChangeMode) {
     const previousName = resume.template?.name || "当前模板";
     const confirmed = await confirmAction({
@@ -6572,6 +6655,8 @@ document.addEventListener("click", async (event) => {
   else if (action === "target-cancel-change") cancelTargetPending();
   else if (action === "target-restore") restoreTargetBaseline();
   else if (action === "translate-upload") elements.translateWordFile.click();
+  else if (action === "optimize-upload") elements.optimizeWordFile.click();
+  else if (action === "optimize-open-draft") openDraftInAiMode(actionTarget.dataset.resumeId);
   else if (action === "ai-close-templates") closeAiGenerateTemplateChooser();
   else if (action === "ai-select-template") generateAiWithTemplate(actionTarget);
   else if (action === "translate-close-templates") closeTranslateTemplateChooser();
@@ -7144,6 +7229,10 @@ elements.aiChatForm.addEventListener("submit", handleAiChatSubmit);
 elements.targetWordFile?.addEventListener("change", () => {
   const file = elements.targetWordFile.files?.[0];
   if (file) importTargetWord(file);
+});
+elements.optimizeWordFile?.addEventListener("change", () => {
+  const file = elements.optimizeWordFile.files?.[0];
+  if (file) importWordForOptimization(file);
 });
 
 document.addEventListener("keydown", (event) => {
