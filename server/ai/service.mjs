@@ -25,6 +25,9 @@ const CLIENT_ERRORS = {
   provider_error: [502, "模型服务异常，请稍后再试"],
   provider_unavailable: [502, "模型服务暂时不可用，已自动重试，请稍后再试"],
   network: [502, "暂时无法连接模型服务，已自动重试，请稍后再试"],
+  context_length: [413, "发送给模型的内容仍超过上下文限制，请缩短 JD 或简历内容"],
+  unsupported_parameter: [502, "模型接口不支持当前请求参数，兼容模式重试失败"],
+  provider_request_rejected: [502, "模型服务拒绝了请求，请检查所选模型与接口配置"],
   unsafe_base_url: [500, "模型服务地址配置有误，请联系管理员"]
 };
 
@@ -352,7 +355,7 @@ export class AiGenerationService {
         outputChars = JSON.stringify(raw).length;
       } catch (error) {
         status = auditStatusFor(error?.code);
-        errorCode = error?.code || "provider_error";
+        errorCode = error?.providerCode ? `${error.code}:${error.providerCode}` : error?.code || "provider_error";
         if (error instanceof AiProviderError) throw this.toClientError(error);
         throw new AiGenerationError("模型服务异常，请稍后再试", 502, errorCode);
       }
