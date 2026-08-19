@@ -1830,7 +1830,7 @@ export function createAppServer(options = {}) {
         const payload = await readJson(request);
         const evidence = String(payload?.evidence || "").trim().slice(0, 4000);
         if (!evidence) throw new RequestValidationError("请填写事实补充");
-        const plan = session.plan.map((item) => item.id === payload?.planItemId ? { ...item, status: "ready", userEvidence: evidence, risk: "low" } : item);
+        const plan = session.plan.map((item) => item.id === payload?.planItemId ? { ...item, status: "ready", userEvidence: evidence, risk: "low", aiFeedback: "" } : item);
         sendJson(response, 200, { session: await targetRepository.updateSession(session.id, user.id, { plan, status: "executing" }) });
       } catch (error) { sendJson(response, errorStatusOf(error), { error: error?.message || "保存补充证据失败" }); }
       return;
@@ -1920,7 +1920,14 @@ export function createAppServer(options = {}) {
           if (payload?.sessionId && !session) throw new RequestValidationError("岗位任务不存在", 404);
           const planItem = session?.plan.find((item) => item.id === payload?.planItem?.id) || payload?.planItem;
           result = await aiService.targetExecute({ ...common, jobDescription: session?.jobDescription || common.jobDescription, planItem, userEvidence: planItem?.userEvidence || payload?.userEvidence });
-          if (session) await targetRepository.recordChange({ sessionId: session.id, planItemId: planItem.id, patch: result.changes, evidenceRefs: planItem.requiredEvidence || [] });
+          if (session && result.changes?.length) {
+            await targetRepository.recordChange({ sessionId: session.id, planItemId: planItem.id, patch: result.changes, evidenceRefs: planItem.requiredEvidence || [] });
+          } else if (session) {
+            const plan = session.plan.map((item) => item.id === planItem.id
+              ? { ...item, status: "blocked", aiFeedback: result.summary || "当前信息不足以生成可信修改，请补充事实证据。" }
+              : item);
+            await targetRepository.updateSession(session.id, user.id, { plan, status: "executing" });
+          }
         } else {
           const diagnosis = await aiService.targetDiagnose(common);
           if (draft) {

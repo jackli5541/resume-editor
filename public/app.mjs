@@ -5168,6 +5168,11 @@ function targetPlanActions(item, index) {
   return `<div class="target-plan__actions">${primary}<button type="button" class="target-plan__skip" data-action="target-skip" data-plan-index="${index}">跳过此项</button></div>`;
 }
 
+function targetPlanFeedback(item, index) {
+  if (!item.aiFeedback) return "";
+  return `<div class="target-plan__feedback" data-plan-feedback="${index}" role="alert" tabindex="-1"><strong>本次未生成修改</strong><p>${escapeHtml(item.aiFeedback)}</p><small>请点击“补充事实证据”完善信息，或跳过此项。</small></div>`;
+}
+
 function resetTargetWorkspace() {
   elements.aiTargetBody.innerHTML = `
     <p class="ai-chat__hint">使用当前简历，或上传 DOCX 创建一份采用“极简轻”模板的新草稿。Agent 会先诊断并给出计划，确认后逐模块修改。</p>
@@ -5189,7 +5194,7 @@ function renderTargetDiagnosis() {
     <div class="target-scores">${score("要求覆盖", diagnosis.scores?.requirementCoverage || 0)}${score("证据强度", diagnosis.scores?.evidenceStrength || 0)}${score("成果量化", diagnosis.scores?.quantification || 0)}</div>
     <details class="target-matrix"><summary>查看岗位要求与简历证据</summary>${(diagnosis.matrix || []).map((item) => `<div class="target-matrix__item is-${item.status}"><strong>${escapeHtml(item.requirement)}</strong><span>${escapeHtml(item.evidence?.join("；") || "暂无简历证据")}</span><small>${escapeHtml(item.suggestion)}</small></div>`).join("")}</details>
     ${(diagnosis.questions || []).length ? `<div class="target-questions"><strong>建议先补充</strong><ul>${diagnosis.questions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
-    <div class="target-plan"><div class="target-plan__title"><strong>改造计划</strong><button type="button" data-action="target-restore">恢复至优化前</button></div>${(diagnosis.plan || []).map((item, index) => `<article class="target-plan__item"><div><span>${index + 1}</span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.reason)}</small></div><em class="is-${item.status}">${targetStatusLabel(item.status)}</em>${targetPlanActions(item, index)}</article>`).join("")}${targetState.status === "validating" ? '<button type="button" class="target-review-button" data-action="target-review">完成并重新验收</button>' : targetState.status === "completed" ? '<p class="target-complete">✓ 岗位定制已完成并保存最终版本</p>' : ""}</div>`;
+    <div class="target-plan"><div class="target-plan__title"><strong>改造计划</strong><button type="button" data-action="target-restore">恢复至优化前</button></div>${(diagnosis.plan || []).map((item, index) => `<article class="target-plan__item"><div><span>${index + 1}</span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.reason)}</small></div><em class="is-${item.status}">${targetStatusLabel(item.status)}</em>${targetPlanFeedback(item, index)}${targetPlanActions(item, index)}</article>`).join("")}${targetState.status === "validating" ? '<button type="button" class="target-review-button" data-action="target-review">完成并重新验收</button>' : targetState.status === "completed" ? '<p class="target-complete">✓ 岗位定制已完成并保存最终版本</p>' : ""}</div>`;
 }
 
 async function diagnoseTarget() {
@@ -5213,7 +5218,15 @@ async function executeTargetPlan(index, button) {
   button.disabled = true; button.textContent = "生成中…";
   try {
     const proposal = await readApiResponse(await fetch("/api/ai/target", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "execute", sessionId: targetState.sessionId, resumeId: resume.remoteId, revision: resume.remoteRevision, resume, jobDescription: targetState.jobDescription, planItem: item }) }));
-    if (!proposal.changes?.length) { item.status = "blocked"; showToast(proposal.summary || "需要补充事实证据", "warning"); renderTargetDiagnosis(); return; }
+    if (!proposal.changes?.length) {
+      item.status = "blocked";
+      item.aiFeedback = proposal.summary || "当前信息不足以生成可信修改，请补充事实证据。";
+      renderTargetDiagnosis();
+      const feedback = elements.aiTargetBody.querySelector(`[data-plan-feedback="${index}"]`);
+      feedback?.focus({ preventScroll: true });
+      feedback?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return;
+    }
     targetPending = { proposal, item, index, selection: createProposalSelection(proposal.changes) };
     renderTargetDiagnosis();
     const card = document.createElement("div");

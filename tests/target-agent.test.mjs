@@ -62,6 +62,9 @@ test("目标任务仓储按用户恢复任务、版本和计划状态", async ()
   const updated = await repository.updateSession(session.id, "u1", { plan: [{ ...diagnosis.plan[0], status: "applied" }], status: "validating" });
   assert.equal(updated.status, "validating");
   assert.equal(updated.plan[0].status, "applied");
+  const blocked = await repository.updateSession(session.id, "u1", { plan: [{ ...diagnosis.plan[0], status: "blocked", aiFeedback: "证据不足" }], status: "executing" });
+  assert.equal((await repository.latest("r1", "u1")).plan[0].aiFeedback, "证据不足");
+  assert.equal(blocked.plan[0].status, "blocked");
 });
 
 test("稳定 itemId 在条目重排后仍定位正确内容", () => {
