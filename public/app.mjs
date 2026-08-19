@@ -6124,6 +6124,14 @@ async function applyCurrentRoute({ replaceInvalid = false } = {}) {
     showAiTranslatePage();
     return;
   }
+  if (route.name === "ai-optimize") {
+    if (!currentUser) {
+      openLogin(`/ai/optimize?mode=${requestedOptimizeMode()}`, "replace");
+      return;
+    }
+    await showAiOptimizePage();
+    return;
+  }
   if (route.name === "admin") {
     if (!currentUser) {
       openLogin("/admin", "replace");
@@ -6445,14 +6453,6 @@ async function selectTemplate(target) {
   if (!currentUser) {
     openLogin(`/templates${["optimize", "target"].includes(requestedAiMode) ? `?aiMode=${requestedAiMode}` : ""}`);
     showToast("登录后开始编辑", "info");
-    return;
-  }
-  if (route.name === "ai-optimize") {
-    if (!currentUser) {
-      openLogin(`/ai/optimize?mode=${requestedOptimizeMode()}`, "replace");
-      return;
-    }
-    await showAiOptimizePage();
     return;
   }
   if (templateChangeMode) {

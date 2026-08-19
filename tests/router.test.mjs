@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 import { isAppPath, isLegalRoute, legalReturnTarget, parseAppRoute, routePath } from "../public/router.mjs";
 
@@ -35,6 +36,20 @@ test("isAppPath 识别 AI 优化与翻译路由", () => {
   assert.equal(isAppPath("/ai/translate/"), true);
   assert.equal(isAppPath("/api/ai/translate"), false);
   assert.equal(isAppPath("/privacy"), true);
+});
+
+test("AI 优化路由由主路由分发器处理，而不是模板选择流程", async () => {
+  const source = await readFile(new URL("../public/app.mjs", import.meta.url), "utf8");
+  const routeStart = source.indexOf("async function applyCurrentRoute");
+  const routeEnd = source.indexOf("async function continueDraft", routeStart);
+  const selectTemplateStart = source.indexOf("async function selectTemplate");
+  const selectTemplateEnd = source.indexOf("async function", selectTemplateStart + 1);
+  const optimizeBranch = 'if (route.name === "ai-optimize")';
+
+  assert.ok(routeStart >= 0 && routeEnd > routeStart);
+  assert.match(source.slice(routeStart, routeEnd), /if \(route\.name === "ai-optimize"\)/);
+  assert.doesNotMatch(source.slice(selectTemplateStart, selectTemplateEnd), /if \(route\.name === "ai-optimize"\)/);
+  assert.equal(source.split(optimizeBranch).length - 1, 1);
 });
 
 test("信任页返回地址只接受应用内非信任页路径", () => {
