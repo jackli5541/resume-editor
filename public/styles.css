@@ -3811,6 +3811,65 @@ select:focus-visible,
   opacity: 0.35;
 }
 
+.resume-flow [data-preview-drag-module] {
+  position: relative;
+}
+
+.preview-module-drag-handle {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  right: 4px;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  transform: translateY(-50%);
+  opacity: 0;
+  border: 1px solid color-mix(in srgb, var(--theme) 42%, #fff);
+  border-radius: 7px;
+  color: var(--theme);
+  background: color-mix(in srgb, #fff 90%, var(--theme));
+  box-shadow: 0 3px 10px rgba(24, 38, 55, 0.16);
+  cursor: grab;
+  place-items: center;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+[data-preview-drag-module]:hover > .section-heading .preview-module-drag-handle,
+.preview-module-drag-handle:focus-visible {
+  opacity: 1;
+}
+
+.preview-module-drag-handle:active {
+  cursor: grabbing;
+}
+
+.resume-flow .is-preview-dragging {
+  opacity: 0.38;
+}
+
+.resume-flow .is-drop-before::before,
+.resume-flow .is-drop-after::after {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--theme);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--theme) 18%, transparent);
+  content: "";
+}
+
+.resume-flow .is-drop-before::before { top: -7px; }
+.resume-flow .is-drop-after::after { bottom: -7px; }
+
+@media (hover: none), (pointer: coarse), screen and (max-width: 720px) {
+  .preview-module-drag-handle { display: none; }
+  .resume-flow [data-preview-drag-module] { cursor: default; }
+}
+
 .module-tab {
   position: relative;
   width: 100%;

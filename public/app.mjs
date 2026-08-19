@@ -311,6 +311,7 @@ let paginationFrame = null;
 let previewFrame = null;
 let currentPages = 1;
 let draggedModuleId = "";
+let previewDragHandleArmed = false;
 let exportInProgress = false;
 let availableTemplates = [];
 let availableDrafts = [];
@@ -961,8 +962,63 @@ function renderPreview() {
   previewFrame = requestAnimationFrame(() => {
     elements.flow.innerHTML = renderResumeMarkup(resume);
     elements.flow.style.fontSize = `${resume.settings.fontSize}px`;
+    decoratePreviewModuleDragging();
     schedulePagination();
   });
+}
+
+function sortablePreviewSchemas() {
+  return new Map(renderableSectionSchemas()
+    .filter((definition) => definition.sortable !== false && definition.capabilities?.sort !== false)
+    .map((definition) => [definition.id, definition]));
+}
+
+function decoratePreviewModuleDragging() {
+  if (previewMode !== "instant" || resume.template?.engine === "docx-native") return;
+  const schemas = sortablePreviewSchemas();
+  elements.flow.querySelectorAll(".resume-section[data-open-module]").forEach((sectionNode) => {
+    const moduleId = sectionNode.dataset.openModule;
+    const definition = schemas.get(moduleId);
+    if (!definition || sectionById(moduleId)?.visible === false) return;
+    sectionNode.dataset.previewDragModule = moduleId;
+    sectionNode.dataset.zone = definition.zone || "main";
+    sectionNode.draggable = true;
+    const heading = sectionNode.querySelector(":scope > .section-heading");
+    if (!heading) return;
+    heading.insertAdjacentHTML("beforeend", `
+      <button class="preview-module-drag-handle" type="button" draggable="false"
+        data-preview-drag-handle="${escapeHtml(moduleId)}" aria-label="拖动${escapeHtml(sectionById(moduleId)?.title || definition.title || "模块")}调整位置"
+        title="拖动调整模块位置">⠿</button>`);
+  });
+}
+
+function clearPreviewDragState() {
+  previewDragHandleArmed = false;
+  draggedModuleId = "";
+  elements.flow.querySelectorAll(".is-preview-dragging, .is-drop-before, .is-drop-after").forEach((node) => {
+    node.classList.remove("is-preview-dragging", "is-drop-before", "is-drop-after");
+  });
+}
+
+function reorderModule(sourceId, targetId, { after = false } = {}) {
+  if (!sourceId || !targetId || sourceId === targetId) return false;
+  const schemas = new Map(renderableSectionSchemas().map((definition) => [definition.id, definition]));
+  if (schemas.get(sourceId)?.zone !== schemas.get(targetId)?.zone) {
+    showToast("模块只能在当前版式分区内排序", "warning");
+    return false;
+  }
+  const from = resume.sections.findIndex((section) => section.id === sourceId);
+  const target = resume.sections.findIndex((section) => section.id === targetId);
+  if (from < 0 || target < 0) return false;
+  let to = target + (after ? 1 : 0);
+  if (from < to) to -= 1;
+  if (from === to) return false;
+  const before = cloneResumeState();
+  resume.sections = moveItem(resume.sections, from, to);
+  renderAll();
+  scheduleSave();
+  recordResumeChange(before, "调整模块顺序");
+  return true;
 }
 
 function schedulePagination() {
@@ -6741,16 +6797,7 @@ elements.tabs.addEventListener("drop", (event) => {
   event.preventDefault();
   const target = event.target.closest("[data-drag-module]");
   if (!target || !draggedModuleId || target.dataset.dragModule === draggedModuleId) return;
-  const source = elements.tabs.querySelector(`[data-drag-module="${CSS.escape(draggedModuleId)}"]`);
-  if (!source || source.dataset.zone !== target.dataset.zone) {
-    showToast("模块只能在当前版式分区内排序", "warning");
-    return;
-  }
-  const from = resume.sections.findIndex((section) => section.id === draggedModuleId);
-  const to = resume.sections.findIndex((section) => section.id === target.dataset.dragModule);
-  resume.sections = moveItem(resume.sections, from, to);
-  renderAll();
-  scheduleSave();
+  reorderModule(draggedModuleId, target.dataset.dragModule);
 });
 
 elements.tabs.addEventListener("dragend", () => {
@@ -6875,6 +6922,46 @@ elements.adminTemplateSearch.addEventListener("input", () => {
   clearTimeout(adminTemplateSearchTimer);
   adminTemplateSearchTimer = setTimeout(() => loadAdminTemplates(), 300);
 });
+
+elements.flow.addEventListener("pointerdown", (event) => {
+  previewDragHandleArmed = Boolean(event.target.closest("[data-preview-drag-handle]"));
+});
+
+elements.flow.addEventListener("dragstart", (event) => {
+  const sectionNode = event.target.closest("[data-preview-drag-module]");
+  if (!sectionNode || !previewDragHandleArmed) {
+    event.preventDefault();
+    return;
+  }
+  draggedModuleId = sectionNode.dataset.previewDragModule;
+  sectionNode.classList.add("is-preview-dragging");
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", draggedModuleId);
+});
+
+elements.flow.addEventListener("dragover", (event) => {
+  const target = event.target.closest("[data-preview-drag-module]");
+  if (!target || !draggedModuleId || target.dataset.previewDragModule === draggedModuleId) return;
+  const source = elements.flow.querySelector(`[data-preview-drag-module="${CSS.escape(draggedModuleId)}"]`);
+  if (!source || source.dataset.zone !== target.dataset.zone) return;
+  event.preventDefault();
+  elements.flow.querySelectorAll(".is-drop-before, .is-drop-after").forEach((node) => node.classList.remove("is-drop-before", "is-drop-after"));
+  const bounds = target.getBoundingClientRect();
+  const after = event.clientY >= bounds.top + bounds.height / 2;
+  target.classList.add(after ? "is-drop-after" : "is-drop-before");
+  event.dataTransfer.dropEffect = "move";
+});
+
+elements.flow.addEventListener("drop", (event) => {
+  const target = event.target.closest("[data-preview-drag-module]");
+  if (!target || !draggedModuleId) return;
+  event.preventDefault();
+  const after = target.classList.contains("is-drop-after");
+  reorderModule(draggedModuleId, target.dataset.previewDragModule, { after });
+  clearPreviewDragState();
+});
+
+elements.flow.addEventListener("dragend", clearPreviewDragState);
 [elements.adminTemplateStatusFilter, elements.adminTemplateCategoryFilter, elements.adminTemplateEngineFilter, elements.adminTemplateLicenseFilter].forEach((select) => select.addEventListener("change", loadAdminTemplates));
 
 elements.adminTemplateList.addEventListener("change", (event) => {
