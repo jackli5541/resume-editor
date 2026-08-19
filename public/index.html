@@ -18,7 +18,7 @@
           <span class="brand__mark"><img src="/logo.png" alt="" width="24" height="24" /></span><span class="brand__text">轻简历</span>
         </a>
         <nav class="primary-nav" aria-label="主导航">
-          <a class="is-active" href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 简历工具</a><a href="/admin" data-admin-link hidden>管理端</a>
+          <a class="is-active" href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
         </nav>
         <div class="account-area">
           <a class="github-link" href="https://github.com/jackli5541/resume-editor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库" title="在 GitHub 上查看源码"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
@@ -47,15 +47,15 @@
                 <span class="hero-rotator" id="heroRotator">一句话生成简历</span><span class="hero-caret" aria-hidden="true"></span>
               </span>
             </h1>
-            <p class="home-hero__lead">粘贴一段经历描述，AI 自动整理成结构化简历——无需逐项填写个人信息，不编造、可微调、导出即用。</p>
+            <p class="home-hero__lead">从生成、岗位定制到逐段精修，AI 先给出修改提案；每一项都由你接受或拒绝，确认后才写入简历。</p>
             <div class="home-hero__actions">
               <a class="home-primary-action" href="/ai">快速开始 <span aria-hidden="true">→</span></a>
               <a class="home-secondary-action" href="/templates">浏览全部模板</a>
             </div>
             <ul class="home-hero__points" aria-label="核心特点">
-              <li>⚡ 轻快生成</li>
-              <li>✨ 无需整理</li>
-              <li>🛡 真实可微调</li>
+              <li>✓ 修改先预览</li>
+              <li>✓ 逐项接受或拒绝</li>
+              <li>✓ PDF / Word 免费无水印</li>
             </ul>
           </div>
           <div class="home-hero__preview" aria-hidden="true">
@@ -85,21 +85,27 @@
             </div>
           </div>
         </section>
+        <section class="home-tool-grid" aria-label="AI 简历工具">
+          <a class="home-tool-card reveal" href="/ai"><span aria-hidden="true">✦</span><strong>AI 生成简历</strong><small>描述经历或导入 Word，生成结构化草稿</small></a>
+          <a class="home-tool-card reveal" href="/templates?aiMode=target"><span aria-hidden="true">◎</span><strong>按 JD 定制</strong><small>选择模板后进入岗位诊断、证据矩阵和改造计划</small></a>
+          <a class="home-tool-card reveal" href="/templates?aiMode=optimize"><span aria-hidden="true">↺</span><strong>AI 精修简历</strong><small>选择模板后逐条预览修改，自主接受或拒绝建议</small></a>
+          <a class="home-tool-card reveal" href="/ai/translate"><span aria-hidden="true">文</span><strong>AI 翻译简历</strong><small>上传 DOCX，翻译后继续在线编辑</small></a>
+        </section>
         <section class="home-features" aria-label="为什么选择轻简历">
           <article class="feature-card reveal">
             <span class="feature-card__icon" aria-hidden="true">⚡</span>
-            <h3>轻快生成</h3>
-            <p>一句话描述，几秒产出结构化草稿，边想边说不用排格式。</p>
+            <h3>AI 只提建议</h3>
+            <p>修改先展示前后差异，接受的内容才会写入当前简历。</p>
           </article>
           <article class="feature-card reveal">
             <span class="feature-card__icon" aria-hidden="true">✨</span>
-            <h3>无需整理</h3>
-            <p>经历自动归类到对应模块，不必逐项填写、核对个人信息。</p>
+            <h3>决定权在你</h3>
+            <p>每项建议都能接受或拒绝，岗位计划也可以主动跳过。</p>
           </article>
           <article class="feature-card reveal">
             <span class="feature-card__icon" aria-hidden="true">🛡</span>
-            <h3>真实可微调</h3>
-            <p>未提到的信息绝不编造，不确定处高亮提示，随时修改。</p>
+            <h3>真实且可恢复</h3>
+            <p>不擅自补充事实，支持撤回与版本记录，导出免费无水印。</p>
           </article>
         </section>
         <section class="home-drafts reveal">
@@ -125,7 +131,7 @@
           <span class="brand__badge">模板库</span>
         </a>
         <nav class="primary-nav" aria-label="主导航">
-          <a href="/">首页</a><a class="is-active" href="/templates">模板库</a><a href="/ai">AI 简历工具</a><a href="/admin" data-admin-link hidden>管理端</a>
+          <a href="/">首页</a><a class="is-active" href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
         </nav>
         <div class="account-area">
           <a class="github-link" href="https://github.com/jackli5541/resume-editor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库" title="在 GitHub 上查看源码"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
@@ -164,7 +170,7 @@
           <span class="brand__mark"><img src="/logo.png" alt="" width="24" height="24" /></span><span class="brand__text">轻简历</span>
         </a>
         <nav class="primary-nav" aria-label="主导航">
-          <a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 简历工具</a><a href="/admin" data-admin-link hidden>管理端</a>
+          <a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
         </nav>
         <div class="account-area">
           <a class="github-link" href="https://github.com/jackli5541/resume-editor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库" title="在 GitHub 上查看源码"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
@@ -203,7 +209,7 @@
           <span class="brand__badge">管理端</span>
         </a>
         <nav class="primary-nav" aria-label="主导航">
-          <a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 简历工具</a><a class="is-active" href="/admin">管理端</a>
+          <a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/translate">AI 翻译简历</a><a class="is-active" href="/admin">管理端</a>
         </nav>
         <div class="account-area">
           <a class="github-link" href="https://github.com/jackli5541/resume-editor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库" title="在 GitHub 上查看源码"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
@@ -619,7 +625,7 @@
           <span class="brand__badge">AI 生成简历</span>
         </a>
         <nav class="primary-nav" aria-label="主导航">
-          <a href="/">首页</a><a href="/templates">模板库</a><a class="is-active" href="/ai">AI 简历工具</a><a href="/admin" data-admin-link hidden>管理端</a>
+          <a href="/">首页</a><a href="/templates">模板库</a><a class="is-active" href="/ai">AI 生成简历</a><a href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
         </nav>
         <div class="account-area">
           <a class="github-link" href="https://github.com/jackli5541/resume-editor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库" title="在 GitHub 上查看源码"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
@@ -751,7 +757,7 @@
           <span class="brand__text">轻简历</span><span class="brand__badge">AI 翻译简历</span>
         </a>
         <nav class="primary-nav" aria-label="主导航">
-          <a href="/">首页</a><a href="/templates">模板库</a><a class="is-active" href="/ai">AI 简历工具</a><a href="/admin" data-admin-link hidden>管理端</a>
+          <a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a class="is-active" href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
         </nav>
         <div class="account-area">
           <button class="account-button" type="button" data-action="account" aria-haspopup="true" aria-expanded="false"><span class="account-avatar__mark" data-avatar-mark>登</span><span data-account-label>登录</span></button>
@@ -799,7 +805,7 @@
             <span class="brand__badge">编辑器</span>
           </a>
           <nav class="editor-nav" aria-label="编辑器导航">
-            <a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 简历工具</a><a href="/admin" data-admin-link hidden>管理端</a>
+            <a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
           </nav>
 
           <div class="topbar__actions">

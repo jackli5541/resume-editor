@@ -31,6 +31,7 @@ import { createResumeApi } from "./resume-api.mjs";
 import { normalizeWordText } from "./word-import.mjs";
 import { createResumeBackup, readResumeBackup } from "./resume-backup.mjs";
 import { applyTheme, currentTheme, refreshThemeButtons, toggleTheme } from "./theme.mjs";
+import { createProposalSelection, selectedProposalChanges, setProposalDecision } from "./features/ai/proposal-selection.mjs";
 import { dragAutoScrollSpeed } from "./drag-auto-scroll.mjs";
 
 const elements = {
@@ -4284,48 +4285,6 @@ function hideAiPage() {
   elements.aiPage.hidden = true;
 }
 
-function installAiToolMenus() {
-  document.querySelectorAll(".primary-nav, .editor-nav").forEach((nav) => {
-    const link = [...nav.querySelectorAll(':scope > a[href="/ai"]')][0];
-    if (!link || link.closest(".ai-tool-menu")) return;
-    const active = ["/ai", "/ai/translate"].includes(window.location.pathname);
-    const menu = document.createElement("div");
-    menu.className = `ai-tool-menu${active ? " is-active" : ""}`;
-    menu.innerHTML = `<button type="button" class="ai-tool-menu__trigger" data-action="toggle-ai-tools" aria-haspopup="true" aria-expanded="false">AI 简历工具 <span aria-hidden="true">▾</span></button><div class="ai-tool-menu__panel" hidden><a href="/ai" data-ai-feature="generate">AI 生成简历<small>从描述或 Word 整理新简历</small></a><a href="/ai/translate" data-ai-feature="translate">AI 翻译简历<small>上传 DOCX 并生成双语草稿</small></a></div>`;
-    link.replaceWith(menu);
-  });
-}
-
-function refreshAiToolMenuState() {
-  const path = window.location.pathname.replace(/\/$/, "") || "/";
-  document.querySelectorAll(".ai-tool-menu").forEach((menu) => {
-    menu.classList.toggle("is-active", path === "/ai" || path === "/ai/translate");
-    menu.querySelectorAll("a[href]").forEach((link) => {
-      const linkPath = new URL(link.href, window.location.origin).pathname.replace(/\/$/, "") || "/";
-      if (linkPath === path) link.setAttribute("aria-current", "page");
-      else link.removeAttribute("aria-current");
-    });
-  });
-}
-
-function closeAiToolMenus(except = null) {
-  document.querySelectorAll(".ai-tool-menu").forEach((menu) => {
-    if (menu === except) return;
-    menu.querySelector(".ai-tool-menu__panel").hidden = true;
-    menu.querySelector(".ai-tool-menu__trigger").setAttribute("aria-expanded", "false");
-  });
-}
-
-function toggleAiToolMenu(button) {
-  const menu = button.closest(".ai-tool-menu");
-  const panel = menu?.querySelector(".ai-tool-menu__panel");
-  if (!panel) return;
-  const open = panel.hidden;
-  closeAiToolMenus(menu);
-  panel.hidden = !open;
-  button.setAttribute("aria-expanded", String(open));
-}
-
 function renderTranslateTemplates() {
   const templates = availableTemplates.filter((template) => template.selectable === true);
   const ordered = [...templates].sort((a, b) => Number(b.slug === "clean-single") - Number(a.slug === "clean-single"));
@@ -5096,6 +5055,11 @@ function setAiMode(mode) {
   if (aiMode === "target") recoverTargetSession();
 }
 
+function applyRequestedAiMode() {
+  const requestedMode = new URLSearchParams(window.location.search).get("aiMode");
+  if (["optimize", "target"].includes(requestedMode)) setAiMode(requestedMode);
+}
+
 async function recoverTargetSession() {
   if (!resume.remoteId || !currentUser || targetState.sessionId) return;
   try {
@@ -5114,6 +5078,14 @@ function targetStatusLabel(status) {
   return { ready: "可执行", blocked: "待补充证据", applied: "已应用", skipped: "已跳过" }[status] || status;
 }
 
+function targetPlanActions(item, index) {
+  if (["applied", "skipped"].includes(item.status)) return `<button type="button" disabled>${item.status === "applied" ? "已应用" : "已跳过"}</button>`;
+  const primary = item.status === "blocked"
+    ? `<button type="button" data-action="target-evidence" data-plan-index="${index}">补充事实证据</button>`
+    : `<button type="button" data-action="target-execute" data-plan-index="${index}">生成修改</button>`;
+  return `<div class="target-plan__actions">${primary}<button type="button" class="target-plan__skip" data-action="target-skip" data-plan-index="${index}">跳过此项</button></div>`;
+}
+
 function renderTargetDiagnosis() {
   const diagnosis = targetState.diagnosis;
   if (!diagnosis) return;
@@ -5123,7 +5095,7 @@ function renderTargetDiagnosis() {
     <div class="target-scores">${score("要求覆盖", diagnosis.scores?.requirementCoverage || 0)}${score("证据强度", diagnosis.scores?.evidenceStrength || 0)}${score("成果量化", diagnosis.scores?.quantification || 0)}</div>
     <details class="target-matrix"><summary>查看岗位要求与简历证据</summary>${(diagnosis.matrix || []).map((item) => `<div class="target-matrix__item is-${item.status}"><strong>${escapeHtml(item.requirement)}</strong><span>${escapeHtml(item.evidence?.join("；") || "暂无简历证据")}</span><small>${escapeHtml(item.suggestion)}</small></div>`).join("")}</details>
     ${(diagnosis.questions || []).length ? `<div class="target-questions"><strong>建议先补充</strong><ul>${diagnosis.questions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
-    <div class="target-plan"><div class="target-plan__title"><strong>改造计划</strong><button type="button" data-action="target-restore">恢复至优化前</button></div>${(diagnosis.plan || []).map((item, index) => `<article class="target-plan__item"><div><span>${index + 1}</span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.reason)}</small></div><em class="is-${item.status}">${targetStatusLabel(item.status)}</em><button type="button" data-action="${item.status === "blocked" ? "target-evidence" : "target-execute"}" data-plan-index="${index}" ${item.status === "applied" ? "disabled" : ""}>${item.status === "applied" ? "已应用" : item.status === "blocked" ? "补充事实证据" : "生成修改"}</button></article>`).join("")}${targetState.status === "validating" ? '<button type="button" class="target-review-button" data-action="target-review">完成并重新验收</button>' : targetState.status === "completed" ? '<p class="target-complete">✓ 岗位定制已完成并保存最终版本</p>' : ""}</div>`;
+    <div class="target-plan"><div class="target-plan__title"><strong>改造计划</strong><button type="button" data-action="target-restore">恢复至优化前</button></div>${(diagnosis.plan || []).map((item, index) => `<article class="target-plan__item"><div><span>${index + 1}</span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.reason)}</small></div><em class="is-${item.status}">${targetStatusLabel(item.status)}</em>${targetPlanActions(item, index)}</article>`).join("")}${targetState.status === "validating" ? '<button type="button" class="target-review-button" data-action="target-review">完成并重新验收</button>' : targetState.status === "completed" ? '<p class="target-complete">✓ 岗位定制已完成并保存最终版本</p>' : ""}</div>`;
 }
 
 async function diagnoseTarget() {
@@ -5148,23 +5120,25 @@ async function executeTargetPlan(index, button) {
   try {
     const proposal = await readApiResponse(await fetch("/api/ai/target", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "execute", sessionId: targetState.sessionId, resumeId: resume.remoteId, revision: resume.remoteRevision, resume, jobDescription: targetState.jobDescription, planItem: item }) }));
     if (!proposal.changes?.length) { item.status = "blocked"; showToast(proposal.summary || "需要补充事实证据", "warning"); renderTargetDiagnosis(); return; }
-    targetPending = { proposal, item, index };
+    targetPending = { proposal, item, index, selection: createProposalSelection(proposal.changes) };
     renderTargetDiagnosis();
     const card = document.createElement("div");
     card.className = "target-pending";
-    card.innerHTML = `<strong>修改预览 · ${escapeHtml(item.title)}</strong><p>${escapeHtml(proposal.summary || "请确认后应用")}</p>${proposal.changes.map((change) => `<div><small>${escapeHtml(aiChangeTargetLabel(change))}</small>${change.op === "set" ? `<del>${escapeHtml(aiChangeBeforeText(change) || "（空）")}</del><ins>${escapeHtml(plainText(change.after) || "（空）")}</ins>` : `<ins>${escapeHtml(change.op === "remove" ? "将删除该内容" : "将新增或调整该内容")}</ins>`}</div>`).join("")}<footer><button type="button" data-action="target-cancel-change">取消</button><button type="button" data-action="target-apply-change">确认应用</button></footer>`;
+    card.innerHTML = `<strong>修改预览 · ${escapeHtml(item.title)}</strong><p>${escapeHtml(proposal.summary || "请逐项确认后应用")}</p>${proposal.changes.map((change, changeIndex) => `<div class="target-pending__change" data-proposal-change="${changeIndex}"><small>${escapeHtml(aiChangeTargetLabel(change))}</small>${change.op === "set" ? `<del>${escapeHtml(aiChangeBeforeText(change) || "（空）")}</del><ins>${escapeHtml(plainText(change.after) || "（空）")}</ins>` : `<ins>${escapeHtml(change.op === "remove" ? "将删除该内容" : "将新增或调整该内容")}</ins>`}<span class="proposal-decision"><button type="button" class="is-selected" data-action="target-decide-change" data-change-index="${changeIndex}" data-accepted="true">接受</button><button type="button" data-action="target-decide-change" data-change-index="${changeIndex}" data-accepted="false">拒绝</button></span></div>`).join("")}<footer><button type="button" data-action="target-reject-all">全部拒绝</button><button type="button" data-action="target-apply-change">应用已接受项</button></footer>`;
     elements.aiTargetBody.prepend(card);
   } catch (error) { showToast(error?.message || "生成修改失败", "warning"); button.disabled = false; button.textContent = "生成修改"; }
 }
 
 async function applyTargetPending() {
   if (!targetPending) return;
-  const { proposal, item } = targetPending;
+  const { proposal, item, selection } = targetPending;
+  const acceptedChanges = selectedProposalChanges(proposal.changes, selection);
+  if (!acceptedChanges.length) return showToast("请至少接受一项修改，或拒绝整个计划项", "warning");
   const before = cloneResumeState();
-  proposal.changes.forEach(aiApplyChange);
+  acceptedChanges.forEach(aiApplyChange);
   try {
     if (targetState.sessionId && resume.remoteId) {
-      const result = await readApiResponse(await fetch(`/api/ai/target/sessions/${encodeURIComponent(targetState.sessionId)}/apply`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: resume.remoteRevision, data: resume, planItemId: item.id, label: item.title, patch: proposal.changes }) }));
+      const result = await readApiResponse(await fetch(`/api/ai/target/sessions/${encodeURIComponent(targetState.sessionId)}/apply`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: resume.remoteRevision, data: resume, planItemId: item.id, label: item.title, patch: acceptedChanges }) }));
       resume.remoteRevision = result.revision;
       targetState.diagnosis.plan = result.plan;
       targetState.status = result.status;
@@ -5180,6 +5154,43 @@ async function applyTargetPending() {
     renderAll();
     showToast(error?.message || "应用修改失败", "warning");
   }
+}
+
+function decideTargetPending(index, accepted, button) {
+  if (!targetPending) return;
+  setProposalDecision(targetPending.selection, index, accepted);
+  const change = button.closest("[data-proposal-change]");
+  change?.classList.toggle("is-rejected", !accepted);
+  change?.querySelectorAll(".proposal-decision button").forEach((item) => item.classList.toggle("is-selected", item.dataset.accepted === String(accepted)));
+}
+
+async function rejectTargetPlanItem() {
+  if (!targetPending) return;
+  const { item } = targetPending;
+  try {
+    if (targetState.sessionId) {
+      const result = await readApiResponse(await fetch(`/api/ai/target/sessions/${encodeURIComponent(targetState.sessionId)}/skip`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ planItemId: item.id }) }));
+      targetState.diagnosis.plan = result.plan;
+      targetState.status = result.status;
+    } else item.status = "skipped";
+    targetPending = null;
+    renderTargetDiagnosis();
+    showToast(`已拒绝：${item.title}，简历未修改`, "info");
+  } catch (error) { showToast(error?.message || "拒绝修改失败", "warning"); }
+}
+
+async function skipTargetPlan(index) {
+  const item = targetState.diagnosis?.plan?.[index];
+  if (!item || ["applied", "skipped"].includes(item.status)) return;
+  try {
+    if (targetState.sessionId) {
+      const result = await readApiResponse(await fetch(`/api/ai/target/sessions/${encodeURIComponent(targetState.sessionId)}/skip`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ planItemId: item.id }) }));
+      targetState.diagnosis.plan = result.plan;
+      targetState.status = result.status;
+    } else item.status = "skipped";
+    renderTargetDiagnosis();
+    showToast(`已跳过：${item.title}`, "info");
+  } catch (error) { showToast(error?.message || "跳过计划项失败", "warning"); }
 }
 
 async function provideTargetEvidence(index) {
@@ -5489,7 +5500,7 @@ function clearAiChat() {
 function renderAiProposal(proposal) {
   const changes = proposal.changes || [];
   const opText = { set: "改", add: "增", remove: "删", addModule: "加模块", removeModule: "删模块" };
-  const changesHtml = changes.map((change) => {
+  const changesHtml = changes.map((change, index) => {
     const opClass = change.op === "addModule" ? "ai-change__op--add" : change.op === "removeModule" ? "ai-change__op--remove" : `ai-change__op--${change.op}`;
     let diffHtml = "";
     if (change.op === "set") {
@@ -5510,9 +5521,10 @@ function renderAiProposal(proposal) {
     } else if (change.op === "removeModule") {
       diffHtml = `<div class="ai-change__diff"><div class="ai-change__before">${escapeHtml(aiChangeBeforeText(change) || "隐藏该模块")}</div></div>`;
     }
-    return `<div class="ai-change">
+    return `<div class="ai-change" data-proposal-change="${index}">
       <div class="ai-change__target">${escapeHtml(aiChangeTargetLabel(change))}<span class="ai-change__op ${opClass}">${opText[change.op]}</span></div>
       ${diffHtml}
+      <div class="proposal-decision"><button type="button" class="is-selected" data-action="ai-decide-change" data-change-index="${index}" data-accepted="true">接受</button><button type="button" data-action="ai-decide-change" data-change-index="${index}" data-accepted="false">拒绝</button></div>
     </div>`;
   }).join("");
 
@@ -5522,8 +5534,8 @@ function renderAiProposal(proposal) {
     ${proposal.summary ? `<div class="ai-proposal__summary">${escapeHtml(proposal.summary)}</div>` : ""}
     <div class="ai-proposal__list">${changesHtml}</div>
     <div class="ai-proposal__actions">
-      <button type="button" class="ai-proposal__cancel" data-action="ai-cancel">取消</button>
-      <button type="button" class="ai-proposal__apply" data-action="ai-apply">确认应用</button>
+      <button type="button" class="ai-proposal__cancel" data-action="ai-cancel">全部拒绝</button>
+      <button type="button" class="ai-proposal__apply" data-action="ai-apply">应用已接受项</button>
     </div>`;
   elements.aiChatBody.appendChild(card);
   elements.aiChatBody.scrollTop = elements.aiChatBody.scrollHeight;
@@ -5560,7 +5572,7 @@ async function handleAiChatSubmit(event) {
       headers,
       body: JSON.stringify({ resume, instruction })
     }));
-    aiOptimizePending = proposal;
+    aiOptimizePending = { ...proposal, selection: createProposalSelection(proposal.changes) };
     renderAiProposal(proposal);
   } catch (error) {
     appendAiMessage("error", error?.message || "AI 优化失败，请稍后重试");
@@ -5574,8 +5586,10 @@ async function handleAiChatSubmit(event) {
 
 function applyAiOptimize() {
   if (!aiOptimizePending) return;
+  const acceptedChanges = selectedProposalChanges(aiOptimizePending.changes, aiOptimizePending.selection);
+  if (!acceptedChanges.length) return showToast("请至少接受一项修改，或全部拒绝", "warning");
   const before = cloneResumeState();
-  for (const change of (aiOptimizePending.changes || [])) aiApplyChange(change);
+  for (const change of acceptedChanges) aiApplyChange(change);
   recordResumeChange(before, aiOptimizePending.summary || "AI 优化");
   aiOptimizePending = null;
   clearAiChat();
@@ -5913,12 +5927,19 @@ async function loadRemoteResume(id) {
   if (aiMode === "target") recoverTargetSession();
 }
 
+function decideAiOptimize(index, accepted, button) {
+  if (!aiOptimizePending) return;
+  setProposalDecision(aiOptimizePending.selection, index, accepted);
+  const change = button.closest("[data-proposal-change]");
+  change?.classList.toggle("is-rejected", !accepted);
+  change?.querySelectorAll(".proposal-decision button").forEach((item) => item.classList.toggle("is-selected", item.dataset.accepted === String(accepted)));
+}
+
 async function applyCurrentRoute({ replaceInvalid = false } = {}) {
   const route = parseAppRoute(window.location.pathname);
   elements.legalPage.hidden = true;
   elements.trustFooter.hidden = ["editor", "resume", "admin"].includes(route.name);
   if (!isLegalRoute(route)) document.title = "轻简历 · 免费在线简历编辑器";
-  refreshAiToolMenuState();
   if (isLegalRoute(route)) {
     elements.app.hidden = true;
     elements.homePage.hidden = true;
@@ -6003,6 +6024,7 @@ async function applyCurrentRoute({ replaceInvalid = false } = {}) {
       elements.aiPage.hidden = true;
       elements.aiTranslatePage.hidden = true;
       renderAll();
+      applyRequestedAiMode();
       setSavedState("云端草稿已保存");
       return;
     } catch (error) {
@@ -6286,12 +6308,13 @@ async function deleteDraft(id) {
 }
 
 async function selectTemplate(target) {
+  const requestedAiMode = new URLSearchParams(window.location.search).get("aiMode");
   const template = availableTemplates.find((item) =>
     item.slug === target.dataset.templateSlug && item.version === Number(target.dataset.templateVersion)
   );
   if (!template?.selectable) return;
   if (!currentUser) {
-    openLogin("/templates");
+    openLogin(`/templates${["optimize", "target"].includes(requestedAiMode) ? `?aiMode=${requestedAiMode}` : ""}`);
     showToast("登录后开始编辑", "info");
     return;
   }
@@ -6318,6 +6341,7 @@ async function selectTemplate(target) {
     hideTemplateLibrary();
     updateBrowserRoute(resume.remoteId ? { name: "resume", resumeId: resume.remoteId } : { name: "editor" }, "replace");
     renderAll();
+    if (["optimize", "target"].includes(requestedAiMode)) setAiMode(requestedAiMode);
     scheduleSave(0);
     showToast(`已更换为「${template.name}」，简历内容已保留`, "success");
     return;
@@ -6339,6 +6363,7 @@ async function selectTemplate(target) {
   hideTemplateLibrary();
   updateBrowserRoute({ name: "editor" });
   renderAll();
+  if (["optimize", "target"].includes(requestedAiMode)) setAiMode(requestedAiMode);
   showToast("模板已应用，点击保存后加入草稿", "info");
   target.disabled = false;
   target.textContent = "使用此模板";
@@ -6455,7 +6480,6 @@ document.addEventListener("click", async (event) => {
   else if (action === "toggle-theme") toggleTheme();
   else if (action === "undo") undoResumeChange();
   else if (action === "redo") redoResumeChange();
-  else if (action === "toggle-ai-tools") toggleAiToolMenu(actionTarget);
   else if (action === "open-settings") openSettings();
   else if (action === "close-settings") closeSettings();
   else if (action === "close-login") closeLogin();
@@ -6540,8 +6564,11 @@ document.addEventListener("click", async (event) => {
   else if (action === "target-diagnose") diagnoseTarget();
   else if (action === "target-execute") executeTargetPlan(Number(actionTarget.dataset.planIndex), actionTarget);
   else if (action === "target-evidence") provideTargetEvidence(Number(actionTarget.dataset.planIndex));
+  else if (action === "target-skip") skipTargetPlan(Number(actionTarget.dataset.planIndex));
   else if (action === "target-review") reviewTargetResult(actionTarget);
   else if (action === "target-apply-change") applyTargetPending();
+  else if (action === "target-decide-change") decideTargetPending(Number(actionTarget.dataset.changeIndex), actionTarget.dataset.accepted === "true", actionTarget);
+  else if (action === "target-reject-all") rejectTargetPlanItem();
   else if (action === "target-cancel-change") cancelTargetPending();
   else if (action === "target-restore") restoreTargetBaseline();
   else if (action === "translate-upload") elements.translateWordFile.click();
@@ -6602,6 +6629,8 @@ document.addEventListener("click", async (event) => {
     toggleAiChatVoice();
   } else if (action === "ai-apply") {
     applyAiOptimize();
+  } else if (action === "ai-decide-change") {
+    decideAiOptimize(Number(actionTarget.dataset.changeIndex), actionTarget.dataset.accepted === "true", actionTarget);
   } else if (action === "ai-cancel") {
     cancelAiOptimize();
   } else if (action === "select-entry") {
@@ -6962,7 +6991,6 @@ elements.loginTabRegister.addEventListener("click", () => setAuthTab("register")
 elements.sendCodeButton.addEventListener("click", handleSendCode);
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".account-area")) closeAllAccountMenus();
-  if (!event.target.closest(".ai-tool-menu")) closeAiToolMenus();
   if (!event.target.closest(".module-add")) elements.addModuleMenu.hidden = true;
   if (event.target.closest(".auth-dialog")) return;
   if (event.target.closest("#settingsOverlay") && !elements.settingsOverlay.hidden) closeSettings();
@@ -7148,7 +7176,6 @@ if (elements.aiInputCard) {
 }
 
 async function initialize() {
-  installAiToolMenus();
   injectAccountItems();
   await refreshSession();
   await Promise.all([loadTemplates(), loadDrafts(), loadAnnouncementBanner()]);

@@ -1784,7 +1784,7 @@ export function createAppServer(options = {}) {
       return;
     }
 
-    const targetSessionMatch = pathname.match(/^\/api\/ai\/target\/sessions\/([0-9a-f-]{36})(?:\/(apply|evidence|cancel|restore))?$/i);
+    const targetSessionMatch = pathname.match(/^\/api\/ai\/target\/sessions\/([0-9a-f-]{36})(?:\/(apply|evidence|cancel|restore|skip))?$/i);
     if (request.method === "GET" && targetSessionMatch && !targetSessionMatch[2]) {
       try {
         const user = await authorize(request);
@@ -1832,6 +1832,25 @@ export function createAppServer(options = {}) {
         const plan = session.plan.map((item) => item.id === payload?.planItemId ? { ...item, status: "ready", userEvidence: evidence, risk: "low" } : item);
         sendJson(response, 200, { session: await targetRepository.updateSession(session.id, user.id, { plan, status: "executing" }) });
       } catch (error) { sendJson(response, errorStatusOf(error), { error: error?.message || "保存补充证据失败" }); }
+      return;
+    }
+
+    if (request.method === "POST" && targetSessionMatch?.[2] === "skip") {
+      try {
+        const user = await authorize(request);
+        const session = await targetRepository.getSession(targetSessionMatch[1], user.id);
+        if (!session) throw new RequestValidationError("岗位任务不存在", 404);
+        const payload = await readJson(request);
+        const planItem = session.plan.find((item) => item.id === payload?.planItemId);
+        if (!planItem) throw new RequestValidationError("计划项不存在", 404);
+        if (["applied", "skipped"].includes(planItem.status)) throw new RequestValidationError("计划项已处理", 409);
+        const plan = session.plan.map((item) => item.id === planItem.id ? { ...item, status: "skipped" } : item);
+        const complete = plan.length > 0 && plan.every((item) => ["applied", "skipped"].includes(item.status));
+        const nextStatus = complete ? "validating" : plan.some((item) => item.status === "blocked") ? "awaiting_user_evidence" : "executing";
+        await targetRepository.setChangeStatus(session.id, planItem.id, "skipped");
+        await targetRepository.updateSession(session.id, user.id, { plan, status: nextStatus });
+        sendJson(response, 200, { plan, status: nextStatus });
+      } catch (error) { sendJson(response, errorStatusOf(error), { error: error?.message || "拒绝岗位修改失败" }); }
       return;
     }
 
