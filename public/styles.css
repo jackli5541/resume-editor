@@ -753,6 +753,23 @@ select:focus-visible,
   padding: 34px 0 0;
 }
 
+.top-completion {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--brand) 25%, var(--line-strong));
+  border-radius: 9px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--brand) 6%, var(--surface));
+  line-height: 32px;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.top-completion strong { color: var(--brand-dark); font-size: 14px; }
+
 .home-tool-card {
   display: grid;
   grid-template-columns: 34px 1fr;
@@ -3413,7 +3430,7 @@ select:focus-visible,
   border-top: 1px solid var(--line);
   box-shadow: 0 -12px 40px rgba(28, 39, 54, 0.15);
   transform: translateY(calc(100% - 58px));
-  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: left .2s ease, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .editor-drawer.is-open {
@@ -3515,6 +3532,14 @@ select:focus-visible,
 
   html.ai-chat-docked .workspace > .side-panel {
     display: none;
+  }
+
+  html.ai-chat-docked .editor-drawer {
+    left: var(--ai-chat-docked-width, 360px);
+  }
+
+  html.ai-chat-docked .drawer__inner {
+    width: min(1200px, calc(100% - 24px));
   }
 }
 

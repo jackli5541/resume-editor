@@ -77,6 +77,7 @@ const elements = {
   fidelityPreview: document.querySelector("#fidelityPreview"),
   fidelityStatus: document.querySelector("#fidelityStatus"),
   completionScore: document.querySelector("#completionScore"),
+  topCompletionScore: document.querySelector("#topCompletionScore"),
   completionBar: document.querySelector("#completionBar"),
   completionHint: document.querySelector("#completionHint"),
   revision: document.querySelector("#revisionText"),
@@ -1095,6 +1096,7 @@ function updatePagination() {
 function updateStatusCards() {
   const score = completionScore(resume);
   elements.completionScore.textContent = `${score}%`;
+  elements.topCompletionScore.textContent = `${score}%`;
   elements.completionBar.style.width = `${score}%`;
   elements.completionHint.textContent = score >= 90
     ? "内容已经很完整，可以导出投递了。"

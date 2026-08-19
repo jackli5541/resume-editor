@@ -61,8 +61,20 @@ test("宽屏 AI 使用停靠布局并为完整简历预览让出空间", async (
   const app = await readFile(new URL("../public/app.mjs", import.meta.url), "utf8");
   assert.match(styles, /@media screen and \(min-width:\s*1201px\)[\s\S]*?html\.ai-chat-docked \.workspace\s*\{[\s\S]*?grid-template-columns:\s*820px;/);
   assert.match(styles, /html\.ai-chat-docked \.workspace > \.side-panel\s*\{\s*display:\s*none;/);
+  assert.match(styles, /html\.ai-chat-docked \.editor-drawer\s*\{\s*left:\s*var\(--ai-chat-docked-width/);
+  assert.match(styles, /html\.ai-chat-docked \.drawer__inner\s*\{\s*width:\s*min\(1200px, calc\(100% - 24px\)\)/);
   assert.match(app, /classList\.toggle\("ai-chat-docked", open && window\.innerWidth > 1200\)/);
   assert.match(app, /window\.innerWidth \* 0\.45/);
+});
+
+test("编辑器顶部在备份操作左侧显示同步完成度", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  const app = await readFile(new URL("../public/app.mjs", import.meta.url), "utf8");
+  const completionIndex = html.indexOf('id="topCompletionScore"');
+  const backupIndex = html.indexOf("导入备份", completionIndex);
+  assert.ok(completionIndex >= 0 && backupIndex > completionIndex);
+  assert.match(app, /topCompletionScore:\s*document\.querySelector\("#topCompletionScore"\)/);
+  assert.match(app, /elements\.topCompletionScore\.textContent\s*=\s*`\$\{score\}%`/);
 });
 
 test("切换草稿会重置 JD 工作区并阻止旧会话异步覆盖", async () => {
