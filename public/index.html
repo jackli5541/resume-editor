@@ -18,7 +18,7 @@
           <span class="brand__mark"><img src="/logo.png" alt="" width="24" height="24" /></span><span class="brand__text">轻简历</span>
         </a>
         <nav class="primary-nav" aria-label="主导航">
-          <a class="is-active" href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
+          <a class="is-active" href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/optimize?mode=target">按 JD 定制</a><a href="/ai/optimize?mode=optimize">AI 精修</a><a href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
         </nav>
         <div class="account-area">
           <a class="github-link" href="https://github.com/jackli5541/resume-editor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库" title="在 GitHub 上查看源码"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
@@ -87,8 +87,8 @@
         </section>
         <section class="home-tool-grid" aria-label="AI 简历工具">
           <a class="home-tool-card reveal" href="/ai"><span aria-hidden="true">✦</span><strong>AI 生成简历</strong><small>描述经历或导入 Word，生成结构化草稿</small></a>
-          <a class="home-tool-card reveal" href="/templates?aiMode=target"><span aria-hidden="true">◎</span><strong>按 JD 定制</strong><small>选择模板后进入岗位诊断、证据矩阵和改造计划</small></a>
-          <a class="home-tool-card reveal" href="/templates?aiMode=optimize"><span aria-hidden="true">↺</span><strong>AI 精修简历</strong><small>选择模板后逐条预览修改，自主接受或拒绝建议</small></a>
+          <a class="home-tool-card reveal" href="/ai/optimize?mode=target"><span aria-hidden="true">◎</span><strong>按 JD 定制</strong><small>导入已有简历，进入岗位诊断、证据矩阵和改造计划</small></a>
+          <a class="home-tool-card reveal" href="/ai/optimize?mode=optimize"><span aria-hidden="true">↺</span><strong>AI 精修简历</strong><small>导入已有简历，逐条接受或拒绝 AI 修改建议</small></a>
           <a class="home-tool-card reveal" href="/ai/translate"><span aria-hidden="true">文</span><strong>AI 翻译简历</strong><small>上传 DOCX，翻译后继续在线编辑</small></a>
         </section>
         <section class="home-features" aria-label="为什么选择轻简历">
@@ -131,7 +131,7 @@
           <span class="brand__badge">模板库</span>
         </a>
         <nav class="primary-nav" aria-label="主导航">
-          <a href="/">首页</a><a class="is-active" href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
+          <a href="/">首页</a><a class="is-active" href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/optimize?mode=target">按 JD 定制</a><a href="/ai/optimize?mode=optimize">AI 精修</a><a href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
         </nav>
         <div class="account-area">
           <a class="github-link" href="https://github.com/jackli5541/resume-editor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库" title="在 GitHub 上查看源码"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
@@ -170,7 +170,7 @@
           <span class="brand__mark"><img src="/logo.png" alt="" width="24" height="24" /></span><span class="brand__text">轻简历</span>
         </a>
         <nav class="primary-nav" aria-label="主导航">
-          <a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
+          <a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/optimize?mode=target">按 JD 定制</a><a href="/ai/optimize?mode=optimize">AI 精修</a><a href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
         </nav>
         <div class="account-area">
           <a class="github-link" href="https://github.com/jackli5541/resume-editor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库" title="在 GitHub 上查看源码"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
@@ -209,7 +209,7 @@
           <span class="brand__badge">管理端</span>
         </a>
         <nav class="primary-nav" aria-label="主导航">
-          <a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/translate">AI 翻译简历</a><a class="is-active" href="/admin">管理端</a>
+          <a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/optimize?mode=target">按 JD 定制</a><a href="/ai/optimize?mode=optimize">AI 精修</a><a href="/ai/translate">AI 翻译简历</a><a class="is-active" href="/admin">管理端</a>
         </nav>
         <div class="account-area">
           <a class="github-link" href="https://github.com/jackli5541/resume-editor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库" title="在 GitHub 上查看源码"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
@@ -625,7 +625,7 @@
           <span class="brand__badge">AI 生成简历</span>
         </a>
         <nav class="primary-nav" aria-label="主导航">
-          <a href="/">首页</a><a href="/templates">模板库</a><a class="is-active" href="/ai">AI 生成简历</a><a href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
+          <a href="/">首页</a><a href="/templates">模板库</a><a class="is-active" href="/ai">AI 生成简历</a><a href="/ai/optimize?mode=target">按 JD 定制</a><a href="/ai/optimize?mode=optimize">AI 精修</a><a href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
         </nav>
         <div class="account-area">
           <a class="github-link" href="https://github.com/jackli5541/resume-editor" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库" title="在 GitHub 上查看源码"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
@@ -757,7 +757,7 @@
           <span class="brand__text">轻简历</span><span class="brand__badge">AI 翻译简历</span>
         </a>
         <nav class="primary-nav" aria-label="主导航">
-          <a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a class="is-active" href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
+          <a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/optimize?mode=target">按 JD 定制</a><a href="/ai/optimize?mode=optimize">AI 精修</a><a class="is-active" href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
         </nav>
         <div class="account-area">
           <button class="account-button" type="button" data-action="account" aria-haspopup="true" aria-expanded="false"><span class="account-avatar__mark" data-avatar-mark>登</span><span data-account-label>登录</span></button>
@@ -779,6 +779,22 @@
           </div>
           <p class="ai-privacy">文档文字将发送至已配置的第三方大模型完成翻译；请勿上传与求职无关的敏感信息。</p>
         </section>
+      </main>
+    </section>
+
+    <section id="aiOptimizePage" class="ai-page ai-optimize-page" hidden>
+      <header class="library-header">
+        <a class="brand" href="/" aria-label="轻简历首页"><span class="brand__mark"><img src="/logo.png" alt="" width="24" height="24" /></span><span class="brand__text">轻简历</span><span class="brand__badge" id="aiOptimizeBadge">AI 精修</span></a>
+        <nav class="primary-nav" aria-label="主导航"><a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/optimize?mode=target" data-optimize-nav="target">按 JD 定制</a><a href="/ai/optimize?mode=optimize" data-optimize-nav="optimize">AI 精修</a><a href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a></nav>
+        <div class="account-area"><button class="account-button" type="button" data-action="account" aria-haspopup="true" aria-expanded="false"><span class="account-avatar__mark" data-avatar-mark>登</span><span data-account-label>登录</span></button><div class="account-dropdown" data-account-dropdown hidden><div class="account-dropdown__identity"><strong data-account-name></strong><small data-account-email></small></div><button class="account-dropdown__item" type="button" data-action="open-settings">账户设置</button><a class="account-dropdown__item" href="/admin" data-admin-link hidden>管理端</a><button class="account-dropdown__item account-dropdown__item--danger" type="button" data-action="logout">退出登录</button></div></div>
+      </header>
+      <main class="ai-optimize-main">
+        <div class="ai-heading"><span class="eyebrow">AI RESUME WORKSPACE</span><h1 id="aiOptimizeTitle">导入简历后开始 AI 精修</h1><p id="aiOptimizeDescription">上传 Word 简历，系统会转换为“极简轻”模板草稿并自动打开 AI 精修；也可以直接选择已有草稿。</p></div>
+        <section class="optimize-source-grid">
+          <article class="optimize-source-card"><span class="optimize-source-card__step">01</span><h2>上传自己的简历</h2><p>支持 .docx，最大 5 MB。解析后自动创建可编辑的站内草稿，不会覆盖原文件。</p><button type="button" class="translate-dropzone" data-action="optimize-upload"><strong>上传 Word 简历</strong><span>转换后自动进入对应 AI 功能</span></button><input id="optimizeWordFile" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden /><p id="optimizeImportStatus" class="library-status" role="status"></p></article>
+          <article class="optimize-source-card"><span class="optimize-source-card__step">02</span><h2>选择已有草稿</h2><p>已经在轻简历中编辑过？直接继续，不需要重复上传和转换。</p><div id="optimizeDraftList" class="optimize-draft-list"></div><p id="optimizeDraftEmpty" class="home-empty-state">还没有云端草稿，可以先上传 Word 简历。</p></article>
+        </section>
+        <p class="ai-privacy">只有在你主动生成诊断或修改提案时，相关简历内容才会发送给已配置的模型服务商。</p>
       </main>
     </section>
 
@@ -805,7 +821,7 @@
             <span class="brand__badge">编辑器</span>
           </a>
           <nav class="editor-nav" aria-label="编辑器导航">
-            <a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
+            <a href="/">首页</a><a href="/templates">模板库</a><a href="/ai">AI 生成简历</a><a href="/ai/optimize?mode=target">按 JD 定制</a><a href="/ai/optimize?mode=optimize">AI 精修</a><a href="/ai/translate">AI 翻译简历</a><a href="/admin" data-admin-link hidden>管理端</a>
           </nav>
 
           <div class="topbar__actions">

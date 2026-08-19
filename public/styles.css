@@ -3711,6 +3711,17 @@ select:focus-visible,
 .ai-proposal__cancel:hover {
   background: var(--surface-2);
 }
+.ai-proposal.is-completed { box-shadow: none; }
+.ai-proposal.is-completed details { padding: 10px 12px; }
+.ai-proposal.is-completed summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--ink-soft); font-size: 12px; cursor: pointer; }
+.ai-proposal.is-completed summary strong { color: var(--brand-dark); font-size: 11px; }
+.ai-proposal.is-completed p { margin: 9px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.ai-round-followup { padding: 11px 12px; border: 1px solid var(--brand-100); border-radius: 10px; background: var(--brand-25); }
+.ai-round-followup p { margin: 0 0 8px; color: var(--ink-soft); font-size: 12px; line-height: 1.55; }
+.ai-round-followup > span { color: var(--muted); font-size: 11px; }
+.ai-round-followup > div { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.ai-round-followup button { padding: 6px 9px; border: 1px solid var(--brand-100); border-radius: 999px; color: var(--brand-dark); background: var(--surface); font: inherit; font-size: 11px; cursor: pointer; }
+.ai-round-followup button:hover { border-color: var(--brand-300); background: var(--brand-50); }
 
 .ai-chat__hint {
   margin: 0 0 12px;
@@ -6377,6 +6388,28 @@ body.export-document .resume-paper[data-template="resume-collection-cn-001"] .cn
   box-shadow: 0 18px 50px rgba(28, 39, 54, 0.09);
 }
 
+.ai-optimize-main {
+  width: min(1040px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 48px 0 72px;
+}
+.optimize-source-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 24px; }
+.optimize-source-card { position: relative; min-width: 0; padding: 24px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 12px 32px rgba(28, 39, 54, 0.07); }
+.optimize-source-card__step { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; color: var(--brand-dark); background: var(--brand-50); font-size: 11px; font-weight: 800; }
+.optimize-source-card h2 { margin: 14px 0 7px; font-size: 18px; }
+.optimize-source-card > p { color: var(--muted); font-size: 13px; line-height: 1.7; }
+.optimize-source-card .translate-dropzone { width: 100%; margin-top: 14px; }
+.optimize-draft-list { display: grid; gap: 8px; max-height: 330px; margin-top: 14px; overflow-y: auto; }
+.optimize-draft-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: var(--surface-2); text-align: left; font: inherit; cursor: pointer; }
+.optimize-draft-item:hover { border-color: var(--brand-200); background: var(--brand-25); }
+.optimize-draft-item > span:first-child { display: grid; gap: 3px; min-width: 0; }
+.optimize-draft-item strong, .optimize-draft-item small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.optimize-draft-item small, .optimize-draft-item > span:last-child { color: var(--muted); font-size: 11px; }
+@media screen and (max-width: 640px) {
+  .ai-optimize-main { width: calc(100% - 28px); padding-top: 28px; }
+  .optimize-source-grid { grid-template-columns: 1fr; }
+}
+
 .admin-template-filters {
   flex: 1;
 }
@@ -7101,6 +7134,8 @@ body.export-document .resume-paper[data-template="resume-collection-cn-001"] .cn
 }
 
 @media screen and (max-width: 640px) {
+  .ai-optimize-main { width: calc(100% - 28px); padding-top: 28px; }
+  .optimize-source-grid { grid-template-columns: 1fr; }
   .home-tool-grid {
     grid-template-columns: 1fr;
   }

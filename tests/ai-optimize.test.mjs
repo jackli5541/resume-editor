@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { mapOptimizeOutput } from "../server/ai/optimize.mjs";
+import { buildOptimizeUserPrompt, mapOptimizeOutput, normalizeOptimizeDecisionContext } from "../server/ai/optimize.mjs";
 
 const resume = {
   profile: { name: "林晓", job: "产品经理" },
@@ -50,4 +50,19 @@ test("mapOptimizeOutput 丢弃越界或幻觉路径", () => {
   }, resume);
 
   assert.equal(out.changes.length, 0);
+});
+
+test("多轮优化上下文保留接受和拒绝决策并限制历史长度", () => {
+  const history = Array.from({ length: 8 }, (_, index) => ({
+    instruction: `第 ${index + 1} 轮`,
+    accepted: [`接受 ${index + 1}`],
+    rejected: [`拒绝 ${index + 1}`]
+  }));
+  const normalized = normalizeOptimizeDecisionContext(history);
+  assert.equal(normalized.length, 6);
+  assert.equal(normalized[0].instruction, "第 3 轮");
+  const prompt = buildOptimizeUserPrompt(resume, "继续优化", "professional", history);
+  assert.match(prompt, /<previous_user_decisions>/);
+  assert.match(prompt, /拒绝 8/);
+  assert.doesNotMatch(prompt, /拒绝 1/);
 });
