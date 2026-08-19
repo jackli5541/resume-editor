@@ -306,8 +306,27 @@ test("模型服务 5xx 瞬时失败后自动重试一次", async () => {
   assert.equal(calls, 2);
 });
 
+test("模型接口拒绝可选参数时使用兼容模式重试", async () => {
+  const bodies = [];
+  const provider = new AiProvider({
+    resolveBaseUrl: identityResolve,
+    fetchImpl: async (_url, options) => {
+      bodies.push(JSON.parse(options.body));
+      if (bodies.length === 1) {
+        return { ok: false, status: 400, text: async () => JSON.stringify({ error: { code: "unsupported_parameter", message: "response_format is not supported" } }) };
+      }
+      return okEnvelope('{"summary":"兼容成功","changes":[]}');
+    }
+  });
+  const result = await provider.complete({ baseUrl: "https://example.com/v1", apiKey: "sk-test", model: "custom-model" });
+  assert.equal(result.summary, "兼容成功");
+  assert.deepEqual(bodies[0].response_format, { type: "json_object" });
+  assert.equal(bodies[1].response_format, undefined);
+  assert.equal(bodies[1].temperature, undefined);
+});
+
 test("HTTP 错误码映射", async () => {
-  for (const [status, code] of [[400, "provider_error"], [401, "auth"], [403, "auth"], [429, "rate_limited"], [500, "provider_unavailable"]]) {
+  for (const [status, code] of [[400, "provider_request_rejected"], [401, "auth"], [403, "auth"], [429, "rate_limited"], [500, "provider_unavailable"]]) {
     const provider = new AiProvider({
       resolveBaseUrl: identityResolve,
       fetchImpl: async () => ({ ok: false, status, text: async () => "" })
