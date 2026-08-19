@@ -357,12 +357,14 @@ export class TemplateRepository {
     };
   }
 
-  async updateResume({ id, revision, data, ownerId }) {
+  async updateResume({ id, revision, data, templateSlug, templateVersion, ownerId }) {
     if (!this.database) {
       const existing = this.localResumes.get(id);
       if (!existing || existing.revision !== revision) return null;
       if (ownerId && existing.ownerId !== ownerId) return null;
       existing.data = data || {};
+      if (templateSlug) existing.templateSlug = templateSlug;
+      if (templateVersion) existing.templateVersion = templateVersion;
       existing.revision += 1;
       existing.updatedAt = new Date().toISOString();
       return { revision: existing.revision, updated_at: existing.updatedAt };
@@ -370,16 +372,16 @@ export class TemplateRepository {
     const result = ownerId
       ? await this.database.query(`
           UPDATE resumes
-          SET data = $3::jsonb, revision = revision + 1, updated_at = now()
+          SET data = $3::jsonb, template_slug = COALESCE($5, template_slug), template_version = COALESCE($6, template_version), revision = revision + 1, updated_at = now()
           WHERE id = $1 AND revision = $2 AND owner_id = $4
           RETURNING revision, updated_at
-        `, [id, revision, JSON.stringify(data || {}), ownerId])
+        `, [id, revision, JSON.stringify(data || {}), ownerId, templateSlug || null, templateVersion || null])
       : await this.database.query(`
           UPDATE resumes
-          SET data = $3::jsonb, revision = revision + 1, updated_at = now()
+          SET data = $3::jsonb, template_slug = COALESCE($4, template_slug), template_version = COALESCE($5, template_version), revision = revision + 1, updated_at = now()
           WHERE id = $1 AND revision = $2
           RETURNING revision, updated_at
-        `, [id, revision, JSON.stringify(data || {})]);
+        `, [id, revision, JSON.stringify(data || {}), templateSlug || null, templateVersion || null]);
     return result.rows[0] || null;
   }
 

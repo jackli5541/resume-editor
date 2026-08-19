@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createInitialResume } from "../public/core.mjs";
 import { mapTargetDiagnosis, mapTargetExecution, validateTargetInput } from "../server/ai/target-agent.mjs";
 import { TargetAgentRepository } from "../server/ai/target-repository.mjs";
+import { createProposalSelection, selectedProposalChanges, setProposalDecision } from "../public/features/ai/proposal-selection.mjs";
 
 test("岗位诊断规范化分数、证据矩阵和计划风险", () => {
   const result = mapTargetDiagnosis({
@@ -60,4 +61,13 @@ test("稳定 itemId 在条目重排后仍定位正确内容", () => {
   const result = mapTargetExecution({ changes: [{ op: "set", sectionId: "experience", itemId: target.id, field: "content", after: "<p>稳定修改</p>" }] }, resume);
   assert.equal(result.changes[0].itemId, target.id);
   assert.equal(result.changes[0].before, target.content);
+});
+
+test("AI 提案只应用用户接受的修改，拒绝项保持原文", () => {
+  const changes = [{ op: "set", after: "接受" }, { op: "set", after: "拒绝" }, { op: "add", item: {} }];
+  const selection = createProposalSelection(changes);
+  setProposalDecision(selection, 1, false);
+  assert.deepEqual(selectedProposalChanges(changes, selection), [changes[0], changes[2]]);
+  setProposalDecision(selection, 1, true);
+  assert.deepEqual(selectedProposalChanges(changes, selection), changes);
 });
