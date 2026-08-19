@@ -205,6 +205,13 @@ test("拖动手柄只由编辑器即时预览注入，不进入模板导出标�
   assert.doesNotMatch(markup, /preview-module-drag-handle|data-preview-drag-module/);
 });
 
+test("模块拖动手柄定位在模块标题左侧", async () => {
+  const styles = await readFile(join("public", "styles.css"), "utf8");
+  assert.match(styles, /\.resume-flow \[data-preview-drag-module\] > \.section-heading\s*\{[^}]*position:\s*relative/s);
+  assert.match(styles, /\.preview-module-drag-handle\s*\{[^}]*left:\s*-18px/s);
+  assert.doesNotMatch(styles, /\.preview-module-drag-handle\s*\{[^}]*right:\s*4px/s);
+});
+
 test("模板库封面按整页比例完整展示", async () => {
   const styles = await readFile(join("public", "styles.css"), "utf8");
   assert.match(styles, /\.template-preview\s*\{[^}]*aspect-ratio:\s*820\s*\/\s*1160/s);

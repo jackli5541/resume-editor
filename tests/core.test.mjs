@@ -14,6 +14,7 @@ import {
   resumeForTemplate
 } from "../public/core.mjs";
 import { parseAppRoute, routePath } from "../public/router.mjs";
+import { shouldMoveBlockToNextPage } from "../public/resume-renderer.mjs";
 import { TEMPLATE_SCHEMAS } from "../public/template-schemas.mjs";
 
 test("应用路由可解析模板库、编辑器和具体草稿", () => {
@@ -27,6 +28,12 @@ test("应用路由可解析模板库、编辑器和具体草稿", () => {
   assert.equal(routePath({ name: "resume", resumeId: "draft-id" }), "/resumes/draft-id/edit");
   assert.equal(routePath({ name: "drafts" }), "/drafts");
   assert.deepEqual(parseAppRoute("/unknown"), { name: "home" });
+});
+
+test("分页仅在当前页放不下模块的一半时才整块后移", () => {
+  assert.equal(shouldMoveBlockToNextPage(300, 100, 1160), true);
+  assert.equal(shouldMoveBlockToNextPage(1105, 1100, 1160), false);
+  assert.equal(shouldMoveBlockToNextPage(1300, 100, 1160), false);
 });
 
 test("初始简历包含完整的 MVP 模块和合法设置", () => {
