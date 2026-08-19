@@ -179,9 +179,16 @@ def apply_typography(root, resume):
 def replace_photo(parts, document, resume):
     photo = str(get_path(resume.get("profile", {}), "photo") or "")
     match = re.fullmatch(r"data:image/(png|jpeg);base64,([A-Za-z0-9+/=]+)", photo)
+    photo_controls = document.xpath('.//w:sdt[w:sdtPr/w:tag/@w:val="resume:profile.photo"]', namespaces=NS)
     if not match:
+        # The image in the versioned template is an editing/placement sample,
+        # not user resume data. Leave its layout cell empty when no photo exists.
+        for sdt in photo_controls:
+            parent = sdt.getparent()
+            if parent is not None:
+                parent.remove(sdt)
         return
-    for sdt in document.xpath('.//w:sdt[w:sdtPr/w:tag/@w:val="resume:profile.photo"]', namespaces=NS):
+    for sdt in photo_controls:
         image_node = sdt.find(".//a:blip", NS)
         rel_id = image_node.get(f"{{{R}}}embed") if image_node is not None else None
         if image_node is None:
