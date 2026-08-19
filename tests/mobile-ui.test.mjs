@@ -52,3 +52,13 @@ test("切换草稿会重置 JD 工作区并阻止旧会话异步覆盖", async (
   assert.match(app, /const requestedResumeId\s*=\s*resume\.remoteId/);
   assert.match(app, /if \(resume\.remoteId !== requestedResumeId\) return/);
 });
+
+test("岗位修改被事实校验退回时显示持久醒目反馈而非短暂 toast", async () => {
+  const app = await readFile(new URL("../public/app.mjs", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
+  assert.match(app, /class="target-plan__feedback"[^>]+role="alert"/);
+  assert.match(app, /item\.aiFeedback\s*=\s*proposal\.summary/);
+  assert.match(app, /feedback\?\.scrollIntoView/);
+  assert.doesNotMatch(app, /if \(!proposal\.changes\?\.length\)\s*\{?[^}]*showToast/);
+  assert.match(styles, /\.target-plan__feedback\s*\{[^}]*border-left:\s*4px solid var\(--danger\)/);
+});
