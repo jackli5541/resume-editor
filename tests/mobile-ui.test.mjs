@@ -61,4 +61,6 @@ test("岗位修改被事实校验退回时显示持久醒目反馈而非短暂 t
   assert.match(app, /feedback\?\.scrollIntoView/);
   assert.doesNotMatch(app, /if \(!proposal\.changes\?\.length\)\s*\{?[^}]*showToast/);
   assert.match(styles, /\.target-plan__feedback\s*\{[^}]*border-left:\s*4px solid var\(--danger\)/);
+  assert.doesNotMatch(styles, /\.target-plan__item\s*>\s*div:not\(\.target-plan__actions\)/);
+  assert.match(styles, /\.target-plan__summary\s*\{[^}]*grid-template-columns:\s*22px 1fr/);
 });
