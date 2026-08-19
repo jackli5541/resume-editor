@@ -413,6 +413,13 @@ function renderCreativeColumnsMarkup({ resume, schema, sections, definitions, do
   </div>`;
 }
 
+export function shouldMoveBlockToNextPage(height, available, pageHeight) {
+  if (![height, available, pageHeight].every(Number.isFinite) || height <= 0 || available <= 0 || pageHeight <= 0) return false;
+  // A long block may miss the boundary by only a few pixels. Moving it in that
+  // case wastes almost a full page; let it split when at least half already fits.
+  return height <= pageHeight && height > available + 0.5 && available < height / 2;
+}
+
 export function paginateResumeLayout(flow, pageHeight) {
   flow.querySelectorAll(".has-page-break").forEach((node) => {
     node.classList.remove("has-page-break");
@@ -426,7 +433,7 @@ export function paginateResumeLayout(flow, pageHeight) {
     const height = measuredHeight ?? rect.height;
     const pageOffset = ((top % pageHeight) + pageHeight) % pageHeight;
     const available = pageHeight - pageOffset;
-    if (pageOffset > 0.5 && height <= pageHeight && height > available + 0.5) {
+    if (pageOffset > 0.5 && shouldMoveBlockToNextPage(height, available, pageHeight)) {
       node.classList.add("has-page-break");
       node.style.setProperty("--page-break-before", `${available}px`);
     }

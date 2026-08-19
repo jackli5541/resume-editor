@@ -89,6 +89,11 @@ services:
     ports:
       # 只绑定回环地址，由宿主机上的 nginx/Caddy 反代对外；容器已以非 root 运行。
       - "127.0.0.1:4173:4173"
+    networks:
+      default:
+        aliases:
+          # Chromium 会将单标签主机 app 命中 .app HSTS 预加载规则并升级为 HTTPS。
+          - resume-web
     # Linux 宿主首次部署：mkdir -p var/{exports,previews,templates} && sudo chown -R 10001:10001 var
     volumes:
       - ./var/templates:/app/var/templates
@@ -107,7 +112,7 @@ services:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     environment:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
-      APP_INTERNAL_ORIGIN: http://app:4173
+      APP_INTERNAL_ORIGIN: http://resume-web:4173
       EXPORT_DIR: /app/var/exports
       PREVIEW_DIR: /app/var/previews
       TEMPLATE_STORAGE_DIR: /app/var/templates

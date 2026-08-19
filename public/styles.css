@@ -3815,14 +3815,18 @@ select:focus-visible,
   position: relative;
 }
 
+.resume-flow [data-preview-drag-module] > .section-heading {
+  position: relative;
+}
+
 .preview-module-drag-handle {
   position: absolute;
   z-index: 4;
   top: 50%;
-  right: 4px;
+  left: -18px;
   display: grid;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   transform: translateY(-50%);
   opacity: 0;
