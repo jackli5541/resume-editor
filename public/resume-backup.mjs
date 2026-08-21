@@ -1,4 +1,4 @@
-import { normalizeResume } from "./core.mjs";
+import { migrateResumeToTemplate, normalizeResume } from "./core.mjs";
 
 export const RESUME_BACKUP_FORMAT = "light-resume-backup";
 export const RESUME_BACKUP_VERSION = 1;
@@ -43,4 +43,22 @@ export function readResumeBackup(input) {
   }
   if (!looksLikeExportedResume(source)) throw new Error("请选择由轻简历导出的 JSON 备份文件");
   return normalizeResume(source);
+}
+
+export function importResumeBackup(input, targetResume) {
+  const imported = readResumeBackup(input);
+  if (!plainObject(targetResume)) return imported;
+
+  const targetTemplate = targetResume.template;
+  const restored = targetTemplate
+    ? migrateResumeToTemplate(imported, targetTemplate)
+    : imported;
+
+  // A backup supplies content, but it must never redirect writes to the source
+  // draft. Keep the identity of the draft currently open in the editor.
+  for (const key of ["id", "remoteId", "remoteRevision"]) {
+    if (Object.hasOwn(targetResume, key)) restored[key] = targetResume[key];
+    else delete restored[key];
+  }
+  return restored;
 }

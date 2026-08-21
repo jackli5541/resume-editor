@@ -29,7 +29,7 @@ import { readApiResponse as parseApiResponse } from "./api-client.mjs";
 import { createAdminApi } from "./admin-api.mjs";
 import { createResumeApi } from "./resume-api.mjs";
 import { normalizeWordText } from "./word-import.mjs";
-import { createResumeBackup, readResumeBackup } from "./resume-backup.mjs";
+import { createResumeBackup, importResumeBackup } from "./resume-backup.mjs";
 import { applyTheme, currentTheme, refreshThemeButtons, toggleTheme } from "./theme.mjs";
 import { createProposalSelection, selectedProposalChanges, setProposalDecision } from "./features/ai/proposal-selection.mjs";
 import { dragAutoScrollSpeed } from "./drag-auto-scroll.mjs";
@@ -7100,7 +7100,7 @@ elements.importFile.addEventListener("change", () => {
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      const imported = readResumeBackup(JSON.parse(String(reader.result || "{}")));
+      const imported = importResumeBackup(JSON.parse(String(reader.result || "{}")), resume);
       resume = imported;
       activeModuleId = "profile";
       renderAll();
