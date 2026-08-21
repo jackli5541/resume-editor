@@ -31,6 +31,18 @@ export function createResumeBackup(resume, now = new Date()) {
   };
 }
 
+export function createResumeBackupFromDraft(draft, now = new Date()) {
+  if (!plainObject(draft) || !plainObject(draft.data)) throw new Error("草稿无法生成备份");
+  const resume = normalizeResume(draft.data);
+  resume.template = {
+    ...(plainObject(resume.template) ? resume.template : {}),
+    slug: draft.templateSlug,
+    version: Number(draft.templateVersion) || 1,
+    ...(draft.editorSchema ? { editorSchema: draft.editorSchema } : {})
+  };
+  return createResumeBackup(resume, now);
+}
+
 export function readResumeBackup(input) {
   if (!plainObject(input)) throw new Error("备份文件格式无效");
   let source;
