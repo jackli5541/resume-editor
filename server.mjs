@@ -593,7 +593,7 @@ export function createAppServer(options = {}) {
           if (users.length < 2) continue;
           groups.push({ ...group, users });
         }
-        sendJson(response, 200, { total: groups.length, groups });
+        sendJson(response, 200, { total: result.total ?? groups.length, groups });
       } catch (error) {
         sendJson(response, errorStatusOf(error), { error: error?.message || "读取疑似多账号失败" });
       }
@@ -993,6 +993,26 @@ export function createAppServer(options = {}) {
         supportEnabled: supportEnabled !== false && images.length > 0,
         supportImages: supportEnabled !== false ? images : []
       });
+      return;
+    }
+
+    if (request.method === "GET" && pathname === "/api/admin/export-records") {
+      try {
+        await requirePermission(request, "resumes.read");
+        const limit = Number.parseInt(requestUrl.searchParams.get("limit") || "20", 10);
+        const offset = Number.parseInt(requestUrl.searchParams.get("offset") || "0", 10);
+        const result = await eventLog.listExports({
+          limit, offset,
+          search: requestUrl.searchParams.get("search") || "",
+          status: requestUrl.searchParams.get("status") || "",
+          format: requestUrl.searchParams.get("format") || "",
+          from: requestUrl.searchParams.get("from") || "",
+          to: requestUrl.searchParams.get("to") || ""
+        });
+        sendJson(response, 200, result);
+      } catch (error) {
+        sendJson(response, errorStatusOf(error), { error: error?.message || "读取导出记录失败" });
+      }
       return;
     }
 
@@ -1974,7 +1994,23 @@ export function createAppServer(options = {}) {
           throw new RequestValidationError("该模板仍在适配中，暂不能导出", 409);
         }
         const job = await service.create({ ...payload, template });
-        await eventLog.record({ userId: user?.id, event: "export_created" });
+        await eventLog.record({
+          userId: user?.id,
+          event: "export_created",
+          payload: {
+            jobId: job.id,
+            resumeId: requestPayload.resumeId || null,
+            revision: requestPayload.revision || null,
+            candidateName: payload.resume?.profile?.name || "未命名简历",
+            title: payload.resume?.title || "在线简历",
+            templateSlug: template.slug,
+            templateName: template.name || template.slug,
+            templateVersion: template.version,
+            format: payload.format || "pdf",
+            status: job.status || "queued",
+            error: null
+          }
+        });
         sendJson(response, 202, job);
       } catch (error) {
         sendJson(response, errorStatusOf(error), { error: error?.message || "创建导出任务失败" });
@@ -2041,7 +2077,10 @@ export function createAppServer(options = {}) {
     if (request.method === "GET" && statusMatch) {
       const job = await service.get(statusMatch[1], requestUrl.searchParams.get("token"));
       if (!job) sendJson(response, 404, { error: "导出任务不存在或已过期" });
-      else sendJson(response, 200, service.toPublic(job));
+      else {
+        await eventLog.updateExport(job.id, { status: job.status, error: job.error || null });
+        sendJson(response, 200, service.toPublic(job));
+      }
       return;
     }
 

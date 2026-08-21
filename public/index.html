@@ -110,7 +110,7 @@
         </section>
         <section class="home-drafts reveal">
           <div class="section-heading-row"><div><span class="eyebrow">RECENT DRAFTS</span><h2>最近草稿</h2></div><span id="homeDraftCount" class="section-count"></span></div>
-          <div id="homeDraftList" class="home-draft-list"></div>
+          <div id="homeDraftList" class="home-draft-list" data-vue-feature="recent-draft-list" data-vue-enabled="true"></div>
           <p id="homeEmptyState" class="home-empty-state">还没有草稿，从模板库开始创建。</p>
         </section>
         <section class="home-about" aria-label="平台初衷">
@@ -159,7 +159,7 @@
             <div class="library-legend"><span><i class="status-dot status-dot--ready"></i>可使用</span><span><i class="status-dot"></i>待适配</span></div>
           </div>
         </div>
-        <div id="templateList" class="template-grid" aria-live="polite"></div>
+        <div id="templateList" class="template-grid" aria-live="polite" data-vue-feature="template-library" data-vue-enabled="true"></div>
         <p id="templateLibraryStatus" class="library-status">正在加载模板…</p>
       </main>
     </section>
@@ -195,7 +195,7 @@
             <div><span class="eyebrow">ALL DRAFTS</span><h1>我的草稿</h1></div>
             <span id="draftCount" class="section-count"></span>
           </div>
-          <div id="draftList" class="draft-list" aria-live="polite"></div>
+          <div id="draftList" class="draft-list" aria-live="polite" data-vue-feature="draft-list" data-vue-enabled="true"></div>
           <p id="draftEmptyState" class="home-empty-state">还没有草稿，从模板库创建一份简历。</p>
         </section>
       </main>
@@ -238,6 +238,7 @@
                 <button class="admin-tab is-active" type="button" data-admin-tab="users">用户管理</button>
                 <button class="admin-tab" type="button" data-admin-tab="duplicates">疑似多账号</button>
                 <button class="admin-tab" type="button" data-admin-tab="resumes">草稿管理</button>
+                <button class="admin-tab" type="button" data-admin-tab="exports">导出记录</button>
                 <button class="admin-tab" type="button" data-admin-tab="recycle">回收站</button>
               </div>
             </div>
@@ -272,8 +273,11 @@
           <div class="admin-heading">
             <div><span class="eyebrow">ADMIN</span><h1>管理控制台</h1></div>
           </div>
-          <div class="admin-stats" id="adminStats"></div>
-          <div id="adminChart" class="admin-chart" hidden></div>
+          <div id="vueAdminOverview" data-vue-feature="admin-overview" data-vue-enabled="true">
+            <div class="admin-stats" id="adminStats"></div>
+            <div id="adminChart" class="admin-chart" hidden></div>
+          </div>
+        <div id="vueAdminUsers" data-vue-feature="admin-users" data-vue-enabled="true">
         <section class="admin-panel" data-admin-panel="users">
           <div class="admin-toolbar">
             <input type="search" id="adminUserSearch" placeholder="搜索邮箱、手机号或昵称" aria-label="搜索用户" />
@@ -297,6 +301,8 @@
           <div id="adminUserList" class="admin-table-wrap" aria-live="polite"></div>
           <p id="adminUserStatus" class="library-status">正在加载用户…</p>
         </section>
+        </div>
+        <div id="vueAdminDuplicates" data-vue-feature="admin-duplicates" data-vue-enabled="true">
         <section class="admin-panel" data-admin-panel="duplicates" hidden>
           <div class="admin-toolbar">
             <h2 class="admin-subhead">疑似同人多账号（只读复核）</h2>
@@ -305,6 +311,8 @@
           <div id="adminDuplicatesList" class="admin-table-wrap" aria-live="polite"></div>
           <p id="adminDuplicatesStatus" class="library-status">正在加载疑似多账号…</p>
         </section>
+        </div>
+        <div id="vueAdminResumes" data-vue-feature="admin-resumes" data-vue-enabled="true">
         <section class="admin-panel" data-admin-panel="resumes" hidden>
           <div class="admin-toolbar">
             <input type="search" id="adminResumeSearch" placeholder="搜索姓名、标题、邮箱或手机号" aria-label="搜索草稿" />
@@ -319,7 +327,22 @@
           <div id="adminResumeList" class="admin-table-wrap" aria-live="polite"></div>
           <p id="adminResumeStatus" class="library-status">正在加载草稿…</p>
         </section>
-        <section class="admin-panel" data-admin-panel="ai" hidden>
+        </div>
+        <div id="vueAdminExports" data-vue-feature="admin-exports" data-vue-enabled="true">
+        <section class="admin-panel" data-admin-panel="exports" hidden>
+          <div class="admin-toolbar">
+            <input type="search" id="adminExportSearch" placeholder="搜索用户、姓名、草稿或模板" aria-label="搜索导出记录" />
+            <select id="adminExportFormat" data-admin-filter="exports" aria-label="筛选格式"><option value="">全部格式</option><option value="pdf">PDF</option><option value="docx">Word</option></select>
+            <select id="adminExportStatusFilter" data-admin-filter="exports" aria-label="筛选状态"><option value="">全部状态</option><option value="queued">等待中</option><option value="processing">处理中</option><option value="completed">成功</option><option value="failed">失败</option></select>
+            <input type="date" id="adminExportFrom" data-admin-filter="exports" aria-label="起始日期" />
+            <input type="date" id="adminExportTo" data-admin-filter="exports" aria-label="结束日期" />
+            <span id="adminExportTotal" class="section-count"></span>
+          </div>
+          <div id="adminExportList" class="admin-table-wrap" aria-live="polite"></div>
+          <p id="adminExportStatus" class="library-status">正在加载导出记录…</p>
+        </section>
+        </div>
+        <section class="admin-panel" data-admin-panel="ai" hidden><div id="vueAdminAiConfig" data-vue-feature="admin-ai-config" data-vue-enabled="true" data-vue-preserve-markup="true">
           <form class="admin-form" id="adminAiForm" novalidate>
             <div class="admin-form__intro">
               <span class="eyebrow">OPENAI-COMPATIBLE API</span>
@@ -389,7 +412,7 @@
               <button type="submit" class="admin-submit" id="adminAiSave">保存配置</button>
               <span id="adminAiStatus" class="library-status" role="status"></span>
             </div>
-          </form>
+          </form></div>
         </section>
         <section class="admin-panel" data-admin-panel="logs" hidden>
           <div class="admin-toolbar">
@@ -408,7 +431,7 @@
             <button type="button" class="admin-csv" data-action="admin-export-csv" data-csv="ai-logs">导出 CSV</button>
             <span id="adminAiLogTotal" class="section-count"></span>
           </div>
-          <div id="adminAiLogList" class="admin-table-wrap" aria-live="polite"></div>
+          <div id="adminAiLogList" class="admin-table-wrap" aria-live="polite" data-vue-feature="admin-ai-logs" data-vue-enabled="true"></div>
           <p id="adminAiLogStatus" class="library-status">正在加载 AI 调用记录…</p>
         </section>
         <section class="admin-panel" data-admin-panel="audit" hidden>
@@ -435,7 +458,7 @@
             <button type="button" class="admin-csv" data-action="admin-export-csv" data-csv="audit">导出 CSV</button>
             <span id="adminAuditTotal" class="section-count"></span>
           </div>
-          <div id="adminAuditList" class="admin-table-wrap" aria-live="polite"></div>
+          <div id="adminAuditList" class="admin-table-wrap" aria-live="polite" data-vue-feature="admin-audit-logs" data-vue-enabled="true"></div>
           <p id="adminAuditStatus" class="library-status">正在加载审计记录…</p>
         </section>
         <section class="admin-panel" data-admin-panel="recycle" hidden>
@@ -446,11 +469,12 @@
             <span id="adminRecycleTotal" class="section-count"></span>
           </div>
           <h2 class="admin-subhead">已删除用户</h2>
-          <div id="adminRecycleUserList" class="admin-table-wrap" aria-live="polite"></div>
+          <div id="adminRecycleUserList" class="admin-table-wrap" aria-live="polite" data-vue-feature="admin-recycle-users" data-vue-enabled="true"></div>
           <h2 class="admin-subhead">已删除草稿</h2>
-          <div id="adminRecycleResumeList" class="admin-table-wrap" aria-live="polite"></div>
+          <div id="adminRecycleResumeList" class="admin-table-wrap" aria-live="polite" data-vue-feature="admin-recycle-resumes" data-vue-enabled="true"></div>
           <p id="adminRecycleStatus" class="library-status">正在加载回收站…</p>
         </section>
+        <div id="vueAdminAnnouncements" data-vue-feature="admin-announcements" data-vue-enabled="true">
         <section class="admin-panel" data-admin-panel="announcements" hidden>
           <div class="admin-toolbar">
             <input type="search" id="adminAnnouncementSearch" placeholder="搜索标题或内容" aria-label="搜索公告" />
@@ -484,6 +508,8 @@
           <div id="adminAnnouncementList" class="admin-table-wrap" aria-live="polite"></div>
           <p id="adminAnnouncementLoadStatus" class="library-status">正在加载公告…</p>
         </section>
+        </div>
+        <div id="vueAdminFeedback" data-vue-feature="admin-feedback" data-vue-enabled="true">
         <section class="admin-panel" data-admin-panel="feedback" hidden>
           <div class="admin-toolbar">
             <input type="search" id="adminFeedbackSearch" placeholder="搜索内容、类型或用户" aria-label="搜索反馈" />
@@ -517,6 +543,7 @@
           <div id="adminFeedbackList" class="admin-table-wrap" aria-live="polite"></div>
           <p id="adminFeedbackStatus" class="library-status">正在加载反馈…</p>
         </section>
+        </div>
         <section class="admin-panel" data-admin-panel="templates" hidden>
           <div class="admin-toolbar">
             <div class="admin-toolbar__actions admin-template-filters">
@@ -545,9 +572,10 @@
             </div>
             <div class="admin-form__footer"><button type="submit" class="admin-submit">保存</button><button type="button" class="admin-link" data-action="admin-cancel-template-edit">取消</button></div>
           </form>
-          <div id="adminTemplateList" class="admin-table-wrap" aria-live="polite"></div>
+          <div id="adminTemplateList" class="admin-table-wrap" aria-live="polite" data-vue-feature="admin-templates" data-vue-enabled="true"></div>
           <p id="adminTemplateStatus" class="library-status">正在加载模板…</p>
         </section>
+        <div id="vueAdminCosts" data-vue-feature="admin-costs" data-vue-enabled="true">
         <section class="admin-panel" data-admin-panel="costs" hidden>
           <div class="admin-toolbar">
             <select id="adminCostDays" data-admin-filter="costs" aria-label="时间范围">
@@ -563,19 +591,20 @@
           <div id="adminCostList" class="admin-table-wrap"></div>
           <p id="adminCostStatus" class="library-status">正在加载 AI 成本…</p>
         </section>
+        </div>
         <section class="admin-panel" data-admin-panel="config" hidden>
           <div class="admin-toolbar">
             <h2 class="admin-subhead">用户功能与运行开关</h2>
           </div>
-          <div class="admin-auth-status" id="adminAuthStatus"></div>
+          <div class="admin-auth-status" id="adminAuthStatus" data-vue-feature="admin-auth-status" data-vue-enabled="true"></div>
           <form id="adminConfigForm" novalidate>
-            <div id="adminConfigFields" class="admin-form__grid"></div>
+            <div id="adminConfigFields" class="admin-form__grid" data-vue-feature="admin-config-fields" data-vue-enabled="true"></div>
             <section class="admin-support-manager">
               <div class="admin-support-manager__head">
                 <div><h3>赞赏码图片</h3><p>最多 5 张；支持 PNG、JPEG、WebP，单张不超过 2 MB。</p></div>
                 <label class="admin-submit admin-upload-button">上传图片<input id="adminSupportUpload" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden /></label>
               </div>
-              <div id="adminSupportImages" class="admin-support-images"></div>
+              <div id="adminSupportImages" class="admin-support-images" data-vue-feature="admin-support-images" data-vue-enabled="true"></div>
               <span id="adminSupportMsg" class="library-status" role="status"></span>
             </section>
             <div class="admin-form__footer">
@@ -590,7 +619,7 @@
           </div>
           <p class="admin-secret-note">密钥经 AES-256-GCM 加密后落库，仅回显「是否已配置」与脱敏提示；输入框留空表示不修改，点「清除」可删除对应密钥。</p>
           <form id="adminAuthSecretForm" novalidate>
-            <div id="adminAuthSecretFields" class="admin-form__grid"></div>
+            <div id="adminAuthSecretFields" class="admin-form__grid" data-vue-feature="admin-auth-secret-fields" data-vue-enabled="true"></div>
             <div class="admin-form__footer">
               <button type="submit" class="admin-submit">保存密钥</button>
               <span id="adminAuthSecretMsg" class="library-status" role="status"></span>
@@ -607,10 +636,10 @@
               <button type="button" class="admin-csv" data-admin-write data-action="admin-clean-queue" data-type="completed">清理已完成任务</button>
             </div>
           </div>
-          <div id="adminSystemStats" class="admin-stats"></div>
-          <div id="adminSystemDetail" class="admin-table-wrap"></div>
+          <div id="adminSystemStats" class="admin-stats" data-vue-feature="admin-system-stats" data-vue-enabled="true"></div>
+          <div id="adminSystemDetail" class="admin-table-wrap" data-vue-feature="admin-system-detail" data-vue-enabled="true"></div>
           <h2 class="admin-subhead">告警记录</h2>
-          <div id="adminAlertList" class="admin-table-wrap"></div>
+          <div id="adminAlertList" class="admin-table-wrap" data-vue-feature="admin-alerts" data-vue-enabled="true"></div>
           <p id="adminSystemStatus" class="library-status">正在加载运维状态…</p>
         </section>
         </div>
@@ -653,7 +682,7 @@
         </div>
         <div class="ai-onboarding" id="aiOnboarding">
           <div class="ai-guide-progress" aria-label="求职信息填写进度"><span id="aiGuideProgress"></span></div>
-          <section class="ai-guide-card" id="aiGuideCard" aria-live="polite"></section>
+          <section class="ai-guide-card" id="aiGuideCard" aria-live="polite" data-vue-feature="ai-guide-card" data-vue-enabled="true"></section>
         </div>
         <div class="ai-layout" id="aiWorkspace" hidden>
           <section class="ai-input-card" id="aiInputCard">
@@ -724,7 +753,7 @@
           </section>
           <aside class="ai-context-card" id="aiContextCard">
             <div class="ai-context-card__head"><div><span class="eyebrow">JOB CONTEXT</span><h2>已整理的求职信息</h2></div><button type="button" class="link-button" data-action="ai-restart-guide">重新问答</button></div>
-            <div id="aiContextSummary"></div>
+            <div id="aiContextSummary" data-vue-feature="ai-context-summary" data-vue-enabled="true"></div>
           </aside>
           <section class="ai-result" id="aiResult" hidden>
             <div class="ai-result__head">
@@ -737,12 +766,12 @@
                 <button type="button" class="ai-save" id="aiSaveButton" data-action="ai-save">进入编辑器</button>
               </div>
             </div>
-            <div id="aiModuleReview" class="ai-project-review ai-module-review" hidden></div>
-            <div id="aiProjectReview" class="ai-project-review" hidden></div>
-            <div id="aiNotices" class="ai-notices"></div>
+            <div id="aiModuleReview" class="ai-project-review ai-module-review" hidden data-vue-feature="ai-module-review" data-vue-enabled="true"></div>
+            <div id="aiProjectReview" class="ai-project-review" hidden data-vue-feature="ai-project-review" data-vue-enabled="true"></div>
+            <div id="aiNotices" class="ai-notices" data-vue-feature="ai-result-notices" data-vue-enabled="true"></div>
             <div class="ai-preview-scroll">
               <div class="resume-paper" id="aiPreviewPaper">
-                <div class="resume-flow" id="aiPreviewFlow"></div>
+                <div class="resume-flow" id="aiPreviewFlow" data-vue-feature="ai-result-preview" data-vue-enabled="true"></div>
               </div>
             </div>
           </section>
@@ -792,7 +821,7 @@
         <div class="ai-heading"><span class="eyebrow">AI RESUME WORKSPACE</span><h1 id="aiOptimizeTitle">导入简历后开始 AI 精修</h1><p id="aiOptimizeDescription">上传 Word 简历，系统会转换为“极简轻”模板草稿并自动打开 AI 精修；也可以直接选择已有草稿。</p></div>
         <section class="optimize-source-grid">
           <article class="optimize-source-card"><span class="optimize-source-card__step">01</span><h2>上传自己的简历</h2><p>支持 .docx，最大 5 MB。解析后自动创建可编辑的站内草稿，不会覆盖原文件。</p><button type="button" class="translate-dropzone" data-action="optimize-upload"><strong>上传 Word 简历</strong><span>转换后自动进入对应 AI 功能</span></button><input id="optimizeWordFile" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden /><p id="optimizeImportStatus" class="library-status" role="status"></p></article>
-          <article class="optimize-source-card"><span class="optimize-source-card__step">02</span><h2>选择已有草稿</h2><p>已经在轻简历中编辑过？直接继续，不需要重复上传和转换。</p><div id="optimizeDraftList" class="optimize-draft-list"></div><p id="optimizeDraftEmpty" class="home-empty-state">还没有云端草稿，可以先上传 Word 简历。</p></article>
+          <article class="optimize-source-card"><span class="optimize-source-card__step">02</span><h2>选择已有草稿</h2><p>已经在轻简历中编辑过？直接继续，不需要重复上传和转换。</p><div id="optimizeDraftList" class="optimize-draft-list" data-vue-feature="optimize-draft-list" data-vue-enabled="true"></div><p id="optimizeDraftEmpty" class="home-empty-state">还没有云端草稿，可以先上传 Word 简历。</p></article>
         </section>
         <p class="ai-privacy">只有在你主动生成诊断或修改提案时，相关简历内容才会发送给已配置的模型服务商。</p>
       </main>
@@ -801,14 +830,14 @@
     <div class="translate-template-overlay" id="aiGenerateTemplateOverlay" hidden>
       <div class="translate-template-dialog" role="dialog" aria-modal="true" aria-labelledby="aiGenerateTemplateTitle">
         <div class="translate-template-head"><div><span class="eyebrow">SELECT TEMPLATE</span><h2 id="aiGenerateTemplateTitle">选择生成后的简历模板</h2><p>AI 会先整理结构化内容，再按所选模板排版；进入编辑器后仍可继续修改。</p></div><button type="button" class="auth-dialog__close" data-action="ai-close-templates" aria-label="关闭">×</button></div>
-        <div id="aiGenerateTemplateList" class="translate-template-grid"></div>
+        <div id="aiGenerateTemplateList" class="translate-template-grid" data-vue-feature="ai-generate-template-list" data-vue-enabled="true"></div>
       </div>
     </div>
 
     <div class="translate-template-overlay" id="translateTemplateOverlay" hidden>
       <div class="translate-template-dialog" role="dialog" aria-modal="true" aria-labelledby="translateTemplateTitle">
         <div class="translate-template-head"><div><span class="eyebrow">SELECT TEMPLATE</span><h2 id="translateTemplateTitle">选择翻译后的简历模板</h2><p>推荐模板经过中英文排版适配；其他模板可能因英文内容较长发生换行。</p></div><button type="button" class="auth-dialog__close" data-action="translate-close-templates" aria-label="关闭">×</button></div>
-        <div id="translateTemplateList" class="translate-template-grid"></div>
+        <div id="translateTemplateList" class="translate-template-grid" data-vue-feature="translate-template-list" data-vue-enabled="true"></div>
       </div>
     </div>
 
@@ -948,10 +977,10 @@
           </div>
           <div class="preview-stage" id="previewStage">
             <article class="resume-paper" id="resumePaper">
-              <div class="resume-flow" id="resumeFlow"></div>
-              <div class="page-markers" id="pageMarkers" aria-hidden="true"></div>
+              <div class="resume-flow" id="resumeFlow" data-vue-feature="resume-preview" data-vue-enabled="true"></div>
+              <div class="page-markers" id="pageMarkers" aria-hidden="true" data-vue-feature="page-markers" data-vue-enabled="true"></div>
             </article>
-            <div class="fidelity-preview" id="fidelityPreview" hidden aria-live="polite"></div>
+            <div class="fidelity-preview" id="fidelityPreview" hidden aria-live="polite" data-vue-feature="fidelity-preview" data-vue-enabled="true"></div>
           </div>
         </section>
 
@@ -1005,10 +1034,10 @@
           <button type="button" data-action="ai-mode" data-ai-mode="target" data-ai-feature-control="targetAgent">岗位定制</button>
         </div>
         <div id="aiOptimizeView" class="ai-mode-view">
-          <div class="ai-chat__body" id="aiChatBody"></div>
+          <div class="ai-chat__body" id="aiChatBody" data-vue-feature="ai-chat-content" data-vue-enabled="true"></div>
         </div>
         <div id="aiTargetView" class="ai-mode-view ai-target" hidden>
-          <div id="aiTargetBody" class="ai-target__body">
+          <div id="aiTargetBody" class="ai-target__body" data-vue-feature="ai-target-workspace" data-vue-enabled="true">
             <p class="ai-chat__hint">使用当前简历，或上传 DOCX 创建一份采用“极简轻”模板的新草稿。Agent 会先诊断并给出计划，确认后逐模块修改。</p>
             <button type="button" class="ai-target__upload" data-action="target-upload">上传 DOCX 并替换当前工作草稿</button>
             <input id="targetWordFile" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
@@ -1027,13 +1056,13 @@
 
       <section class="editor-drawer" id="editorDrawer" aria-label="简历编辑面板">
         <div class="drawer__inner">
-          <div class="module-tabs" id="moduleTabs"></div>
+          <div class="module-tabs" id="moduleTabs" data-vue-feature="module-tabs" data-vue-enabled="true"></div>
           <div class="module-add">
             <button class="module-add__button" id="addModuleButton" type="button" data-action="toggle-add-module" aria-expanded="false" hidden>＋ 添加模块</button>
-            <div class="module-add__menu" id="addModuleMenu" hidden></div>
+            <div class="module-add__menu" id="addModuleMenu" hidden data-vue-feature="add-module-menu" data-vue-enabled="true"></div>
           </div>
           <button class="drawer-toggle" type="button" data-action="toggle-drawer" aria-label="展开或收起编辑面板">⌃</button>
-          <div class="drawer-content" id="drawerContent"></div>
+          <div class="drawer-content" id="drawerContent" data-vue-feature="editor-content" data-vue-enabled="true"></div>
         </div>
       </section>
     </div>
@@ -1109,6 +1138,7 @@
     </section>
 
     <section id="loginPage" class="login-page" hidden>
+      <div id="vueLoginContent" data-vue-feature="login-content" data-vue-enabled="true" data-vue-preserve-markup="true">
       <div class="login-card">
         <button type="button" class="login-back" data-action="close-login" aria-label="返回上一页">← 返回</button>
         <a class="brand login-brand" href="/" aria-label="轻简历首页">
@@ -1160,9 +1190,10 @@
           <p class="auth-switch" id="loginMethodSwitchRow"><button class="link-button" type="button" id="loginMethodSwitch">使用验证码登录</button></p>
         </form>
       </div>
+      </div>
     </section>
 
-    <div class="auth-overlay" id="settingsOverlay" hidden>
+    <div id="vueSettingsOverlay" data-vue-feature="settings-dialog" data-vue-enabled="true">
       <div class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
         <div class="auth-dialog__head">
           <div><span class="eyebrow">SETTINGS</span><h2 id="settingsTitle">账户设置</h2></div>
@@ -1212,7 +1243,7 @@
       </div>
     </div>
 
-    <div class="auth-overlay" id="feedbackOverlay" hidden>
+    <div id="vueFeedbackOverlay" data-vue-feature="feedback-dialog" data-vue-enabled="true">
       <div class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="feedbackTitle">
         <div class="auth-dialog__head">
           <div><span class="eyebrow">FEEDBACK</span><h2 id="feedbackTitle">意见反馈</h2></div>
@@ -1234,7 +1265,7 @@
       </div>
     </div>
 
-    <div class="auth-overlay" id="messagesOverlay" hidden>
+    <div id="vueMessagesOverlay" data-vue-feature="messages-dialog" data-vue-enabled="true">
       <div class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="messagesTitle">
         <div class="auth-dialog__head">
           <div><span class="eyebrow">INBOX</span><h2 id="messagesTitle">站内信</h2></div>
@@ -1282,6 +1313,8 @@
       <span>© 2026 轻简历</span><nav aria-label="信任与合规"><a href="/privacy">隐私政策</a><a href="/terms">用户协议</a><a href="/ai-notice">AI 内容提示</a><a href="/data-deletion">数据删除</a><a href="/contact">联系我们</a></nav>
     </footer>
 
+    <div id="vueRuntimeRoot" data-vue-feature="runtime" data-vue-enabled="true" hidden></div>
+    <script type="module" src="/assets/vue/bootstrap.mjs"></script>
     <script type="module" src="/app.mjs"></script>
     <script type="module" src="/home-intro.mjs"></script>
     <script type="module" src="/support.mjs"></script>

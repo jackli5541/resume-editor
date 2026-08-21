@@ -53,6 +53,27 @@ test("用户列表支持角色与状态筛选", async (context) => {
   assert.equal(disabled.users[0].id, bob.body.user.id);
 });
 
+test("导出记录管理接口分页返回长期记录并限制普通用户访问", async (context) => {
+  const app = await startAdminServer();
+  context.after(() => new Promise((resolve) => app.server.close(resolve)));
+  const admin = await register(app, { identifier: "admin@example.com", password: "Test1234!" });
+  const bob = await register(app, { identifier: "bob@example.com", password: "Test1234!" });
+  await app.eventLog.record({
+    userId: bob.body.user.id,
+    event: "export_created",
+    payload: { jobId: "job-1", candidateName: "张三", templateName: "极简轻", format: "pdf", status: "queued" }
+  });
+  await app.eventLog.updateExport("job-1", { status: "completed" });
+
+  const response = await fetch(`${app.origin}/api/admin/export-records?limit=20&offset=0&status=completed`, { headers: authHeaders(admin.cookie) });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.total, 1);
+  assert.equal(body.exports[0].candidateName, "张三");
+  assert.equal(body.exports[0].status, "completed");
+  assert.equal((await fetch(`${app.origin}/api/admin/export-records`, { headers: authHeaders(bob.cookie) })).status, 403);
+});
+
 test("草稿列表支持模板筛选", async (context) => {
   const app = await startAdminServer();
   context.after(() => new Promise((resolve) => app.server.close(resolve)));

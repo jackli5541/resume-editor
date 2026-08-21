@@ -2109,6 +2109,27 @@ select:focus-visible,
   padding: 3px 0 2px;
 }
 
+/* Vue 预览根不引入额外的布局盒，保持所有模板既有的 DOM 排版关系。 */
+.vue-resume-preview-content {
+  display: contents;
+}
+
+.vue-editor-content {
+  display: contents;
+}
+
+.vue-ai-chat-content {
+  display: contents;
+}
+
+.vue-ai-result-preview {
+  display: contents;
+}
+
+.vue-login-content {
+  display: contents;
+}
+
 .objective-grid > div {
   display: inline-flex;
   align-items: baseline;
@@ -5735,6 +5756,31 @@ body.export-document .resume-paper[data-template="resume-collection-cn-001"] .cn
 
 .admin-table tbody tr:hover {
   background: var(--surface-3);
+}
+
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 2px 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.admin-pagination button {
+  min-width: 72px;
+  padding: 7px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.admin-pagination button:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .admin-table__ops {
