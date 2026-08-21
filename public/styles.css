@@ -5737,6 +5737,31 @@ body.export-document .resume-paper[data-template="resume-collection-cn-001"] .cn
   background: var(--surface-3);
 }
 
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 2px 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.admin-pagination button {
+  min-width: 72px;
+  padding: 7px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.admin-pagination button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .admin-table__ops {
   display: flex;
   gap: 10px;

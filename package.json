@@ -6,6 +6,9 @@
   "scripts": {
     "start": "node server.mjs",
     "start:worker": "node server/document-worker.mjs",
+    "dev:web": "vite --config frontend/vite.config.mjs",
+    "build:web": "vite build --config frontend/vite.config.mjs",
+    "check:web": "vite build --config frontend/vite.config.mjs",
     "test": "node --test tests/*.test.mjs",
     "verify:export": "node scripts/verify-export.mjs",
     "install:browser": "playwright install chromium",
@@ -24,6 +27,10 @@
     "nodemailer": "7.0.5",
     "pg": "8.16.3",
     "playwright": "1.62.1"
+  },
+  "devDependencies": {
+    "vite": "6.4.3",
+    "vue": "3.5.18"
   },
   "engines": {
     "node": ">=20"

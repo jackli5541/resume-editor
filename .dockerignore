@@ -2,6 +2,7 @@ node_modules
 var
 tmp
 output
+public/assets/vue
 .git
 *.log
 

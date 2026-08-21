@@ -141,6 +141,14 @@ const elements = {
   adminResumeTotal: document.querySelector("#adminResumeTotal"),
   adminResumeList: document.querySelector("#adminResumeList"),
   adminResumeStatus: document.querySelector("#adminResumeStatus"),
+  adminExportSearch: document.querySelector("#adminExportSearch"),
+  adminExportFormat: document.querySelector("#adminExportFormat"),
+  adminExportStatusFilter: document.querySelector("#adminExportStatusFilter"),
+  adminExportFrom: document.querySelector("#adminExportFrom"),
+  adminExportTo: document.querySelector("#adminExportTo"),
+  adminExportTotal: document.querySelector("#adminExportTotal"),
+  adminExportList: document.querySelector("#adminExportList"),
+  adminExportStatus: document.querySelector("#adminExportStatus"),
   adminAiForm: document.querySelector("#adminAiForm"),
   adminAiEnabled: document.querySelector("#adminAiEnabled"),
   adminAiOptimizeEnabled: document.querySelector("#adminAiOptimizeEnabled"),
@@ -373,6 +381,8 @@ let codeLoginMethods = { email: false, phone: false };
 let codeLoginAvailable = false;
 let adminUsers = [];
 let adminDrafts = [];
+let adminExports = [];
+let adminExportSearchTimer = null;
 let adminUserSearchTimer = null;
 let adminResumeSearchTimer = null;
 let adminAiLogs = [];
@@ -390,6 +400,11 @@ let adminTemplateCatalog = [];
 const adminTemplateSelection = new Set();
 let adminTemplateSearchTimer = null;
 let adminCosts = { days: [], byModel: [] };
+const ADMIN_PAGE_SIZE = 20;
+const adminListPages = Object.fromEntries(
+  ["users", "duplicates", "resumes", "exports", "logs", "audit", "recycle", "announcements", "feedback", "alerts"]
+    .map((key) => [key, { page: 1, total: 0 }])
+);
 let adminConfigSchema = {};
 let aiResult = null;
 let aiProjectReviewConfirmed = true;
@@ -1977,6 +1992,7 @@ const ADMIN_TAB_PERMISSIONS = [
   ["users", "users.read"],
   ["duplicates", "users.read"],
   ["resumes", "resumes.read"],
+  ["exports", "resumes.read"],
   ["recycle", "recycle.read"],
   ["announcements", "announcements.read"],
   ["feedback", "feedback.read"],
@@ -2024,6 +2040,7 @@ function showAdminPage() {
     loadAdminDuplicates();
   }
   if (hasAdminPermission("resumes.read")) loadAdminDrafts();
+  if (hasAdminPermission("resumes.read")) loadAdminExports();
   if (hasAdminPermission("announcements.read")) loadAdminAnnouncements();
   if (hasAdminPermission("feedback.read")) loadAdminFeedbacks();
   if (hasAdminPermission("templates.read")) loadAdminTemplates();
@@ -2060,18 +2077,36 @@ function setAdminTab(tab) {
   });
 }
 
-async function loadAdminUsers() {
+function adminPagerMarkup(kind) {
+  const state = adminListPages[kind];
+  const pages = Math.max(1, Math.ceil(state.total / ADMIN_PAGE_SIZE));
+  if (state.total <= ADMIN_PAGE_SIZE) return "";
+  return `<nav class="admin-pagination" aria-label="记录分页">
+    <button type="button" data-admin-page="${kind}" data-page="${state.page - 1}" ${state.page <= 1 ? "disabled" : ""}>上一页</button>
+    <span>第 ${state.page} / ${pages} 页</span>
+    <button type="button" data-admin-page="${kind}" data-page="${state.page + 1}" ${state.page >= pages ? "disabled" : ""}>下一页</button>
+  </nav>`;
+}
+
+function adminPageQuery(kind, resetPage) {
+  const state = adminListPages[kind];
+  if (resetPage) state.page = 1;
+  return { limit: String(ADMIN_PAGE_SIZE), offset: String((state.page - 1) * ADMIN_PAGE_SIZE) };
+}
+
+async function loadAdminUsers({ resetPage = false } = {}) {
   const search = elements.adminUserSearch.value.trim();
   elements.adminUserStatus.hidden = false;
   elements.adminUserStatus.textContent = "正在加载用户…";
   try {
-    const query = new URLSearchParams({ limit: "200", search });
+    const query = new URLSearchParams({ ...adminPageQuery("users", resetPage), search });
     if (elements.adminUserRole.value) query.set("role", elements.adminUserRole.value);
     if (elements.adminUserStatus.value) query.set("status", elements.adminUserStatus.value);
     if (elements.adminUserFrom.value) query.set("from", elements.adminUserFrom.value);
     if (elements.adminUserTo.value) query.set("to", elements.adminUserTo.value);
     const payload = await readApiResponse(await fetch(`/api/admin/users?${query}`, { cache: "no-store" }));
     adminUsers = payload.users || [];
+    adminListPages.users.total = Number(payload.total) || 0;
     elements.adminUserTotal.textContent = payload.total ? `${payload.total} 位用户` : "";
     renderAdminUsers();
     elements.adminUserStatus.hidden = true;
@@ -2137,19 +2172,20 @@ function renderAdminUsers() {
           <td class="admin-table__ops">${ops.join("") || '<span class="admin-self">—</span>'}</td>
         </tr>`;
       }).join("")}</tbody>
-    </table>`;
+    </table>${adminPagerMarkup("users")}`;
 }
 
 // —— 疑似同人多账号（只读复核，不提供封禁操作） ——
 
-async function loadAdminDuplicates() {
+async function loadAdminDuplicates({ resetPage = false } = {}) {
   elements.adminDuplicatesStatus.hidden = false;
   elements.adminDuplicatesStatus.textContent = "正在加载疑似多账号…";
   try {
-    const limit = 100;
-    const payload = await readApiResponse(await fetch(`/api/admin/suspected-duplicates?limit=${limit}`, { cache: "no-store" }));
+    const query = new URLSearchParams(adminPageQuery("duplicates", resetPage));
+    const payload = await readApiResponse(await fetch(`/api/admin/suspected-duplicates?${query}`, { cache: "no-store" }));
     const groups = payload.groups || [];
-    elements.adminDuplicatesTotal.textContent = groups.length ? `${groups.length} 组疑似关联` : "";
+    adminListPages.duplicates.total = Number(payload.total) || 0;
+    elements.adminDuplicatesTotal.textContent = payload.total ? `${payload.total} 组疑似关联` : "";
     renderAdminDuplicates(groups);
     elements.adminDuplicatesStatus.hidden = true;
   } catch (error) {
@@ -2186,20 +2222,22 @@ function renderAdminDuplicates(groups) {
         </tr>`;
       }).join("")}</tbody>
     </table>
-    <p class="admin-empty">以上为疑似关联，请人工复核后再决定是否处理；系统不会自动封禁账号。</p>`;
+    <p class="admin-empty">以上为疑似关联，请人工复核后再决定是否处理；系统不会自动封禁账号。</p>
+    ${adminPagerMarkup("duplicates")}`;
 }
 
-async function loadAdminDrafts() {
+async function loadAdminDrafts({ resetPage = false } = {}) {
   const search = elements.adminResumeSearch.value.trim();
   elements.adminResumeStatus.hidden = false;
   elements.adminResumeStatus.textContent = "正在加载草稿…";
   try {
-    const query = new URLSearchParams({ limit: "200", search });
+    const query = new URLSearchParams({ ...adminPageQuery("resumes", resetPage), search });
     if (elements.adminResumeTemplate.value) query.set("template", elements.adminResumeTemplate.value);
     if (elements.adminResumeFrom.value) query.set("from", elements.adminResumeFrom.value);
     if (elements.adminResumeTo.value) query.set("to", elements.adminResumeTo.value);
     const payload = await readApiResponse(await fetch(`/api/admin/resumes?${query}`, { cache: "no-store" }));
     adminDrafts = payload.resumes || [];
+    adminListPages.resumes.total = Number(payload.total) || 0;
     elements.adminResumeTotal.textContent = payload.total ? `${payload.total} 份草稿` : "";
     renderAdminDrafts();
     elements.adminResumeStatus.hidden = true;
@@ -2230,7 +2268,54 @@ function renderAdminDrafts() {
           </td>
         </tr>`;
       }).join("")}</tbody>
-    </table>`;
+    </table>${adminPagerMarkup("resumes")}`;
+}
+
+async function loadAdminExports({ resetPage = false } = {}) {
+  elements.adminExportStatus.hidden = false;
+  elements.adminExportStatus.textContent = "正在加载导出记录…";
+  try {
+    const query = new URLSearchParams({
+      ...adminPageQuery("exports", resetPage),
+      search: elements.adminExportSearch.value.trim()
+    });
+    if (elements.adminExportFormat.value) query.set("format", elements.adminExportFormat.value);
+    if (elements.adminExportStatusFilter.value) query.set("status", elements.adminExportStatusFilter.value);
+    if (elements.adminExportFrom.value) query.set("from", elements.adminExportFrom.value);
+    if (elements.adminExportTo.value) query.set("to", elements.adminExportTo.value);
+    const payload = await readApiResponse(await fetch(`/api/admin/export-records?${query}`, { cache: "no-store" }));
+    adminExports = payload.exports || [];
+    adminListPages.exports.total = Number(payload.total) || 0;
+    elements.adminExportTotal.textContent = payload.total ? `${payload.total} 条记录` : "";
+    renderAdminExports();
+    elements.adminExportStatus.hidden = true;
+  } catch (error) {
+    elements.adminExportStatus.textContent = error?.message || "加载导出记录失败";
+  }
+}
+
+function renderAdminExports() {
+  if (!adminExports.length) {
+    elements.adminExportList.innerHTML = '<p class="admin-empty">暂无导出记录。</p>';
+    return;
+  }
+  const statusLabel = {
+    queued: '<span class="badge">等待中</span>',
+    processing: '<span class="badge badge--admin">处理中</span>',
+    completed: '<span class="badge badge--active">成功</span>',
+    failed: '<span class="badge badge--disabled">失败</span>'
+  };
+  elements.adminExportList.innerHTML = `<table class="admin-table">
+    <thead><tr><th>时间</th><th>用户</th><th>简历</th><th>模板</th><th>格式</th><th>状态</th><th>失败原因</th></tr></thead>
+    <tbody>${adminExports.map((item) => {
+      const time = new Date(item.createdAt);
+      const timeLabel = Number.isNaN(time.getTime()) ? "—" : time.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+      return `<tr><td>${escapeHtml(timeLabel)}</td><td>${escapeHtml(item.userIdentifier || item.userId || "—")}</td>
+        <td><div class="admin-user"><strong>${escapeHtml(item.candidateName || "未命名简历")}</strong><small>${escapeHtml(item.title || item.resumeId || "—")}</small></div></td>
+        <td>${escapeHtml(item.templateName || item.templateSlug || "—")} · v${Number(item.templateVersion) || 1}</td>
+        <td>${escapeHtml(String(item.format || "pdf").toUpperCase())}</td><td>${statusLabel[item.status] || escapeHtml(item.status || "—")}</td>
+        <td>${escapeHtml(item.error || "—")}</td></tr>`;
+    }).join("")}</tbody></table>${adminPagerMarkup("exports")}`;
 }
 
 async function loadAdminOverview() {
@@ -2303,17 +2388,18 @@ function renderAdminOverview(stats) {
   `;
 }
 
-async function loadAdminAiLogs() {
+async function loadAdminAiLogs({ resetPage = false } = {}) {
   const search = elements.adminAiLogSearch.value.trim();
   elements.adminAiLogStatus.hidden = false;
   elements.adminAiLogStatus.textContent = "正在加载 AI 调用记录…";
   try {
-    const query = new URLSearchParams({ limit: "200", search });
+    const query = new URLSearchParams({ ...adminPageQuery("logs", resetPage), search });
     if (elements.adminAiLogStatusFilter.value) query.set("status", elements.adminAiLogStatusFilter.value);
     if (elements.adminAiLogFrom.value) query.set("from", elements.adminAiLogFrom.value);
     if (elements.adminAiLogTo.value) query.set("to", elements.adminAiLogTo.value);
     const payload = await readApiResponse(await fetch(`/api/admin/ai-logs?${query}`, { cache: "no-store" }));
     adminAiLogs = payload.logs || [];
+    adminListPages.logs.total = Number(payload.total) || 0;
     elements.adminAiLogTotal.textContent = payload.total ? `${payload.total} 条记录` : "";
     renderAdminAiLogs();
     elements.adminAiLogStatus.hidden = true;
@@ -2351,7 +2437,7 @@ function renderAdminAiLogs() {
           <td>${escapeHtml(log.errorCode || "—")}</td>
         </tr>`;
       }).join("")}</tbody>
-    </table>`;
+    </table>${adminPagerMarkup("logs")}`;
 }
 
 async function adminToggleAdmin(target) {
@@ -2487,17 +2573,18 @@ async function adminRevokeSessions(target) {
   }
 }
 
-async function loadAdminAuditLogs() {
+async function loadAdminAuditLogs({ resetPage = false } = {}) {
   const search = elements.adminAuditSearch.value.trim();
   elements.adminAuditStatus.hidden = false;
   elements.adminAuditStatus.textContent = "正在加载审计记录…";
   try {
-    const query = new URLSearchParams({ limit: "200", search });
+    const query = new URLSearchParams({ ...adminPageQuery("audit", resetPage), search });
     if (elements.adminAuditAction.value) query.set("action", elements.adminAuditAction.value);
     if (elements.adminAuditFrom.value) query.set("from", elements.adminAuditFrom.value);
     if (elements.adminAuditTo.value) query.set("to", elements.adminAuditTo.value);
     const payload = await readApiResponse(await fetch(`/api/admin/audit-logs?${query}`, { cache: "no-store" }));
     adminAuditLogs = payload.logs || [];
+    adminListPages.audit.total = Number(payload.total) || 0;
     elements.adminAuditTotal.textContent = payload.total ? `${payload.total} 条记录` : "";
     renderAdminAuditLogs();
     elements.adminAuditStatus.hidden = true;
@@ -2526,19 +2613,20 @@ function renderAdminAuditLogs() {
           <td>${escapeHtml(log.ip || "—")}</td>
         </tr>`;
       }).join("")}</tbody>
-    </table>`;
+    </table>${adminPagerMarkup("audit")}`;
 }
 
-async function loadAdminRecycle() {
+async function loadAdminRecycle({ resetPage = false } = {}) {
   const search = elements.adminRecycleSearch.value.trim();
   elements.adminRecycleStatus.hidden = false;
   elements.adminRecycleStatus.textContent = "正在加载回收站…";
   try {
-    const query = new URLSearchParams({ limit: "200", search });
+    const query = new URLSearchParams({ ...adminPageQuery("recycle", resetPage), search });
     if (elements.adminRecycleFrom.value) query.set("from", elements.adminRecycleFrom.value);
     if (elements.adminRecycleTo.value) query.set("to", elements.adminRecycleTo.value);
     const payload = await readApiResponse(await fetch(`/api/admin/recycle?${query}`, { cache: "no-store" }));
     adminRecycle = { users: payload.users || [], resumes: payload.resumes || [] };
+    adminListPages.recycle.total = Math.max(Number(payload.userTotal) || 0, Number(payload.resumeTotal) || 0);
     elements.adminRecycleTotal.textContent = `${Number(payload.userTotal ?? 0)} 位用户 · ${Number(payload.resumeTotal ?? 0)} 份草稿`;
     renderAdminRecycleUsers();
     renderAdminRecycleResumes();
@@ -2598,7 +2686,7 @@ function renderAdminRecycleResumes() {
           <td class="admin-table__ops">${ops.join("") || '<span class="admin-self">—</span>'}</td>
         </tr>`;
       }).join("")}</tbody>
-    </table>`;
+    </table>${adminPagerMarkup("recycle")}`;
 }
 
 async function adminRestoreUser(target) {
@@ -2653,15 +2741,16 @@ async function adminPurgeResume(target) {
 
 // —— 公告管理 ——
 
-async function loadAdminAnnouncements() {
+async function loadAdminAnnouncements({ resetPage = false } = {}) {
   const search = elements.adminAnnouncementSearch.value.trim();
   elements.adminAnnouncementLoadStatus.hidden = false;
   elements.adminAnnouncementLoadStatus.textContent = "正在加载公告…";
   try {
-    const query = new URLSearchParams({ limit: "200", search });
+    const query = new URLSearchParams({ ...adminPageQuery("announcements", resetPage), search });
     if (elements.adminAnnouncementFilter.value) query.set("status", elements.adminAnnouncementFilter.value);
     const payload = await readApiResponse(await fetch(`/api/admin/announcements?${query}`, { cache: "no-store" }));
     adminAnnouncements = payload.announcements || [];
+    adminListPages.announcements.total = Number(payload.total) || 0;
     elements.adminAnnouncementTotal.textContent = payload.total ? `${payload.total} 条公告` : "";
     renderAdminAnnouncements();
     elements.adminAnnouncementLoadStatus.hidden = true;
@@ -2701,7 +2790,7 @@ function renderAdminAnnouncements() {
           <td class="admin-table__ops">${ops.join("") || '<span class="admin-self">—</span>'}</td>
         </tr>`;
       }).join("")}</tbody>
-    </table>`;
+    </table>${adminPagerMarkup("announcements")}`;
 }
 
 function openAnnouncementForm(announcement) {
@@ -2777,15 +2866,16 @@ async function adminDeleteAnnouncement(target) {
 
 // —— 反馈工单 ——
 
-async function loadAdminFeedbacks() {
+async function loadAdminFeedbacks({ resetPage = false } = {}) {
   const search = elements.adminFeedbackSearch.value.trim();
   elements.adminFeedbackStatus.hidden = false;
   elements.adminFeedbackStatus.textContent = "正在加载反馈…";
   try {
-    const query = new URLSearchParams({ limit: "200", search });
+    const query = new URLSearchParams({ ...adminPageQuery("feedback", resetPage), search });
     if (elements.adminFeedbackFilter.value) query.set("status", elements.adminFeedbackFilter.value);
     const payload = await readApiResponse(await fetch(`/api/admin/feedbacks?${query}`, { cache: "no-store" }));
     adminFeedbacks = payload.feedbacks || [];
+    adminListPages.feedback.total = Number(payload.total) || 0;
     elements.adminFeedbackTotal.textContent = payload.total ? `${payload.total} 条反馈` : "";
     renderAdminFeedbacks();
     elements.adminFeedbackStatus.hidden = true;
@@ -2824,7 +2914,7 @@ function renderAdminFeedbacks() {
           </td>
         </tr>`;
       }).join("")}</tbody>
-    </table>`;
+    </table>${adminPagerMarkup("feedback")}`;
 }
 
 function openFeedbackDetail(feedback) {
@@ -3536,9 +3626,11 @@ function formatUptime(seconds) {
 
 // —— 告警与一键补救 ——
 
-async function loadAdminAlerts() {
+async function loadAdminAlerts({ resetPage = false } = {}) {
   try {
-    const payload = await readApiResponse(await fetch("/api/admin/alerts", { cache: "no-store" }));
+    const query = new URLSearchParams(adminPageQuery("alerts", resetPage));
+    const payload = await readApiResponse(await fetch(`/api/admin/alerts?${query}`, { cache: "no-store" }));
+    adminListPages.alerts.total = Number(payload.total) || 0;
     renderAdminAlerts(payload.alerts || []);
   } catch {
     elements.adminAlertList.innerHTML = '<p class="admin-empty">暂无告警。</p>';
@@ -3571,7 +3663,7 @@ function renderAdminAlerts(alerts) {
           <td class="admin-table__ops">${canWrite && !a.acknowledged ? `<button type="button" data-action="admin-ack-alert" data-alert-id="${escapeHtml(a.id)}">确认</button>` : '<span class="admin-self">—</span>'}</td>
         </tr>`;
       }).join("")}</tbody>
-    </table>`;
+    </table>${adminPagerMarkup("alerts")}`;
 }
 
 async function adminRetryFailed() {
@@ -7055,6 +7147,7 @@ document.addEventListener("change", async (event) => {
     const loaders = {
       users: loadAdminUsers,
       resumes: loadAdminDrafts,
+      exports: loadAdminExports,
       logs: loadAdminAiLogs,
       audit: loadAdminAuditLogs,
       recycle: loadAdminRecycle,
@@ -7062,7 +7155,7 @@ document.addEventListener("change", async (event) => {
       feedback: loadAdminFeedbacks,
       costs: loadAdminCosts
     };
-    loaders[filterEl.dataset.adminFilter]?.();
+    loaders[filterEl.dataset.adminFilter]?.({ resetPage: true });
     return;
   }
   if (event.target.id === "photoUpload") {
@@ -7246,40 +7339,65 @@ document.addEventListener("click", (event) => {
 document.addEventListener("click", (event) => {
   const tabButton = event.target.closest("[data-admin-tab]");
   if (tabButton) setAdminTab(tabButton.dataset.adminTab);
+  const pageButton = event.target.closest("[data-admin-page]");
+  if (pageButton && !pageButton.disabled) {
+    const kind = pageButton.dataset.adminPage;
+    const page = Number(pageButton.dataset.page);
+    const loaders = {
+      users: loadAdminUsers,
+      duplicates: loadAdminDuplicates,
+      resumes: loadAdminDrafts,
+      exports: loadAdminExports,
+      logs: loadAdminAiLogs,
+      audit: loadAdminAuditLogs,
+      recycle: loadAdminRecycle,
+      announcements: loadAdminAnnouncements,
+      feedback: loadAdminFeedbacks,
+      alerts: loadAdminAlerts
+    };
+    if (adminListPages[kind] && Number.isSafeInteger(page) && page > 0 && loaders[kind]) {
+      adminListPages[kind].page = page;
+      loaders[kind]();
+    }
+  }
 });
 
 elements.adminUserSearch.addEventListener("input", () => {
   clearTimeout(adminUserSearchTimer);
-  adminUserSearchTimer = setTimeout(() => loadAdminUsers(), 300);
+  adminUserSearchTimer = setTimeout(() => loadAdminUsers({ resetPage: true }), 300);
 });
 elements.adminResumeSearch.addEventListener("input", () => {
   clearTimeout(adminResumeSearchTimer);
-  adminResumeSearchTimer = setTimeout(() => loadAdminDrafts(), 300);
+  adminResumeSearchTimer = setTimeout(() => loadAdminDrafts({ resetPage: true }), 300);
+});
+elements.adminExportSearch.addEventListener("input", () => {
+  clearTimeout(adminExportSearchTimer);
+  adminExportSearchTimer = setTimeout(() => loadAdminExports({ resetPage: true }), 300);
 });
 
 elements.adminAiLogSearch.addEventListener("input", () => {
   clearTimeout(adminAiLogSearchTimer);
-  adminAiLogSearchTimer = setTimeout(() => loadAdminAiLogs(), 300);
+  adminAiLogSearchTimer = setTimeout(() => loadAdminAiLogs({ resetPage: true }), 300);
 });
 
 elements.adminAuditSearch.addEventListener("input", () => {
   clearTimeout(adminAuditSearchTimer);
-  adminAuditSearchTimer = setTimeout(() => loadAdminAuditLogs(), 300);
+  adminAuditSearchTimer = setTimeout(() => loadAdminAuditLogs({ resetPage: true }), 300);
 });
 
 elements.adminRecycleSearch.addEventListener("input", () => {
   clearTimeout(adminRecycleSearchTimer);
-  adminRecycleSearchTimer = setTimeout(() => loadAdminRecycle(), 300);
+  adminRecycleSearchTimer = setTimeout(() => loadAdminRecycle({ resetPage: true }), 300);
 });
 
 elements.adminAnnouncementSearch.addEventListener("input", () => {
   clearTimeout(adminAnnouncementSearchTimer);
-  adminAnnouncementSearchTimer = setTimeout(() => loadAdminAnnouncements(), 300);
+  adminAnnouncementSearchTimer = setTimeout(() => loadAdminAnnouncements({ resetPage: true }), 300);
 });
 
 elements.adminFeedbackSearch.addEventListener("input", () => {
   clearTimeout(adminFeedbackSearchTimer);
-  adminFeedbackSearchTimer = setTimeout(() => loadAdminFeedbacks(), 300);
+  adminFeedbackSearchTimer = setTimeout(() => loadAdminFeedbacks({ resetPage: true }), 300);
 });
 
 elements.adminTemplateSearch.addEventListener("input", () => {

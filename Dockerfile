@@ -1,3 +1,12 @@
+FROM node:22-bookworm-slim AS web-build
+
+WORKDIR /build
+COPY package.json package-lock.json ./
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+RUN npm ci --registry=${NPM_REGISTRY}
+COPY frontend ./frontend
+RUN npm run build:web
+
 FROM node:22-bookworm-slim
 
 WORKDIR /app
@@ -5,6 +14,7 @@ COPY package.json package-lock.json ./
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 RUN npm ci --omit=dev --registry=${NPM_REGISTRY}
 COPY . .
+COPY --from=web-build /build/public/assets/vue ./public/assets/vue
 
 # 非 root 运行：Linux 宿主使用 bind-mount 时需先 chown 到 10001（见 compose.yaml 注释）。
 RUN groupadd --gid 10001 app \

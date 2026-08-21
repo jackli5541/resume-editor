@@ -238,6 +238,7 @@
                 <button class="admin-tab is-active" type="button" data-admin-tab="users">用户管理</button>
                 <button class="admin-tab" type="button" data-admin-tab="duplicates">疑似多账号</button>
                 <button class="admin-tab" type="button" data-admin-tab="resumes">草稿管理</button>
+                <button class="admin-tab" type="button" data-admin-tab="exports">导出记录</button>
                 <button class="admin-tab" type="button" data-admin-tab="recycle">回收站</button>
               </div>
             </div>
@@ -318,6 +319,18 @@
           </div>
           <div id="adminResumeList" class="admin-table-wrap" aria-live="polite"></div>
           <p id="adminResumeStatus" class="library-status">正在加载草稿…</p>
+        </section>
+        <section class="admin-panel" data-admin-panel="exports" hidden>
+          <div class="admin-toolbar">
+            <input type="search" id="adminExportSearch" placeholder="搜索用户、姓名、草稿或模板" aria-label="搜索导出记录" />
+            <select id="adminExportFormat" data-admin-filter="exports" aria-label="筛选格式"><option value="">全部格式</option><option value="pdf">PDF</option><option value="docx">Word</option></select>
+            <select id="adminExportStatusFilter" data-admin-filter="exports" aria-label="筛选状态"><option value="">全部状态</option><option value="queued">等待中</option><option value="processing">处理中</option><option value="completed">成功</option><option value="failed">失败</option></select>
+            <input type="date" id="adminExportFrom" data-admin-filter="exports" aria-label="起始日期" />
+            <input type="date" id="adminExportTo" data-admin-filter="exports" aria-label="结束日期" />
+            <span id="adminExportTotal" class="section-count"></span>
+          </div>
+          <div id="adminExportList" class="admin-table-wrap" aria-live="polite"></div>
+          <p id="adminExportStatus" class="library-status">正在加载导出记录…</p>
         </section>
         <section class="admin-panel" data-admin-panel="ai" hidden>
           <form class="admin-form" id="adminAiForm" novalidate>
