@@ -9,7 +9,7 @@
     "dev:web": "vite --config frontend/vite.config.mjs",
     "build:web": "vite build --config frontend/vite.config.mjs",
     "check:web": "vite build --config frontend/vite.config.mjs",
-    "test": "node --test tests/*.test.mjs",
+    "test": "npm run build:web && node --test tests/*.test.mjs",
     "verify:export": "node scripts/verify-export.mjs",
     "install:browser": "playwright install chromium",
     "db:migrate": "node scripts/migrate.mjs",

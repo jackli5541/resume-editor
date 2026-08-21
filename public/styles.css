@@ -2109,6 +2109,27 @@ select:focus-visible,
   padding: 3px 0 2px;
 }
 
+/* Vue 预览根不引入额外的布局盒，保持所有模板既有的 DOM 排版关系。 */
+.vue-resume-preview-content {
+  display: contents;
+}
+
+.vue-editor-content {
+  display: contents;
+}
+
+.vue-ai-chat-content {
+  display: contents;
+}
+
+.vue-ai-result-preview {
+  display: contents;
+}
+
+.vue-login-content {
+  display: contents;
+}
+
 .objective-grid > div {
   display: inline-flex;
   align-items: baseline;

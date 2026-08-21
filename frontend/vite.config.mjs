@@ -6,6 +6,9 @@ const projectRoot = fileURLToPath(new URL("../", import.meta.url));
 export default defineConfig({
   root: projectRoot,
   publicDir: false,
+  define: {
+    "process.env.NODE_ENV": JSON.stringify("production")
+  },
   build: {
     emptyOutDir: true,
     lib: {

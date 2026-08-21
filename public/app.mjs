@@ -543,7 +543,8 @@ function applySettings() {
     fidelityRevision = null;
     fidelityResumeId = null;
     elements.fidelityPreview.dataset.templateKey = fidelityTemplateKey;
-    elements.fidelityPreview.innerHTML = supportsFidelity && resume.template?.previewUrl
+    if (window.__resumeVueFidelityPreview?.setPages) window.__resumeVueFidelityPreview.setPages(supportsFidelity && resume.template?.previewUrl ? [{ url: resume.template.previewUrl, alt: `${resume.template.name || "DOCX 模板"}原始版式预览` }] : []);
+    else elements.fidelityPreview.innerHTML = supportsFidelity && resume.template?.previewUrl
       ? `<img src="${escapeHtml(resume.template.previewUrl)}" alt="${escapeHtml(resume.template.name || "DOCX 模板")}原始版式预览" />`
       : "";
   }
@@ -573,14 +574,34 @@ function updateSettingOutputs() {
 }
 
 function renderTabs() {
+  const schemas = new Map(renderableSectionSchemas().map((value) => [value.id, value]));
+  const sections = activeSections();
+  if (window.__resumeVueModuleTabs?.setTabs) {
+    window.__resumeVueModuleTabs.setTabs({
+      activeModuleId,
+      sections: sections.map((section, index) => {
+        const definition = schemas.get(section.id);
+        const capabilities = definition?.capabilities || {
+          hide: true,
+          sort: definition?.sortable !== false,
+          editTitle: definition?.titleEditable !== false,
+          addItems: definition?.repeatable === true,
+          removeItems: definition?.repeatable === true
+        };
+        const previous = sections[index - 1];
+        const next = sections[index + 1];
+        return { ...section, zone: definition?.zone || "main", capabilities, canMoveUp: Boolean(previous && schemas.get(previous.id)?.zone === definition?.zone), canMoveDown: Boolean(next && schemas.get(next.id)?.zone === definition?.zone) };
+      })
+    });
+    renderAddModuleMenu();
+    return;
+  }
   const profileTab = `
     <button class="module-tab ${activeModuleId === "profile" ? "is-active" : ""}" type="button" data-action="select-module" data-module-id="profile">
       <span class="module-tab__status module-tab__status--always"></span>
       <strong>基本信息</strong>
     </button>`;
 
-  const schemas = new Map(renderableSectionSchemas().map((value) => [value.id, value]));
-  const sections = activeSections();
   const sectionTabs = sections.map((section, index) => {
     const definition = schemas.get(section.id);
     const capabilities = definition?.capabilities || {
@@ -626,7 +647,8 @@ function blankSection(definition) {
 function renderAddModuleMenu() {
   const available = visibleSectionSchemas().filter((section) => section.optional && !activatedOptionalIds().has(section.id));
   elements.addModuleButton.hidden = available.length === 0;
-  elements.addModuleMenu.innerHTML = available
+  if (window.__resumeVueAddModuleMenu?.setAvailable) window.__resumeVueAddModuleMenu.setAvailable(available);
+  else elements.addModuleMenu.innerHTML = available
     .map((section) => `<button type="button" class="module-add__item" data-action="add-module" data-module-id="${escapeHtml(section.id)}">${escapeHtml(section.title)}</button>`)
     .join("");
   elements.addModuleMenu.hidden = true;
@@ -660,7 +682,7 @@ function renderEditor() {
   const validIds = new Set(renderableSectionSchemas().map((section) => section.id));
   if (activeModuleId !== "profile" && !validIds.has(activeModuleId)) activeModuleId = "profile";
   if (activeModuleId === "profile") {
-    elements.editor.innerHTML = renderProfileEditor();
+    renderEditorMarkup(renderProfileEditor());
     return;
   }
   const section = sectionById(activeModuleId) || activeSections()[0];
@@ -668,11 +690,16 @@ function renderEditor() {
   activeModuleId = section.id;
   section.fields = resolveSectionFields(section);
   const definition = renderableSectionSchemas().find((value) => value.id === section.id);
-  if (definition?.type === "keyValues") elements.editor.innerHTML = renderObjectiveEditor(section, definition);
-  else if (definition?.type === "timeline") elements.editor.innerHTML = renderTimelineEditor(section, definition);
-  else if (["list", "levels"].includes(definition?.type)) elements.editor.innerHTML = renderListEditor(section, definition);
-  else if (definition?.type === "tags") elements.editor.innerHTML = renderTagsEditor(section);
-  else elements.editor.innerHTML = renderRichEditor(section, definition);
+  if (definition?.type === "keyValues") renderEditorMarkup(renderObjectiveEditor(section, definition));
+  else if (definition?.type === "timeline") renderEditorMarkup(renderTimelineEditor(section, definition));
+  else if (["list", "levels"].includes(definition?.type)) renderEditorMarkup(renderListEditor(section, definition));
+  else if (definition?.type === "tags") renderEditorMarkup(renderTagsEditor(section));
+  else renderEditorMarkup(renderRichEditor(section, definition));
+}
+
+function renderEditorMarkup(markup) {
+  if (window.__resumeVueEditorContent?.setMarkup) window.__resumeVueEditorContent.setMarkup(markup);
+  else elements.editor.innerHTML = markup;
 }
 
 function field(label, value, scope, key, options = {}) {
@@ -997,10 +1024,18 @@ function renderPreview() {
   // 合帧渲染：同一帧内的多次输入/编辑只重建一次预览，避免大 DOM 重建抖动。
   cancelAnimationFrame(previewFrame);
   previewFrame = requestAnimationFrame(() => {
-    elements.flow.innerHTML = renderResumeMarkup(resume);
+    const markup = renderResumeMarkup(resume);
     elements.flow.style.fontSize = `${resume.settings.fontSize}px`;
-    decoratePreviewModuleDragging();
-    schedulePagination();
+    if (window.__resumeVuePreview?.setMarkup) {
+      window.__resumeVuePreview.setMarkup(markup, () => {
+        decoratePreviewModuleDragging();
+        schedulePagination();
+      });
+    } else {
+      elements.flow.innerHTML = markup;
+      decoratePreviewModuleDragging();
+      schedulePagination();
+    }
   });
 }
 
@@ -1100,7 +1135,8 @@ function updatePagination() {
   currentPages = pageCountForHeight(measured);
   elements.paper.style.height = `${currentPages * PAGE_HEIGHT}px`;
   document.querySelector("#previewStage").style.setProperty("--preview-height", `${currentPages * PAGE_HEIGHT}px`);
-  elements.markers.innerHTML = Array.from({ length: currentPages - 1 }, (_, index) => `
+  if (window.__resumeVuePageMarkers?.setPages) window.__resumeVuePageMarkers.setPages(currentPages, PAGE_HEIGHT);
+  else elements.markers.innerHTML = Array.from({ length: currentPages - 1 }, (_, index) => `
     <div class="page-marker" style="top:${(index + 1) * PAGE_HEIGHT - 1}px">
       <span>第 ${index + 1} 页</span><i></i><span>第 ${index + 2} 页</span>
     </div>`).join("");
@@ -1228,7 +1264,8 @@ async function refreshFidelityPreview(requestKey) {
     }
     if (requestId !== fidelityRequest || requestKey !== `${resume.remoteId}:${resume.remoteRevision}`) return;
     if (job.status !== "completed") throw new Error(job.error || "成品预览生成超时");
-    elements.fidelityPreview.innerHTML = job.pages.map((url, index) =>
+    if (window.__resumeVueFidelityPreview?.setPages) window.__resumeVueFidelityPreview.setPages(job.pages.map((url, index) => ({ url, alt: `成品预览第 ${index + 1} 页` })));
+    else elements.fidelityPreview.innerHTML = job.pages.map((url, index) =>
       `<img src="${escapeHtml(url)}" alt="成品预览第 ${index + 1} 页" loading="${index ? "lazy" : "eager"}" />`
     ).join("");
     document.querySelector("#previewStage").style.setProperty("--preview-height", `${job.pageCount * PAGE_HEIGHT}px`);
@@ -1877,6 +1914,16 @@ function openSettings() {
     return;
   }
   closeAllAccountMenus();
+  if (window.__resumeVueSettings?.open) {
+    window.__resumeVueSettings.open(currentUser, {
+      onUserChange(user) {
+        currentUser = user;
+        updateAccountUi();
+      },
+      onToast: showToast
+    });
+    return;
+  }
   const settings = currentUser.settings || {};
   const ai = settings.ai || {};
   elements.settingsName.value = currentUser.displayName || "";
@@ -1894,6 +1941,10 @@ function openSettings() {
 }
 
 function closeSettings() {
+  if (window.__resumeVueSettings?.close) {
+    window.__resumeVueSettings.close();
+    return;
+  }
   elements.settingsOverlay.hidden = true;
   elements.settingsError.hidden = true;
   elements.passwordError.hidden = true;
@@ -2095,6 +2146,10 @@ function adminPageQuery(kind, resetPage) {
 }
 
 async function loadAdminUsers({ resetPage = false } = {}) {
+  if (window.__resumeVueAdminUsers?.load) {
+    await window.__resumeVueAdminUsers.load({ resetPage });
+    return;
+  }
   const search = elements.adminUserSearch.value.trim();
   elements.adminUserStatus.hidden = false;
   elements.adminUserStatus.textContent = "正在加载用户…";
@@ -2178,6 +2233,10 @@ function renderAdminUsers() {
 // —— 疑似同人多账号（只读复核，不提供封禁操作） ——
 
 async function loadAdminDuplicates({ resetPage = false } = {}) {
+  if (window.__resumeVueAdminDuplicates?.load) {
+    await window.__resumeVueAdminDuplicates.load({ resetPage });
+    return;
+  }
   elements.adminDuplicatesStatus.hidden = false;
   elements.adminDuplicatesStatus.textContent = "正在加载疑似多账号…";
   try {
@@ -2227,6 +2286,10 @@ function renderAdminDuplicates(groups) {
 }
 
 async function loadAdminDrafts({ resetPage = false } = {}) {
+  if (window.__resumeVueAdminResumes?.load) {
+    await window.__resumeVueAdminResumes.load({ resetPage });
+    return;
+  }
   const search = elements.adminResumeSearch.value.trim();
   elements.adminResumeStatus.hidden = false;
   elements.adminResumeStatus.textContent = "正在加载草稿…";
@@ -2272,6 +2335,10 @@ function renderAdminDrafts() {
 }
 
 async function loadAdminExports({ resetPage = false } = {}) {
+  if (window.__resumeVueAdminExports?.load) {
+    await window.__resumeVueAdminExports.load({ resetPage });
+    return;
+  }
   elements.adminExportStatus.hidden = false;
   elements.adminExportStatus.textContent = "正在加载导出记录…";
   try {
@@ -2319,6 +2386,10 @@ function renderAdminExports() {
 }
 
 async function loadAdminOverview() {
+  if (window.__resumeVueAdminOverview?.load) {
+    await window.__resumeVueAdminOverview.load();
+    return;
+  }
   try {
     const stats = await readApiResponse(await fetch("/api/admin/overview", { cache: "no-store" }));
     renderAdminOverview(stats);
@@ -2401,7 +2472,11 @@ async function loadAdminAiLogs({ resetPage = false } = {}) {
     adminAiLogs = payload.logs || [];
     adminListPages.logs.total = Number(payload.total) || 0;
     elements.adminAiLogTotal.textContent = payload.total ? `${payload.total} 条记录` : "";
-    renderAdminAiLogs();
+    if (window.__resumeVueAdminAiLogs?.setLogs) {
+      window.__resumeVueAdminAiLogs.setLogs(adminAiLogs, adminListPages.logs.page, adminListPages.logs.total, ADMIN_PAGE_SIZE);
+    } else {
+      renderAdminAiLogs();
+    }
     elements.adminAiLogStatus.hidden = true;
   } catch (error) {
     elements.adminAiLogStatus.textContent = error?.message || "加载 AI 调用记录失败";
@@ -2586,7 +2661,8 @@ async function loadAdminAuditLogs({ resetPage = false } = {}) {
     adminAuditLogs = payload.logs || [];
     adminListPages.audit.total = Number(payload.total) || 0;
     elements.adminAuditTotal.textContent = payload.total ? `${payload.total} 条记录` : "";
-    renderAdminAuditLogs();
+    if (window.__resumeVueAdminAuditLogs?.setLogs) window.__resumeVueAdminAuditLogs.setLogs(adminAuditLogs, adminListPages.audit.page, adminListPages.audit.total, ADMIN_PAGE_SIZE);
+    else renderAdminAuditLogs();
     elements.adminAuditStatus.hidden = true;
   } catch (error) {
     elements.adminAuditStatus.textContent = error?.message || "加载审计记录失败";
@@ -2628,8 +2704,11 @@ async function loadAdminRecycle({ resetPage = false } = {}) {
     adminRecycle = { users: payload.users || [], resumes: payload.resumes || [] };
     adminListPages.recycle.total = Math.max(Number(payload.userTotal) || 0, Number(payload.resumeTotal) || 0);
     elements.adminRecycleTotal.textContent = `${Number(payload.userTotal ?? 0)} 位用户 · ${Number(payload.resumeTotal ?? 0)} 份草稿`;
-    renderAdminRecycleUsers();
-    renderAdminRecycleResumes();
+    const permissions = { restore: hasAdminPermission("recycle.restore"), purge: hasAdminPermission("recycle.purge") };
+    if (window.__resumeVueAdminRecycleUsers?.setItems) window.__resumeVueAdminRecycleUsers.setItems(adminRecycle.users, permissions);
+    else renderAdminRecycleUsers();
+    if (window.__resumeVueAdminRecycleResumes?.setItems) window.__resumeVueAdminRecycleResumes.setItems(adminRecycle.resumes, permissions, adminListPages.recycle.page, adminListPages.recycle.total, ADMIN_PAGE_SIZE);
+    else renderAdminRecycleResumes();
     elements.adminRecycleStatus.hidden = true;
   } catch (error) {
     elements.adminRecycleStatus.textContent = error?.message || "加载回收站失败";
@@ -2742,6 +2821,10 @@ async function adminPurgeResume(target) {
 // —— 公告管理 ——
 
 async function loadAdminAnnouncements({ resetPage = false } = {}) {
+  if (window.__resumeVueAdminAnnouncements?.load) {
+    await window.__resumeVueAdminAnnouncements.load({ resetPage });
+    return;
+  }
   const search = elements.adminAnnouncementSearch.value.trim();
   elements.adminAnnouncementLoadStatus.hidden = false;
   elements.adminAnnouncementLoadStatus.textContent = "正在加载公告…";
@@ -2867,6 +2950,10 @@ async function adminDeleteAnnouncement(target) {
 // —— 反馈工单 ——
 
 async function loadAdminFeedbacks({ resetPage = false } = {}) {
+  if (window.__resumeVueAdminFeedback?.load) {
+    await window.__resumeVueAdminFeedback.load({ resetPage });
+    return;
+  }
   const search = elements.adminFeedbackSearch.value.trim();
   elements.adminFeedbackStatus.hidden = false;
   elements.adminFeedbackStatus.textContent = "正在加载反馈…";
@@ -3012,6 +3099,11 @@ function populateAdminTemplateFilters() {
 
 function renderAdminTemplates() {
   const canWrite = hasAdminPermission("templates.write");
+  if (window.__resumeVueAdminTemplates?.setTemplates) {
+    window.__resumeVueAdminTemplates.setTemplates(adminTemplates, { selected: [...adminTemplateSelection], canWrite });
+    renderAdminTemplateBulkBar();
+    return;
+  }
   if (!adminTemplates.length) {
     elements.adminTemplateList.innerHTML = '<p class="admin-empty">暂无模板。</p>';
     renderAdminTemplateBulkBar();
@@ -3118,6 +3210,10 @@ async function adminTemplateStatus(target) {
 // —— AI 成本 ——
 
 async function loadAdminCosts() {
+  if (window.__resumeVueAdminCosts?.load) {
+    await window.__resumeVueAdminCosts.load();
+    return;
+  }
   elements.adminCostStatus.hidden = false;
   elements.adminCostStatus.textContent = "正在加载 AI 成本…";
   try {
@@ -3207,12 +3303,20 @@ function openFeedback() {
     return;
   }
   closeAllAccountMenus();
+  if (window.__resumeVueFeedback?.open) {
+    window.__resumeVueFeedback.open({ onToast: showToast });
+    return;
+  }
   elements.feedbackError.hidden = true;
   elements.feedbackContent.value = "";
   elements.feedbackOverlay.hidden = false;
 }
 
 function closeFeedback() {
+  if (window.__resumeVueFeedback?.close) {
+    window.__resumeVueFeedback.close();
+    return;
+  }
   elements.feedbackOverlay.hidden = true;
 }
 
@@ -3247,11 +3351,19 @@ function openMessages() {
     return;
   }
   closeAllAccountMenus();
+  if (window.__resumeVueMessages?.open) {
+    window.__resumeVueMessages.open({ onUnreadChange: refreshUnreadCount });
+    return;
+  }
   elements.messagesOverlay.hidden = false;
   loadMessages();
 }
 
 function closeMessages() {
+  if (window.__resumeVueMessages?.close) {
+    window.__resumeVueMessages.close();
+    return;
+  }
   elements.messagesOverlay.hidden = true;
 }
 
@@ -3424,6 +3536,10 @@ async function loadAdminAuthStatus() {
     const badge = (configured, offText = "未配置（开发模式）") => configured
       ? '<span class="auth-status-badge is-on">已配置</span>'
       : `<span class="auth-status-badge is-off">${offText}</span>`;
+    if (window.__resumeVueAdminAuth?.setStatus) {
+      window.__resumeVueAdminAuth.setStatus(payload);
+      return;
+    }
     elements.adminAuthStatus.innerHTML = `
       <span class="admin-auth-status__label">认证渠道状态</span>
       <span class="admin-auth-status__item">人机验证（阿里云验证码）：${payload.captchaEnabled ? "开启" : "关闭"} · 密钥 ${badge(payload.captchaConfigured, "未配置密钥")}</span>
@@ -3431,7 +3547,8 @@ async function loadAdminAuthStatus() {
       <span class="admin-auth-status__item">手机验证码登录：${payload.phoneCodeLoginEnabled ? "开启" : "关闭"} · 通道 ${badge(payload.phoneConfigured)}</span>
       <small>开关在「运行配置」中设置；密钥在「认证配置」中填写（加密落库，优先于环境变量）。</small>`;
   } catch {
-    elements.adminAuthStatus.innerHTML = "";
+    if (window.__resumeVueAdminAuth?.setStatus) window.__resumeVueAdminAuth.setStatus(null);
+    else elements.adminAuthStatus.innerHTML = "";
   }
 }
 
@@ -3453,6 +3570,13 @@ const AUTH_SECRET_FIELDS = [
 ];
 
 function renderAdminAuthSecrets(secrets) {
+  const vueCanWrite = hasAdminPermission("config.write");
+  if (window.__resumeVueAdminAuth?.setSecrets) {
+    window.__resumeVueAdminAuth.setSecrets(secrets, { canWrite: vueCanWrite });
+    const submit = elements.adminAuthSecretForm.querySelector("button[type='submit']");
+    if (submit) submit.disabled = !vueCanWrite;
+    return;
+  }
   const groups = {};
   for (const field of AUTH_SECRET_FIELDS) {
     (groups[field.group] ||= []).push(field);
@@ -3525,6 +3649,12 @@ async function clearAdminSecret(target) {
 function renderAdminConfig(schema, values) {
   adminConfigSchema = schema;
   const canWrite = hasAdminPermission("config.write");
+  if (window.__resumeVueAdminConfig?.setFields) {
+    window.__resumeVueAdminConfig.setFields(schema, values, { canWrite });
+    const submit = elements.adminConfigForm.querySelector("button[type='submit']");
+    if (submit) submit.disabled = !canWrite;
+    return;
+  }
   const groupLabels = { ai: "AI 用户功能", engagement: "反馈与赞赏", access: "账号与访问", document: "文档与预览", system: "系统运行" };
   const groupOrder = ["ai", "engagement", "access", "document", "system"];
   const groups = {};
@@ -3578,7 +3708,10 @@ async function loadAdminSystem() {
   elements.adminSystemStatus.textContent = "正在加载运维状态…";
   try {
     const payload = await readApiResponse(await fetch("/api/admin/system", { cache: "no-store" }));
-    renderAdminSystem(payload);
+    if (window.__resumeVueAdminSystem?.setStats && window.__resumeVueAdminSystem?.setDetail) {
+      window.__resumeVueAdminSystem.setStats(payload);
+      window.__resumeVueAdminSystem.setDetail(payload);
+    } else renderAdminSystem(payload);
     elements.adminSystemStatus.hidden = true;
   } catch (error) {
     elements.adminSystemStatus.textContent = error?.message || "加载运维状态失败";
@@ -3631,9 +3764,17 @@ async function loadAdminAlerts({ resetPage = false } = {}) {
     const query = new URLSearchParams(adminPageQuery("alerts", resetPage));
     const payload = await readApiResponse(await fetch(`/api/admin/alerts?${query}`, { cache: "no-store" }));
     adminListPages.alerts.total = Number(payload.total) || 0;
-    renderAdminAlerts(payload.alerts || []);
+    if (window.__resumeVueAdminAlerts?.setAlerts) {
+      window.__resumeVueAdminAlerts.setAlerts(payload.alerts || [], {
+        canWrite: hasAdminPermission("system.write"),
+        page: adminListPages.alerts.page,
+        total: adminListPages.alerts.total,
+        pageSize: adminListPages.alerts.pageSize
+      });
+    } else renderAdminAlerts(payload.alerts || []);
   } catch {
-    elements.adminAlertList.innerHTML = '<p class="admin-empty">暂无告警。</p>';
+    if (window.__resumeVueAdminAlerts?.setAlerts) window.__resumeVueAdminAlerts.setAlerts([]);
+    else elements.adminAlertList.innerHTML = '<p class="admin-empty">暂无告警。</p>';
   }
 }
 
@@ -3798,6 +3939,17 @@ function aiTemplateRef() {
   };
 }
 
+const ADMIN_AI_ELEMENT_KEYS = ["adminAiForm", "adminAiEnabled", "adminAiOptimizeEnabled", "adminAiTargetAgentEnabled", "adminAiBaseUrl", "adminAiModel", "adminAiTemperature", "adminAiMaxInput", "adminAiMaxOutput", "adminAiTimeout", "adminAiSystemPrompt", "adminAiApiKey", "adminAiKeyHint", "adminAiStatus"];
+
+function bindAdminAiControls() {
+  for (const key of ADMIN_AI_ELEMENT_KEYS) elements[key] = document.querySelector(`#${key}`);
+  if (!elements.adminAiForm || elements.adminAiForm.dataset.vueBound === "true") return;
+  elements.adminAiForm.dataset.vueBound = "true";
+  elements.adminAiForm.addEventListener("submit", saveAdminAiConfig);
+}
+
+window.__resumeVueAdminAiConfigMounted = bindAdminAiControls;
+
 async function handlePasswordSubmit(event) {
   event.preventDefault();
   elements.passwordError.hidden = true;
@@ -3831,7 +3983,9 @@ async function loadAdminSupportImages() {
     const payload = await readApiResponse(await fetch("/api/admin/support-images", { cache: "no-store" }));
     const images = payload.images || [];
     const canWrite = hasAdminPermission("config.write");
-    elements.adminSupportImages.innerHTML = images.length ? images.map((item, index) => `
+    if (window.__resumeVueAdminSupportImages?.setImages) {
+      window.__resumeVueAdminSupportImages.setImages(images, { canWrite });
+    } else elements.adminSupportImages.innerHTML = images.length ? images.map((item, index) => `
       <article class="admin-support-image" data-support-id="${escapeHtml(item.id)}" data-sort-order="${item.sortOrder}">
         <img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.label)}" loading="lazy" />
         <input type="text" value="${escapeHtml(item.label)}" maxlength="30" aria-label="赞赏码名称" ${canWrite ? "" : "disabled"} />
@@ -3913,6 +4067,13 @@ const AI_JOB_STAGE_LABELS = {
 function renderAiGuide() {
   const stepIndex = { role: 1, stage: 2, jobDescription: 3 }[aiGuideStep] || 1;
   elements.aiGuideProgress.style.width = `${stepIndex / 3 * 100}%`;
+  if (window.__resumeVueAiGuideCard?.setGuide) {
+    window.__resumeVueAiGuideCard.setGuide(aiGuideStep, aiJobContext);
+    elements.aiGuideCard.classList.remove("is-entering");
+    requestAnimationFrame(() => elements.aiGuideCard.classList.add("is-entering"));
+    elements.aiGuideCard.querySelector("input")?.focus();
+    return;
+  }
   let content = "";
   if (aiGuideStep === "role") {
     content = `<div class="ai-guide-question"><span class="ai-guide-avatar">AI</span><div><span class="eyebrow">第 1 个问题</span><h2>你准备投递什么岗位？</h2><p>我会根据目标岗位决定简历应当突出哪些经历。</p></div></div>
@@ -3956,7 +4117,8 @@ function renderAiContextSummary() {
     : aiJobContext.jobStage === "graduate" ? ["教育与项目成果", "岗位相关技能"]
     : aiJobContext.jobStage === "career_switch" ? ["可迁移能力", "与目标岗位相关的成果"]
     : ["岗位相关经历", "职责、行动与成果"];
-  elements.aiContextSummary.innerHTML = `<dl class="ai-context-list"><div><dt>目标岗位</dt><dd>${escapeHtml(role)}</dd></div><div><dt>求职阶段</dt><dd>${escapeHtml(stage)}</dd></div><div><dt>职位描述</dt><dd>${escapeHtml(jd)}</dd></div></dl><div class="ai-context-focus"><strong>本次生成将重点突出</strong><ul>${focus.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
+  if (window.__resumeVueAiContextSummary?.setContext) window.__resumeVueAiContextSummary.setContext(aiJobContext);
+  else elements.aiContextSummary.innerHTML = `<dl class="ai-context-list"><div><dt>目标岗位</dt><dd>${escapeHtml(role)}</dd></div><div><dt>求职阶段</dt><dd>${escapeHtml(stage)}</dd></div><div><dt>职位描述</dt><dd>${escapeHtml(jd)}</dd></div></dl><div class="ai-context-focus"><strong>本次生成将重点突出</strong><ul>${focus.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
   elements.aiDescriptionHint.textContent = aiDescriptionHint();
   elements.aiGenerateButton.textContent = aiJobContext.targetRole ? "根据求职目标生成简历" : "生成通用简历";
 }
@@ -4402,7 +4564,8 @@ function requestedOptimizeMode() {
 function renderOptimizeDrafts() {
   if (!elements.optimizeDraftList) return;
   elements.optimizeDraftEmpty.hidden = availableDrafts.length > 0;
-  elements.optimizeDraftList.innerHTML = availableDrafts.map((draft) => `<button type="button" class="optimize-draft-item" data-action="optimize-open-draft" data-resume-id="${escapeHtml(draft.id)}"><span><strong>${escapeHtml(draft.candidateName)}</strong><small>${escapeHtml(draft.title)}</small></span><span>${escapeHtml(draft.templateName)} →</span></button>`).join("");
+  if (window.__resumeVueOptimizeDraftList?.setItems) window.__resumeVueOptimizeDraftList.setItems(availableDrafts);
+  else elements.optimizeDraftList.innerHTML = availableDrafts.map((draft) => `<button type="button" class="optimize-draft-item" data-action="optimize-open-draft" data-resume-id="${escapeHtml(draft.id)}"><span><strong>${escapeHtml(draft.candidateName)}</strong><small>${escapeHtml(draft.title)}</small></span><span>${escapeHtml(draft.templateName)} →</span></button>`).join("");
 }
 
 async function showAiOptimizePage() {
@@ -4458,6 +4621,10 @@ async function importWordForOptimization(file) {
 function renderTranslateTemplates() {
   const templates = availableTemplates.filter((template) => template.selectable === true);
   const ordered = [...templates].sort((a, b) => Number(b.slug === "clean-single") - Number(a.slug === "clean-single"));
+  if (window.__resumeVueTranslateTemplateList?.setItems) {
+    window.__resumeVueTranslateTemplateList.setItems(ordered);
+    return;
+  }
   elements.translateTemplateList.innerHTML = ordered.map((template) => {
     const recommended = template.slug === "clean-single";
     const preview = template.previewUrl ? `<img src="${escapeHtml(template.previewUrl)}" alt="${escapeHtml(template.name)}模板预览" />` : "";
@@ -4495,6 +4662,10 @@ function showAiTranslatePage() {
 function renderAiGenerateTemplates() {
   const templates = availableTemplates.filter((template) => template.selectable === true);
   const ordered = [...templates].sort((a, b) => Number(b.slug === "clean-single") - Number(a.slug === "clean-single"));
+  if (window.__resumeVueAiGenerateTemplateList?.setItems) {
+    window.__resumeVueAiGenerateTemplateList.setItems(ordered);
+    return;
+  }
   elements.aiGenerateTemplateList.innerHTML = ordered.map((template) => {
     const recommended = template.slug === "clean-single";
     const preview = template.previewUrl ? `<img src="${escapeHtml(template.previewUrl)}" alt="${escapeHtml(template.name)}模板预览" />` : "";
@@ -4562,6 +4733,10 @@ async function translateWithTemplate(button) {
 
 function renderAiNotices() {
   if (!aiResult) return;
+  if (window.__resumeVueAiResultNotices?.setNotices) {
+    window.__resumeVueAiResultNotices.setNotices({ uncertain: aiResult.uncertain, notices: aiResult.notices });
+    return;
+  }
   const parts = [];
   if (aiResult.uncertain?.length) {
     parts.push(`<div class="ai-notice ai-notice--warn"><strong>以下字段 AI 无法确认，请保存前核对：</strong>${aiResult.uncertain.map((field) => `<code>${escapeHtml(field)}</code>`).join("、")}</div>`);
@@ -4587,7 +4762,9 @@ function renderAiPreview() {
   };
   applyResumeSettings(elements.aiPreviewPaper, aiResult.resume.settings);
   applyResumeTemplate(elements.aiPreviewPaper, aiResult.resume.template);
-  elements.aiPreviewFlow.innerHTML = renderResumeMarkup(aiResult.resume);
+  const markup = renderResumeMarkup(aiResult.resume);
+  if (window.__resumeVueAiResultPreview?.setMarkup) window.__resumeVueAiResultPreview.setMarkup(markup);
+  else elements.aiPreviewFlow.innerHTML = markup;
 }
 
 // —— Word 简历导入：懒加载 mammoth → docx 纯文本 → 回填描述框 ——
@@ -4726,6 +4903,16 @@ function aiProjectFieldValue(index, fieldName) {
 
 function renderAiProjectReview() {
   const projects = aiProjectItems();
+  if (window.__resumeVueAiProjectReview?.setProjects) {
+    elements.aiProjectReview.hidden = !projects.length;
+    window.__resumeVueAiProjectReview.setProjects(projects.map((project, index) => ({
+      organization: project.organization, role: project.role, start: project.start, end: project.end,
+      techStack: projectTechStack(project.content), source: aiResult?.projectReview?.[index]?.sourceText || "",
+      uncertain: { any: aiProjectUncertainFields(index).any, fields: [...aiProjectUncertainFields(index).fields] }
+    })));
+    setAiProjectReviewState(!projects.length);
+    return;
+  }
   if (!projects.length) {
     elements.aiProjectReview.hidden = true;
     elements.aiProjectReview.innerHTML = "";
@@ -5045,6 +5232,13 @@ const AI_SECTION_LABELS = {
 
 function renderAiModuleReview() {
   const mappings = Array.isArray(aiResult?.moduleMappings) ? aiResult.moduleMappings : [];
+  if (window.__resumeVueAiModuleReview?.setMappings) {
+    elements.aiModuleReview.hidden = !mappings.length;
+    window.__resumeVueAiModuleReview.setMappings(mappings);
+    aiModuleReviewConfirmed = !mappings.length;
+    updateAiReviewGate();
+    return;
+  }
   if (!mappings.length) {
     elements.aiModuleReview.hidden = true;
     elements.aiModuleReview.innerHTML = "";
@@ -5282,6 +5476,11 @@ function renderTargetPlan(diagnosis) {
 }
 
 function resetTargetWorkspace() {
+  if (window.__resumeVueAiTargetWorkspace?.setState) {
+    window.__resumeVueAiTargetWorkspace.setState({ diagnosis: null, jobDescription: "", status: "" });
+    bindTargetControls();
+    return;
+  }
   elements.aiTargetBody.innerHTML = `
     <p class="ai-chat__hint">使用当前简历，或上传 DOCX 创建一份采用“极简轻”模板的新草稿。Agent 会先诊断并给出计划，确认后逐模块修改。</p>
     <button type="button" class="ai-target__upload" data-action="target-upload">上传 DOCX 并替换当前工作草稿</button>
@@ -5293,9 +5492,32 @@ function resetTargetWorkspace() {
   elements.targetDiagnoseButton = document.querySelector("#targetDiagnoseButton");
 }
 
+function bindTargetControls() {
+  elements.targetWordFile = document.querySelector("#targetWordFile");
+  elements.targetJobDescription = document.querySelector("#targetJobDescription");
+  elements.targetDiagnoseButton = document.querySelector("#targetDiagnoseButton");
+}
+
+window.__resumeVueAiTargetWorkspaceMounted = bindTargetControls;
+
 function renderTargetDiagnosis() {
   const diagnosis = targetState.diagnosis;
   if (!diagnosis) return;
+  if (window.__resumeVueAiTargetWorkspace?.setState) {
+    const pending = targetPending ? {
+      title: targetPending.item?.title,
+      summary: targetPending.proposal?.summary,
+      changes: targetPending.proposal?.changes?.map((change, index) => ({
+        label: aiChangeTargetLabel(change),
+        before: change.op === "set" ? aiChangeBeforeText(change) : undefined,
+        after: change.op === "set" ? plainText(change.after) : (change.op === "remove" ? "将删除该内容" : "将新增或调整该内容"),
+        accepted: targetPending.selection?.[index] !== false
+      }))
+    } : null;
+    window.__resumeVueAiTargetWorkspace.setState({ diagnosis, jobDescription: targetState.jobDescription, status: targetState.status, pending });
+    bindTargetControls();
+    return;
+  }
   const score = (label, value) => `<div class="target-score"><strong>${value}</strong><span>${label}</span></div>`;
   elements.aiTargetBody.innerHTML = `
     <div class="target-head"><span class="eyebrow">TARGET ROLE</span><h3>${escapeHtml(diagnosis.target?.role || "目标岗位")}</h3><p>${escapeHtml(diagnosis.summary || "已完成岗位诊断")}</p></div>
@@ -5337,6 +5559,7 @@ async function executeTargetPlan(index, button) {
     }
     targetPending = { proposal, item, index, selection: createProposalSelection(proposal.changes) };
     renderTargetDiagnosis();
+    if (window.__resumeVueAiTargetWorkspace?.setState) return;
     const card = document.createElement("div");
     card.className = "target-pending";
     card.innerHTML = `<strong>修改预览 · ${escapeHtml(item.title)}</strong><p>${escapeHtml(proposal.summary || "请逐项确认后应用")}</p>${proposal.changes.map((change, changeIndex) => `<div class="target-pending__change" data-proposal-change="${changeIndex}"><small>${escapeHtml(aiChangeTargetLabel(change))}</small>${change.op === "set" ? `<del>${escapeHtml(aiChangeBeforeText(change) || "（空）")}</del><ins>${escapeHtml(plainText(change.after) || "（空）")}</ins>` : `<ins>${escapeHtml(change.op === "remove" ? "将删除该内容" : "将新增或调整该内容")}</ins>`}<span class="proposal-decision"><button type="button" class="is-selected" data-action="target-decide-change" data-change-index="${changeIndex}" data-accepted="true">接受</button><button type="button" data-action="target-decide-change" data-change-index="${changeIndex}" data-accepted="false">拒绝</button></span></div>`).join("")}<footer><button type="button" data-action="target-reject-all">全部拒绝</button><button type="button" data-action="target-apply-change">应用已接受项</button></footer>`;
@@ -5377,6 +5600,7 @@ function decideTargetPending(index, accepted, button) {
   const change = button.closest("[data-proposal-change]");
   change?.classList.toggle("is-rejected", !accepted);
   change?.querySelectorAll(".proposal-decision button").forEach((item) => item.classList.toggle("is-selected", item.dataset.accepted === String(accepted)));
+  if (window.__resumeVueAiTargetWorkspace?.setState) renderTargetDiagnosis();
 }
 
 async function rejectTargetPlanItem() {
@@ -5613,9 +5837,22 @@ function setAiChatOpen(open) {
 }
 
 function ensureAiChatHint() {
-  if (!elements.aiChatBody.children.length) {
-    elements.aiChatBody.innerHTML = '<p class="ai-chat__hint">描述你想怎么改这份简历，AI 会先给你一份修改方案，确认后才应用。例如：把工作经历写得更量化、新增一条项目经历、删除第二条教育经历。</p>';
+  if (window.__resumeVueAiChatContent?.ensureHint) {
+    window.__resumeVueAiChatContent.ensureHint();
+    return;
   }
+  const content = aiChatContent();
+  if (!content.children.length) {
+    content.innerHTML = '<p class="ai-chat__hint">描述你想怎么改这份简历，AI 会先给你一份修改方案，确认后才应用。例如：把工作经历写得更量化、新增一条项目经历、删除第二条教育经历。</p>';
+  }
+}
+
+function aiChatContent() {
+  return window.__resumeVueAiChatContent?.getContent?.() || elements.aiChatBody;
+}
+
+function scrollAiChatToEnd() {
+  elements.aiChatBody.scrollTop = elements.aiChatBody.scrollHeight;
 }
 
 function toggleAiChat() {
@@ -5703,15 +5940,24 @@ function toggleAiChatVoice() {
 }
 
 function appendAiMessage(kind, text) {
+  if (window.__resumeVueAiChatContent?.appendMessage) {
+    window.__resumeVueAiChatContent.appendMessage(kind, text);
+    requestAnimationFrame(scrollAiChatToEnd);
+    return;
+  }
   const msg = document.createElement("div");
   msg.className = `ai-msg ai-msg--${kind}`;
   msg.textContent = text;
-  elements.aiChatBody.appendChild(msg);
-  elements.aiChatBody.scrollTop = elements.aiChatBody.scrollHeight;
+  aiChatContent().appendChild(msg);
+  scrollAiChatToEnd();
 }
 
 function clearAiChat() {
-  elements.aiChatBody.innerHTML = "";
+  if (window.__resumeVueAiChatContent?.clear) {
+    window.__resumeVueAiChatContent.clear();
+    return;
+  }
+  aiChatContent().innerHTML = "";
 }
 
 function syncAiDockLayout(open = elements.aiChatPanel.classList.contains("is-open")) {
@@ -5770,6 +6016,17 @@ function resetAiOptimizeConversation() {
 }
 
 function renderAiProposal(proposal) {
+  if (window.__resumeVueAiChatContent?.showProposal) {
+    const opText = { set: "改", add: "增", remove: "删", addModule: "加模块", removeModule: "删模块" };
+    const changes = (proposal.changes || []).map((change) => {
+      const section = sectionById(change.sectionId);
+      const after = change.op === "set" ? plainText(change.after) : change.op === "add" ? Object.entries(change.item || {}).filter(([, value]) => String(value).trim()).map(([key, value]) => `${aiFieldLabel(section, key)}：${plainText(value)}`).join("；") : change.op === "remove" || change.op === "removeModule" ? "删除或隐藏该内容" : "启用该模块（当前未显示）";
+      return { target: aiChangeTargetLabel(change), op: change.op, opLabel: opText[change.op], before: change.op === "set" || change.op === "remove" ? aiChangeBeforeText(change) : undefined, after };
+    });
+    const id = window.__resumeVueAiChatContent.showProposal({ summary: proposal.summary, changes });
+    requestAnimationFrame(scrollAiChatToEnd);
+    return id;
+  }
   const changes = proposal.changes || [];
   const opText = { set: "改", add: "增", remove: "删", addModule: "加模块", removeModule: "删模块" };
   const changesHtml = changes.map((change, index) => {
@@ -5809,8 +6066,8 @@ function renderAiProposal(proposal) {
       <button type="button" class="ai-proposal__cancel" data-action="ai-cancel">全部拒绝</button>
       <button type="button" class="ai-proposal__apply" data-action="ai-apply">应用已接受项</button>
     </div>`;
-  elements.aiChatBody.appendChild(card);
-  elements.aiChatBody.scrollTop = elements.aiChatBody.scrollHeight;
+  aiChatContent().appendChild(card);
+  scrollAiChatToEnd();
   return card;
 }
 
@@ -5905,6 +6162,11 @@ function aiOptimizeDecisionRecord(round, acceptedChanges, rejectedChanges) {
 }
 
 function archiveAiProposal(round, acceptedCount, rejectedCount, status) {
+  if (window.__resumeVueAiChatContent?.completeProposal && Number.isInteger(round.card)) {
+    const label = status === "applied" ? `已应用 ${acceptedCount} 项 · 拒绝 ${rejectedCount} 项` : `已拒绝全部 ${rejectedCount} 项`;
+    window.__resumeVueAiChatContent.completeProposal(round.card, label, round.summary || "AI 修改提案", aiOptimizeHistory.length);
+    return;
+  }
   const card = round.card;
   if (!card?.isConnected) return;
   const label = status === "applied" ? `已应用 ${acceptedCount} 项 · 拒绝 ${rejectedCount} 项` : `已拒绝全部 ${rejectedCount} 项`;
@@ -5913,11 +6175,16 @@ function archiveAiProposal(round, acceptedCount, rejectedCount, status) {
 }
 
 function appendAiRoundFollowup(message) {
+  if (window.__resumeVueAiChatContent?.appendFollowup) {
+    window.__resumeVueAiChatContent.appendFollowup(message);
+    requestAnimationFrame(() => { scrollAiChatToEnd(); elements.aiChatInput.focus(); });
+    return;
+  }
   const node = document.createElement("div");
   node.className = "ai-round-followup";
   node.innerHTML = `<p>${escapeHtml(message)}</p><span>接下来可以：</span><div><button type="button" data-action="ai-followup" data-prompt="继续优化其他经历">继续优化其他经历</button><button type="button" data-action="ai-followup" data-prompt="检查简历中是否存在缺少事实依据或可能夸大的表达">检查事实风险</button><button type="button" data-action="ai-followup" data-prompt="继续精简表达并突出最重要的成果">继续精简表达</button></div>`;
-  elements.aiChatBody.appendChild(node);
-  elements.aiChatBody.scrollTop = elements.aiChatBody.scrollHeight;
+  aiChatContent().appendChild(node);
+  scrollAiChatToEnd();
   elements.aiChatInput.focus();
 }
 
@@ -6108,6 +6375,19 @@ function renderDrafts() {
   const emptyText = currentUser
     ? "还没有草稿，从模板库创建一份简历。"
     : "登录后即可在云端保存和查看草稿。";
+  if (window.__resumeVueDraftList?.setDrafts && window.__resumeVueRecentDraftList?.setDrafts) {
+    window.__resumeVueDraftList.setDrafts(availableDrafts);
+    window.__resumeVueRecentDraftList.setDrafts(availableDrafts);
+    const recent = availableDrafts.slice(0, 5);
+    document.querySelector("#draftCount").textContent = availableDrafts.length ? `${availableDrafts.length} 份草稿` : "";
+    document.querySelector("#homeDraftCount").textContent = recent.length ? `${availableDrafts.length} 份草稿` : "";
+    document.querySelector("#draftEmptyState").textContent = emptyText;
+    document.querySelector("#homeEmptyState").textContent = emptyText;
+    document.querySelector("#draftEmptyState").hidden = availableDrafts.length > 0;
+    document.querySelector("#homeEmptyState").hidden = recent.length > 0;
+    requestAnimationFrame(() => animateStaggeredContent(elements.draftPage));
+    return;
+  }
   elements.draftCount.textContent = availableDrafts.length ? `${availableDrafts.length} 份草稿` : "";
   elements.draftEmptyState.textContent = emptyText;
   elements.homeEmptyState.textContent = emptyText;
@@ -6252,6 +6532,7 @@ function decideAiOptimize(index, accepted, button) {
   const change = button.closest("[data-proposal-change]");
   change?.classList.toggle("is-rejected", !accepted);
   change?.querySelectorAll(".proposal-decision button").forEach((item) => item.classList.toggle("is-selected", item.dataset.accepted === String(accepted)));
+  if (window.__resumeVueAiChatContent?.updateProposal && Number.isInteger(aiOptimizePending.card)) window.__resumeVueAiChatContent.updateProposal(aiOptimizePending.card, aiOptimizePending.selection);
 }
 
 async function applyCurrentRoute({ replaceInvalid = false } = {}) {
@@ -6577,7 +6858,15 @@ function renderTemplateLibrary() {
     elements.templateFeatured.innerHTML = "";
   }
 
-  elements.templateList.innerHTML = ordered.map(renderTemplateCard).join("");
+  if (window.__resumeVueTemplateLibrary?.setTemplates) {
+    window.__resumeVueTemplateLibrary.setTemplates({
+      templates: ordered,
+      templateChangeMode,
+      selectedTemplate: resume.template
+    });
+  } else {
+    elements.templateList.innerHTML = ordered.map(renderTemplateCard).join("");
+  }
   requestAnimationFrame(() => animateStaggeredContent(elements.templateLibrary));
 }
 
@@ -7322,13 +7611,26 @@ document.addEventListener("click", (event) => {
   applyCurrentRoute();
 });
 
-elements.loginForm.addEventListener("submit", handleLoginSubmit);
+const LOGIN_ELEMENT_KEYS = [
+  "loginForm", "loginTitle", "loginIdentifier", "loginPassword", "loginPasswordConfirmField", "loginPasswordConfirm",
+  "loginRememberField", "loginRemember", "loginNameField", "loginName", "loginError", "loginSubmit",
+  "loginMethodSwitch", "loginPasswordHint", "captchaWrap", "loginTabLogin", "loginTabRegister",
+  "loginIdentifierLabel", "loginPasswordField", "loginCodeField", "loginCode", "sendCodeButton", "loginMethodSwitchRow"
+];
+
+function bindLoginControls() {
+  for (const key of LOGIN_ELEMENT_KEYS) elements[key] = document.querySelector(`#${key}`);
+  elements.loginForm.addEventListener("submit", handleLoginSubmit);
+  elements.loginMethodSwitch.addEventListener("click", toggleLoginMethod);
+  elements.loginTabLogin.addEventListener("click", () => setAuthTab("login"));
+  elements.loginTabRegister.addEventListener("click", () => setAuthTab("register"));
+  elements.sendCodeButton.addEventListener("click", handleSendCode);
+}
+
+window.__resumeVueLoginContentMounted = bindLoginControls;
+bindLoginControls();
 elements.settingsForm.addEventListener("submit", handleSettingsSubmit);
 elements.passwordForm.addEventListener("submit", handlePasswordSubmit);
-elements.loginMethodSwitch.addEventListener("click", toggleLoginMethod);
-elements.loginTabLogin.addEventListener("click", () => setAuthTab("login"));
-elements.loginTabRegister.addEventListener("click", () => setAuthTab("register"));
-elements.sendCodeButton.addEventListener("click", handleSendCode);
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".account-area")) closeAllAccountMenus();
   if (!event.target.closest(".module-add")) elements.addModuleMenu.hidden = true;
@@ -7554,4 +7856,5 @@ async function initialize() {
   await applyCurrentRoute({ replaceInvalid: true });
 }
 
+document.dispatchEvent(new Event("resume-legacy-ready"));
 initialize();
