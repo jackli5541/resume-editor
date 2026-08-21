@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { createInitialResume } from "../public/core.mjs";
 import {
   createResumeBackup,
+  createResumeBackupFromDraft,
   importResumeBackup,
   readResumeBackup,
   RESUME_BACKUP_FORMAT,
@@ -17,6 +18,25 @@ test("下载备份包含本站格式标识、版本和完整简历", () => {
   assert.equal(backup.version, RESUME_BACKUP_VERSION);
   assert.equal(backup.exportedAt, "2026-08-19T00:00:00.000Z");
   assert.equal(backup.resume.profile.name, resume.profile.name);
+});
+
+test("管理端草稿下载转换为可导入的统一备份格式", () => {
+  const data = createInitialResume();
+  data.profile.name = "管理端草稿";
+  const backup = createResumeBackupFromDraft({
+    id: "draft-id",
+    templateSlug: "resume-collection-cn-004",
+    templateVersion: 2,
+    revision: 5,
+    data,
+    editorSchema: { sections: [{ id: "summary", title: "个人总结", type: "richtext" }] }
+  }, new Date("2026-08-21T00:00:00.000Z"));
+
+  assert.equal(backup.format, RESUME_BACKUP_FORMAT);
+  assert.equal(backup.resume.profile.name, "管理端草稿");
+  assert.equal(backup.resume.template.slug, "resume-collection-cn-004");
+  assert.equal(backup.resume.template.version, 2);
+  assert.equal(readResumeBackup(backup).profile.name, "管理端草稿");
 });
 
 test("导入新版备份并兼容本站旧版裸简历 JSON", () => {

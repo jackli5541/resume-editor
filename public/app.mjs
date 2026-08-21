@@ -29,7 +29,7 @@ import { readApiResponse as parseApiResponse } from "./api-client.mjs";
 import { createAdminApi } from "./admin-api.mjs";
 import { createResumeApi } from "./resume-api.mjs";
 import { normalizeWordText } from "./word-import.mjs";
-import { createResumeBackup, importResumeBackup } from "./resume-backup.mjs";
+import { createResumeBackup, createResumeBackupFromDraft, importResumeBackup } from "./resume-backup.mjs";
 import { applyTheme, currentTheme, refreshThemeButtons, toggleTheme } from "./theme.mjs";
 import { createProposalSelection, selectedProposalChanges, setProposalDecision } from "./features/ai/proposal-selection.mjs";
 import { dragAutoScrollSpeed } from "./drag-auto-scroll.mjs";
@@ -2418,7 +2418,8 @@ async function adminDeleteDraft(target) {
 async function adminDownloadDraft(id) {
   try {
     const payload = await readApiResponse(await fetch(`/api/admin/resumes/${encodeURIComponent(id)}`, { cache: "no-store" }));
-    const blob = new Blob([JSON.stringify(payload.resume, null, 2)], { type: "application/json" });
+    const backup = createResumeBackupFromDraft(payload.resume);
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
