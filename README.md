@@ -85,7 +85,7 @@ start_dev.bat
 
 ## 🧰 技术栈
 
-- 前端：原生 ES Module（无框架依赖），HTML / CSS / JS
+- 前端：Vue 3 渐进式迁移 + 原生 ES Module，HTML / CSS / JS；现有页面与 DOM 协议保持兼容
 - 后端：Node.js（无框架）、PostgreSQL、Redis + BullMQ
 - 导出：Chromium / Playwright（PDF）、Python + LibreOffice（可编辑 DOCX）
 - AI：兼容 DeepSeek 等 OpenAI 风格模型服务（可选，需自行配置 Key）
@@ -97,6 +97,8 @@ start_dev.bat
 ```powershell
 npm install
 npm start           # 启动 Web 服务
+npm run dev:web     # 前端构建调试（Vite）
+npm run build:web   # 构建 Vue 3 前端模块到 public/assets/vue/
 npm test            # 运行测试
 npm run verify:export
 ```
@@ -107,6 +109,7 @@ npm run verify:export
 
 ```text
 resume-editor/
+├─ frontend/         Vue 3 渐进式前端模块与 Vite 构建配置
 ├─ public/           前端页面与渲染（原生模块）
 ├─ server/           Node 服务端：AI、认证、管理端、导出
 ├─ scripts/          模板入库、导出验证、运维脚本
@@ -122,6 +125,7 @@ resume-editor/
 - [安全设计](docs/security.md)
 - [AI 生成设计](docs/ai-generation-design.md)
 - [原生模板规范](docs/native-template-authoring.md)
+- [系统架构](docs/architecture.md)
 
 ## 🚀 生产部署（阿里云 ECS）
 
